@@ -46,6 +46,7 @@ import { getShellPath, getSystemEnv } from '../../lib/project';
 import { loadNerdFonts } from '../../lib/fonts';
 import { isWindows } from '../../lib/setup';
 import { logger } from '../../lib/logger';
+import { asCommandError, formatCommandError } from '../../lib/errors';
 import { getTerminalGpuEnabled } from '../../lib/settings';
 import type { AgentConfig } from '../../lib/agent';
 import '@xterm/xterm/css/xterm.css';
@@ -943,7 +944,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           );
           setTimeout(() => void setupPty(retryCount + 1), 1000);
         } else {
-          term.write(`\x1b[31m${agent.notFoundMessage}: ${String(err)}\x1b[0m\r\n`);
+          term.write(
+            `\x1b[31m${agent.notFoundMessage}: ${formatCommandError(asCommandError(err))}\x1b[0m\r\n`
+          );
           term.write(`\x1b[33m${agent.installHint}\x1b[0m\r\n`);
         }
       }
