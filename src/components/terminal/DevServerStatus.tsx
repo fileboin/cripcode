@@ -97,6 +97,14 @@ export function DevServerStatus({
     return stripAnsi(devServerOutput).split('\n').slice(-LOG_TAIL_LINES).join('\n').trim();
   }, [devServerOutput]);
 
+  // Last non-empty output line — echoed into the error card so the likely
+  // cause (compile error, EADDRINUSE, crash message) is visible without
+  // expanding the logs.
+  const lastLogLine = useMemo(() => {
+    const lines = logTail.split('\n').filter((l) => l.trim().length > 0);
+    return lines.length > 0 ? lines[lines.length - 1].trim() : null;
+  }, [logTail]);
+
   // Follow the tail as new lines arrive (unless the user scrolled up).
   useEffect(() => {
     const el = logBodyRef.current;
@@ -147,7 +155,9 @@ export function DevServerStatus({
 
       <p className="hint">
         {phase === 'error' && !isStaticProject
-          ? 'It never responded — check the logs below or hand it to the agent.'
+          ? lastLogLine
+            ? `It never responded — last output: “${lastLogLine}”. Check the full logs below or hand it to the agent.`
+            : 'It never responded and produced no output — check the logs below or hand it to the agent.'
           : phase === 'error' && isStaticProject
             ? 'Make sure the project contains an index.html file.'
             : `Waiting for localhost:${port}`}

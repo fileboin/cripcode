@@ -65,15 +65,28 @@ describe('DevServerStatus', () => {
     const output = `${esc}[32mready${esc}[0m\nError: listen EADDRINUSE 3001`;
     renderStatus({ phase: 'error', devServerOutput: output });
 
-    const body = screen.getByText(/EADDRINUSE 3001/);
-    expect(body).toBeInTheDocument();
-    expect(body.textContent).toContain('ready');
-    expect(body.textContent).not.toContain(esc);
-    expect(body.textContent).not.toContain('[32m');
+    // The last log line is echoed into the error hint too, so target the
+    // log body by class rather than by text.
+    const body = document.querySelector('.preview-status__logs-body');
+    expect(body).not.toBeNull();
+    expect(body!.textContent).toContain('EADDRINUSE 3001');
+    expect(body!.textContent).toContain('ready');
+    expect(body!.textContent).not.toContain(esc);
+    expect(body!.textContent).not.toContain('[32m');
 
     // Collapsing hides the body.
     fireEvent.click(screen.getByText(/Logs/));
-    expect(screen.queryByText(/EADDRINUSE 3001/)).not.toBeInTheDocument();
+    expect(document.querySelector('.preview-status__logs-body')).toBeNull();
+  });
+
+  it('echoes the last log line into the error hint', () => {
+    renderStatus({ phase: 'error', devServerOutput: 'compiling…\nError: boom\n' });
+    expect(screen.getByText(/last output: “Error: boom”/)).toBeInTheDocument();
+  });
+
+  it('says the server produced no output when the log is empty in the error state', () => {
+    renderStatus({ phase: 'error', devServerOutput: '' });
+    expect(screen.getByText(/produced no output/)).toBeInTheDocument();
   });
 
   it('does not render a logs section when there is no output', () => {

@@ -235,7 +235,11 @@ export function useBranchManagement({
           // Switch to the PR's head branch
           const switchResult = await switchBranch(currentProject.path, headBranch, true);
           if (!switchResult.success) {
-            showToast(switchResult.error || 'Failed to switch branch', 'error');
+            // Keep whatever detail git gave us; only explain when it gave none.
+            const detail =
+              switchResult.error ||
+              '(git reported failure with no detail — check for uncommitted changes)';
+            showToast(`Couldn't switch to "${headBranch}": ${detail}`, 'error');
             return;
           }
 

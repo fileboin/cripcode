@@ -268,7 +268,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           .catch((err) => {
             logger.error('[Terminal] Font loading failed, proceeding anyway', {
               agent: agent.id,
-              error: String(err),
+              error: formatCommandError(asCommandError(err)),
             });
             if (!cancelled) setIsReady(true);
           });
@@ -1021,7 +1021,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             if (selection) {
               navigator.clipboard.writeText(selection).catch((err: unknown) => {
                 logger.warn('[Terminal] Failed to copy selection to clipboard', {
-                  error: String(err),
+                  error: formatCommandError(asCommandError(err)),
                 });
               });
               term.clearSelection();
@@ -1071,7 +1071,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
                 }
               } catch (err) {
                 logger.warn('[Terminal] Native clipboard paste failed', {
-                  error: String(err),
+                  error: formatCommandError(asCommandError(err)),
                 });
                 // Best-effort fallback to the browser clipboard (may be slow
                 // on WebView2, but better than dropping the paste entirely).
@@ -1094,7 +1094,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         logger.error('[Terminal] Failed to spawn PTY', {
           agent: agent.id,
           binary: agent.binaryName,
-          error: String(err),
+          error: formatCommandError(asCommandError(err)),
           retry: retryCount,
         });
 

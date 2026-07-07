@@ -35,6 +35,7 @@ import { useOptionalToast } from '../../contexts/ToastContext';
 import { DevServerLogs } from '../terminal/DevServerLogs';
 import { DevServerStatus } from '../terminal/DevServerStatus';
 import { stripAnsi } from '../../lib/ansi';
+import { asCommandError, formatCommandError } from '../../lib/errors';
 import { trackEvent } from '../../lib/analytics';
 import { BrowserTools } from './BrowserTools';
 import { HealthTabPanel, type HealthTabPanelRef } from '../code/HealthTabPanel';
@@ -642,8 +643,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         setCssScope(scope);
         if (!cssEditorOn) cssToggleEditMode();
       } catch (err) {
-        onToast('Could not open the CSS editor', 'error');
-        logger.error('[Preview] openCssEditor failed', { error: String(err) });
+        const detail = formatCommandError(asCommandError(err));
+        onToast(`Could not open the CSS editor: ${detail}`, 'error');
+        logger.error('[Preview] openCssEditor failed', { error: detail });
       }
     },
     [cssEditorOn, cssToggleEditMode, onToast]
@@ -663,8 +665,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
                   if (cssEditorOn) cssToggleEditMode();
                   else openCssEditor('element');
                 } catch (err) {
-                  onToast('Could not toggle the CSS editor', 'error');
-                  logger.error('[Preview] toggle CSS editor failed', { error: String(err) });
+                  const detail = formatCommandError(asCommandError(err));
+                  onToast(`Could not toggle the CSS editor: ${detail}`, 'error');
+                  logger.error('[Preview] toggle CSS editor failed', { error: detail });
                 }
               },
             },

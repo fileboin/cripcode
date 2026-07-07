@@ -68,8 +68,9 @@ import {
 } from './components/CommandPalette/paletteContext';
 import { useAppCommands } from './commands/useAppCommands';
 import { useProjectNumberShortcuts } from './hooks/useProjectNumberShortcuts';
-import { SuccessIcon, InfoIcon, CloseIcon } from './components/icons';
+import { ToastList } from './components/primitives/ToastList';
 import { logger } from './lib/logger';
+import { asCommandError, formatCommandError } from './lib/errors';
 import { trackEvent, setActiveProject, trackPageview } from './lib/analytics';
 import { endProjectSession } from './lib/session';
 import { installAppLifecycleTracking, quitAppWithTracking } from './lib/appLifecycle';
@@ -467,8 +468,11 @@ function AppContents({ initialProjectPath }: AppProps) {
         // when its save handler returns successfully.
         await restartDevServer(currentProject.path, newPort);
         showToast('Port updated and server restarted', 'success');
-      } catch {
-        showToast('Failed to save port setting', 'error');
+      } catch (err) {
+        showToast(
+          `Couldn't set dev server to port ${newPort}: ${formatCommandError(asCommandError(err))}`,
+          'error'
+        );
       }
     },
     [currentProject, restartDevServer, showToast, setDevServerPort]
@@ -526,14 +530,16 @@ function AppContents({ initialProjectPath }: AppProps) {
         try {
           await stopServer(projectPath);
         } catch (err) {
-          logger.warn('[CloseProject] stopServer threw', { error: String(err) });
+          logger.warn('[CloseProject] stopServer threw', {
+            error: formatCommandError(asCommandError(err)),
+          });
         }
         closeAllTerminalsForProject(projectPath);
         try {
           await unregisterProjectSession(projectPath);
         } catch (err) {
           logger.warn('[CloseProject] unregisterProjectSession failed', {
-            error: String(err),
+            error: formatCommandError(asCommandError(err)),
           });
         }
         sessionRegistry.destroy(projectPath);
@@ -580,7 +586,7 @@ function AppContents({ initialProjectPath }: AppProps) {
             });
           } catch (err) {
             logger.warn('[SelectProjectTab] Failed to persist active tab', {
-              error: String(err),
+              error: formatCommandError(asCommandError(err)),
             });
           }
         }
@@ -1090,21 +1096,7 @@ function AppContents({ initialProjectPath }: AppProps) {
         <div className="app">
           <AccountSelectScreen onContinue={() => setView('projects')} />
         </div>
-        {toasts.length > 0 && (
-          <div className="toast-container">
-            {toasts.map((t) => (
-              <div key={t.id} className={`toast toast-${t.type}`}>
-                <span className="toast-icon">
-                  {t.type === 'success' ? <SuccessIcon size={16} /> : <InfoIcon size={16} />}
-                </span>
-                <span className="toast-message">{t.message}</span>
-                <button className="toast-close" onClick={() => dismissToast(t.id)}>
-                  <CloseIcon size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ToastList toasts={toasts} onDismiss={dismissToast} />
         {quitConfirmModal}
       </>
     );
@@ -1184,21 +1176,7 @@ function AppContents({ initialProjectPath }: AppProps) {
             onCancel={() => void handleCancelMonorepoPick()}
           />
         )}
-        {toasts.length > 0 && (
-          <div className="toast-container">
-            {toasts.map((t) => (
-              <div key={t.id} className={`toast toast-${t.type}`}>
-                <span className="toast-icon">
-                  {t.type === 'success' ? <SuccessIcon size={16} /> : <InfoIcon size={16} />}
-                </span>
-                <span className="toast-message">{t.message}</span>
-                <button className="toast-close" onClick={() => dismissToast(t.id)}>
-                  <CloseIcon size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ToastList toasts={toasts} onDismiss={dismissToast} />
         {quitConfirmModal}
       </>
     );

@@ -356,6 +356,48 @@ describe('useBranchManagement', () => {
       expect(result.current.gitError).toBeNull();
     });
 
+    it('toasts the branch name and git detail when the switch fails', async () => {
+      vi.mocked(branches.switchBranch).mockResolvedValue({
+        success: false,
+        stashedChanges: false,
+        pendingStashFrom: null,
+        stashApplied: false,
+        error: 'your local changes would be overwritten',
+      });
+      const params = createParams();
+      const { result } = renderHook(() => useBranchManagement(params));
+
+      await act(async () => {
+        await result.current.handleResolveConflicts('feature/x', 'main');
+      });
+
+      expect(params.showToast).toHaveBeenCalledWith(
+        'Couldn\'t switch to "feature/x": your local changes would be overwritten',
+        'error'
+      );
+    });
+
+    it('explains when git reported a switch failure with no detail', async () => {
+      vi.mocked(branches.switchBranch).mockResolvedValue({
+        success: false,
+        stashedChanges: false,
+        pendingStashFrom: null,
+        stashApplied: false,
+        error: null,
+      });
+      const params = createParams();
+      const { result } = renderHook(() => useBranchManagement(params));
+
+      await act(async () => {
+        await result.current.handleResolveConflicts('feature/x', 'main');
+      });
+
+      expect(params.showToast).toHaveBeenCalledWith(
+        'Couldn\'t switch to "feature/x": (git reported failure with no detail — check for uncommitted changes)',
+        'error'
+      );
+    });
+
     it('handleConflictsResolved closes modal and refreshes', () => {
       const params = createParams();
       const { result } = renderHook(() => useBranchManagement(params));

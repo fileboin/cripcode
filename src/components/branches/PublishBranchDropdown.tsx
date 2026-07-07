@@ -144,9 +144,12 @@ export function PublishBranchDropdown({
     try {
       const result = await publishBranch(projectPath);
 
-      // Check for specific error types
+      // Check for specific error types — carry the deployment state (and URL,
+      // when Vercel returned one) instead of a canned "failed" string.
       if (result.state === 'ERROR') {
-        throw new Error('Failed to publish branch');
+        throw new Error(
+          `Deployment reported state "${result.state}"${result.url ? ` — ${result.url}` : ''}`
+        );
       }
 
       logger.info('Publish succeeded', { branch: currentBranch });
@@ -179,7 +182,7 @@ export function PublishBranchDropdown({
       logger.error('Publish failed', { branch: currentBranch, errorType, message });
       trackError('git_push', e, 'Workspace');
       setPublishState({ status: 'error', message, errorType });
-      onToast?.(isMainBranch ? 'Publish failed' : 'Sync failed', 'error');
+      onToast?.(`${isMainBranch ? 'Publish' : 'Sync'} failed: ${message}`, 'error');
 
       // Notify parent about the error for GitErrorHandler
       if (onPublishError) {

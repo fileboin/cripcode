@@ -90,7 +90,10 @@ export function ImportProject({ onComplete, onCancel }: ImportProjectProps) {
       setSelectedOwner(user);
     } catch (err) {
       trackError('github_accounts_load', err, 'Dashboard');
-      setError('Failed to load GitHub accounts. Please check your authentication.');
+      setError(
+        `Couldn't load your GitHub accounts: ${formatCommandError(asCommandError(err))}. ` +
+          'Try signing out and back into GitHub.'
+      );
     } finally {
       setLoadingAccounts(false);
     }
