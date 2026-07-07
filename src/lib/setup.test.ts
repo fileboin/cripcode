@@ -4,11 +4,13 @@
  * These are synchronous, no IPC, no rendering — just data-in / data-out.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getSetupDependencies,
   areDependenciesReady,
   getBlockingDependencies,
+  isSetupItemReady,
+  recheckWithDelays,
   getReadyAgentPairs,
   isAtLeastOneAgentReady,
   mergePluginSetupItems,
@@ -68,9 +70,27 @@ describe('getSetupDependencies', () => {
     expect(deps.claude_auth).toEqual(['claude']);
   });
 
-  it('codex has no dependencies (uses npm global install)', () => {
+  it('codex depends on node (npm global install fails without it)', () => {
     const deps = getSetupDependencies();
-    expect(deps.codex).toEqual([]);
+    expect(deps.codex).toEqual(['node']);
+  });
+
+  it('vercel depends on node (npm global install fails without it)', () => {
+    const deps = getSetupDependencies();
+    expect(deps.vercel).toEqual(['node']);
+  });
+
+  it('opencode has no node dependency on macOS (uses its own curl installer)', () => {
+    // Test env is non-Windows; the Windows install path is npm-based and
+    // does depend on node there.
+    const deps = getSetupDependencies();
+    expect(deps.opencode).toEqual([]);
+  });
+
+  it('claude and cursor have no node dependency (native installers)', () => {
+    const deps = getSetupDependencies();
+    expect(deps.claude).toEqual([]);
+    expect(deps.cursor).toEqual([]);
   });
 
   it('npm_fix depends on node', () => {
@@ -83,11 +103,6 @@ describe('getSetupDependencies', () => {
     expect(deps.gh_auth).toEqual(['gh']);
   });
 
-  it('vercel has no dependencies (uses npm global install)', () => {
-    const deps = getSetupDependencies();
-    expect(deps.vercel).toEqual([]);
-  });
-
   it('vercel_auth depends on vercel', () => {
     const deps = getSetupDependencies();
     expect(deps.vercel_auth).toEqual(['vercel']);
@@ -98,12 +113,12 @@ describe('getSetupDependencies', () => {
 
 describe('SETUP_DEPENDENCIES', () => {
   it('has codex entries with correct deps', () => {
-    expect(SETUP_DEPENDENCIES.codex).toEqual([]);
+    expect(SETUP_DEPENDENCIES.codex).toEqual(['node']);
     expect(SETUP_DEPENDENCIES.codex_auth).toEqual(['codex']);
   });
 
   it('has vercel entries with correct deps', () => {
-    expect(SETUP_DEPENDENCIES.vercel).toEqual([]);
+    expect(SETUP_DEPENDENCIES.vercel).toEqual(['node']);
     expect(SETUP_DEPENDENCIES.vercel_auth).toEqual(['vercel']);
   });
 });
@@ -166,6 +181,100 @@ describe('getBlockingDependencies', () => {
   it('returns blocking dep for codex_auth when codex is missing', () => {
     const blockers = getBlockingDependencies('codex_auth', FRESH_INSTALL_ITEMS);
     expect(blockers).toEqual(['Codex']);
+  });
+});
+
+// ============ npm-based installs gated on Node (audit #12) ============
+
+describe('npm-based install dependency gating', () => {
+  it('codex is blocked with a Node.js hint when node is missing', () => {
+    expect(areDependenciesReady('codex', FRESH_INSTALL_ITEMS)).toBe(false);
+    expect(getBlockingDependencies('codex', FRESH_INSTALL_ITEMS)).toEqual(['Node.js']);
+  });
+
+  it('vercel is blocked with a Node.js hint when node is missing', () => {
+    expect(areDependenciesReady('vercel', FRESH_INSTALL_ITEMS)).toBe(false);
+    expect(getBlockingDependencies('vercel', FRESH_INSTALL_ITEMS)).toEqual(['Node.js']);
+  });
+
+  it('codex and vercel become installable once node is ready', () => {
+    expect(areDependenciesReady('codex', BASE_READY_NO_AGENTS)).toBe(true);
+    expect(areDependenciesReady('vercel', BASE_READY_NO_AGENTS)).toBe(true);
+  });
+
+  it('claude stays installable without node (native installer)', () => {
+    expect(areDependenciesReady('claude', FRESH_INSTALL_ITEMS)).toBe(true);
+  });
+});
+
+// ============ isSetupItemReady ============
+
+describe('isSetupItemReady', () => {
+  it('returns true for a ready item', () => {
+    expect(isSetupItemReady(ALL_READY_CLAUDE_ONLY, 'claude')).toBe(true);
+  });
+
+  it('returns false for a not-ready item', () => {
+    expect(isSetupItemReady(FRESH_INSTALL_ITEMS, 'homebrew')).toBe(false);
+    expect(isSetupItemReady(FRESH_INSTALL_ITEMS, 'claude_auth')).toBe(false);
+  });
+
+  it('treats an absent item as ready (backend drops no-longer-applicable items like npm_fix)', () => {
+    expect(isSetupItemReady(FRESH_INSTALL_ITEMS, 'npm_fix')).toBe(true);
+  });
+});
+
+// ============ recheckWithDelays ============
+
+describe('recheckWithDelays', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resolves true immediately when the first check passes (no timers needed)', async () => {
+    const check = vi.fn().mockResolvedValue(true);
+    await expect(recheckWithDelays(check)).resolves.toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-checks on the staggered schedule and resolves true as soon as one passes', async () => {
+    const check = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true);
+    const promise = recheckWithDelays(check);
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(check).toHaveBeenCalledTimes(2);
+
+    // Delays are offsets from the first check: the third check lands at 1500ms
+    await vi.advanceTimersByTimeAsync(900);
+    await expect(promise).resolves.toBe(true);
+    expect(check).toHaveBeenCalledTimes(3);
+  });
+
+  it('resolves false after exhausting all delays', async () => {
+    const check = vi.fn().mockResolvedValue(false);
+    const promise = recheckWithDelays(check);
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(promise).resolves.toBe(false);
+    // Immediate check + one per delay (600/1500/3000)
+    expect(check).toHaveBeenCalledTimes(4);
+  });
+
+  it('honors custom delays', async () => {
+    const check = vi.fn().mockResolvedValue(false);
+    const promise = recheckWithDelays(check, [10, 20]);
+
+    await vi.advanceTimersByTimeAsync(20);
+    await expect(promise).resolves.toBe(false);
+    expect(check).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -345,6 +454,23 @@ describe('TERMINAL_COMMANDS', () => {
     expect(TERMINAL_COMMANDS.vercel_auth).toBeDefined();
     expect(TERMINAL_COMMANDS.vercel_auth.command).toBe('vercel');
     expect(TERMINAL_COMMANDS.vercel_auth.args).toEqual(['login']);
+  });
+
+  it('npm-based installs use --force to clear EEXIST from partial installs (audit #6)', () => {
+    // Test env is macOS/Linux; Windows equivalents already carry --force.
+    expect(TERMINAL_COMMANDS.codex.args.join(' ')).toContain('--force');
+    expect(TERMINAL_COMMANDS.vercel.args.join(' ')).toContain('--force');
+  });
+
+  it('homebrew install fails loudly when the installer download fails (audit #3)', () => {
+    // A bare `bash -c "$(curl …)"` exits 0 when curl fails offline (empty
+    // substitution) — the command must catch both the curl failure and an
+    // empty script, and still exec the captured script on success.
+    const script = TERMINAL_COMMANDS.homebrew.args.join('\n');
+    expect(script).toContain('Download failed');
+    expect(script).toContain('exit 1');
+    expect(script).toContain('[ -n "$script" ]');
+    expect(script).toContain('exec /bin/bash -c "$script"');
   });
 });
 

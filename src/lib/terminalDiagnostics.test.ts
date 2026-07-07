@@ -3,6 +3,7 @@ import {
   createPtyChunkDecoder,
   detectAlreadyLoggedIn,
   extractTerminalError,
+  isNetworkError,
   isNodeMissingError,
   toPtyBytes,
 } from './terminalDiagnostics';
@@ -143,6 +144,44 @@ describe('isNodeMissingError', () => {
     expect(isNodeMissingError('npm ERR! code EACCES')).toBe(false);
     expect(isNodeMissingError("gh: command 'foo' not found")).toBe(false);
     expect(isNodeMissingError('')).toBe(false);
+  });
+});
+
+describe('isNetworkError', () => {
+  it('detects Node/libuv error codes', () => {
+    expect(isNetworkError('Error: getaddrinfo ENOTFOUND registry.npmjs.org')).toBe(true);
+    expect(isNetworkError('FetchError: request failed, reason: connect ETIMEDOUT')).toBe(true);
+    expect(isNetworkError('read ECONNRESET')).toBe(true);
+    expect(isNetworkError('connect ECONNREFUSED 104.16.0.35:443')).toBe(true);
+    expect(isNetworkError('getaddrinfo EAI_AGAIN claude.ai')).toBe(true);
+  });
+
+  it('detects curl network failures', () => {
+    expect(isNetworkError('curl: (6) Could not resolve host: raw.githubusercontent.com')).toBe(
+      true
+    );
+    expect(isNetworkError('curl: (7) Failed to connect to claude.ai port 443')).toBe(true);
+  });
+
+  it('detects the POSIX unreachable-network message', () => {
+    expect(isNetworkError('connect: network is unreachable')).toBe(true);
+  });
+
+  it('detects the npm network error class', () => {
+    expect(
+      isNetworkError('npm ERR! network This is a problem related to network connectivity.')
+    ).toBe(true);
+  });
+
+  it('sees through ANSI-colored output', () => {
+    expect(isNetworkError('\x1b[31mcurl: (6) Could not resolve host: claude.ai\x1b[0m')).toBe(true);
+  });
+
+  it('does not fire on non-network failures', () => {
+    expect(isNetworkError('npm ERR! code EEXIST')).toBe(false);
+    expect(isNetworkError('Error: EACCES: permission denied')).toBe(false);
+    expect(isNetworkError('sudo: a password is required')).toBe(false);
+    expect(isNetworkError('')).toBe(false);
   });
 });
 

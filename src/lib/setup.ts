@@ -182,15 +182,16 @@ export function getSetupDependencies(): Record<string, string[]> {
     git: ['homebrew'],
     gh: ['homebrew'],
     gh_auth: ['gh'],
-    claude: [], // Uses its own installer
+    claude: [], // Uses its own installer (native, not npm)
     claude_auth: ['claude'],
-    codex: [], // Uses npm global install
+    codex: ['node'], // npm global install — fails with a misleading error without Node
     codex_auth: ['codex'],
-    opencode: [], // Uses its own installer
+    // npm-based on Windows; macOS/Linux uses its own curl installer
+    opencode: isWindows() ? ['node'] : [],
     opencode_auth: ['opencode'],
-    cursor: [], // Uses its own installer
+    cursor: [], // Uses its own installer (native, not npm)
     cursor_auth: ['cursor'],
-    vercel: [], // Uses npm global install
+    vercel: ['node'], // npm global install — fails with a misleading error without Node
     vercel_auth: ['vercel'],
   };
 }
@@ -321,6 +322,43 @@ export function getReadyAgentPairs(items: SetupItem[]): (typeof AGENT_ITEM_PAIRS
  */
 export function isAtLeastOneAgentReady(items: SetupItem[]): boolean {
   return getReadyAgentPairs(items).length > 0;
+}
+
+/**
+ * Check whether an item shows as ready in a (freshly fetched) item list.
+ *
+ * An item *absent* from the list counts as ready: the backend drops items
+ * that are no longer applicable (e.g. `npm_fix` disappears from
+ * `get_full_setup_status` once the permissions are actually fixed), and
+ * treating that as "not ready" would flag a successful fix as a failure.
+ */
+export function isSetupItemReady(items: SetupItem[], itemId: string): boolean {
+  const item = items.find((i) => i.id === itemId);
+  return item === undefined || item.status === 'ready';
+}
+
+/**
+ * Run a boolean check immediately and then re-check on a staggered schedule
+ * before giving up. Auth/token files (and freshly installed binaries) can
+ * land a beat *after* the child process exits, so a single immediate check
+ * produces false "not completed" failures — the dashboard AgentsPanel
+ * re-checks at 600/1500/3000ms after terminal exit for exactly this reason.
+ *
+ * `delays` are offsets in ms from the first (immediate) check, matching the
+ * AgentsPanel schedule. Resolves `true` as soon as any check passes.
+ */
+export async function recheckWithDelays(
+  check: () => Promise<boolean>,
+  delays: number[] = [600, 1500, 3000]
+): Promise<boolean> {
+  if (await check()) return true;
+  let waited = 0;
+  for (const target of delays) {
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, target - waited)));
+    waited = target;
+    if (await check()) return true;
+  }
+  return false;
 }
 
 /**
@@ -624,11 +662,14 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
     // Windows commands (using PowerShell where needed)
     return {
       homebrew: {
-        // Not applicable on Windows, but keep for compatibility
+        // Not applicable on Windows, but keep for compatibility. This is an
+        // informational echo that exits 0 on purpose — the wizard's
+        // post-success verification re-checks the item and surfaces an error
+        // state if winget still isn't detected afterwards.
         command: 'powershell',
         args: [
           '-Command',
-          'Write-Host "Winget should be pre-installed on Windows 10 21H2+. Please install from Microsoft Store if missing."',
+          'Write-Host "Winget was not detected. Install \'App Installer\' from the Microsoft Store, then click Install again."',
         ],
       },
       npm_fix: {
@@ -715,9 +756,16 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
             '  echo "Then restart Ship Studio and try again."',
             '  exit 1',
             'fi',
-            // Use command substitution instead of pipe so stdin stays connected to the
-            // terminal, allowing the Homebrew installer to interactively prompt for sudo
-            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+            // Capture the installer script first so a failed download fails
+            // *loudly*: with a bare `bash -c "$(curl …)"`, an offline curl
+            // yields an empty substitution and bash exits 0 — a silent
+            // dead-end where nothing installed but nothing errored either.
+            // Use command substitution instead of a pipe so stdin stays
+            // connected to the terminal, allowing the Homebrew installer to
+            // interactively prompt for sudo.
+            'script="$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || { echo "Download failed — check your internet connection and try again."; exit 1; }',
+            '[ -n "$script" ] || { echo "Download failed — empty installer. Check your internet connection and try again."; exit 1; }',
+            'exec /bin/bash -c "$script"',
           ].join('\n'),
         ],
       },
@@ -741,8 +789,10 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: [],
       },
       codex: {
+        // --force clears EEXIST failures from stale/partial global installs,
+        // which npm otherwise reports opaquely (issue #164).
         command: '/bin/bash',
-        args: ['-c', 'npm install -g @openai/codex'],
+        args: ['-c', 'npm install -g @openai/codex --force'],
       },
       codex_auth: {
         command: 'codex',
@@ -765,8 +815,9 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: ['login'],
       },
       vercel: {
+        // --force clears EEXIST failures from stale/partial global installs.
         command: '/bin/bash',
-        args: ['-c', 'npm install -g vercel'],
+        args: ['-c', 'npm install -g vercel --force'],
       },
       vercel_auth: {
         command: 'vercel',

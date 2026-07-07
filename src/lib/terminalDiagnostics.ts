@@ -112,6 +112,25 @@ export function isNodeMissingError(tail: string): boolean {
 }
 
 /**
+ * Common signatures of a network problem in CLI output: Node/libuv error
+ * codes (ENOTFOUND, ETIMEDOUT, ECONNRESET, ECONNREFUSED, EAI_AGAIN,
+ * getaddrinfo), curl phrasing ("Could not resolve host", "Failed to
+ * connect"), the POSIX "network is unreachable", and npm's network error
+ * class ("npm ERR! network").
+ */
+const NETWORK_ERROR_PATTERN =
+  /ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|getaddrinfo|could not resolve host|failed to connect|network is unreachable|npm ERR!\s+network/i;
+
+/**
+ * True when the output tail looks like a network failure (offline, DNS,
+ * refused/reset connections). Callers use this to show "check your internet
+ * connection" guidance instead of a raw error line the user can't act on.
+ */
+export function isNetworkError(tail: string): boolean {
+  return NETWORK_ERROR_PATTERN.test(stripAnsi(tail));
+}
+
+/**
  * Identity-capturing shapes of "the CLI believes it's signed in":
  * - "Logged in as julian@example.com" (claude / codex)
  * - "✓ Logged in to github.com account juliangalluzzo (keyring)" and
