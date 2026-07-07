@@ -66,6 +66,7 @@ import { kbd } from '../../lib/shortcuts';
 import { useCommands } from '../../commands/useCommands';
 import { logger } from '../../lib/logger';
 import type { ProjectType } from '../../lib/static-server';
+import { isEditorFramework, resolveEditorMode } from '../../lib/editorGate';
 
 // SVG icons for breakpoints
 const BreakpointIcon = ({ type }: { type: Breakpoint }) => {
@@ -497,11 +498,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
       cancelled = true;
     };
   }, [projectType, projectPath]);
-  const editorFramework =
-    projectType === 'nextjs' ||
-    projectType === 'astro' ||
-    projectType === 'shopifytheme' ||
-    (projectType === 'vite' && viteUsesReact);
+  const editorFramework = isEditorFramework({ projectType, viteUsesReact });
   useEffect(() => {
     if (!projectPath || !editorFramework) {
       setTailwindActive(false);
@@ -519,8 +516,11 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   // Visual editor supports className/class string resolution for React (Next.js
   // and Vite), Astro, and Shopify Liquid templates — all resolve the same way in
   // the Rust backend. The Tailwind gate keeps plain-CSS themes from showing an
-  // edit button whose class writes would never compile.
-  const editorEnabled = conn.serverReady && editorFramework && tailwindActive;
+  // edit button whose class writes would never compile. Which editor a project
+  // qualifies for (Tailwind vs code-first CSS) is decided by the pure gate in
+  // `lib/editorGate.ts` — the two are mutually exclusive.
+  const qualifiedEditorMode = resolveEditorMode({ projectType, tailwindActive, viteUsesReact });
+  const editorEnabled = conn.serverReady && qualifiedEditorMode === 'tailwind';
 
   // Locale config reported by the locale switcher (null when the project has
   // fewer than 2 configured languages). Used to keep page selection inside
@@ -576,18 +576,20 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     onToast,
   });
 
-  // Code-first CSS editor — a SEPARATE feature for vanilla-CSS projects (Astro
-  // without Tailwind, or plain HTML/CSS). Mutually exclusive with the Tailwind
-  // editor above: Astro+Tailwind → `editor`; vanilla CSS → `cssEditor`. Same
-  // toggle and selection experience; it surfaces the clicked element's full
-  // cascade and edits the real `.css` source (not utility classes).
-  const cssEditorEnabled =
-    conn.serverReady &&
-    ((projectType === 'astro' && !tailwindActive) || projectType === 'statichtml');
+  // Code-first CSS editor — a SEPARATE feature for vanilla-CSS projects (Astro or
+  // Next.js without Tailwind, or plain HTML/CSS). Mutually exclusive with the
+  // Tailwind editor above: framework+Tailwind → `editor`; vanilla CSS →
+  // `cssEditor`. Same toggle and selection experience; it surfaces the clicked
+  // element's full cascade and edits the real `.css` source (not utility classes).
+  // For Next.js this covers global stylesheets (e.g. app/globals.css); CSS-Module
+  // rules can't be mapped back (hashed class names) and render read-only with an
+  // explanation.
+  const cssEditorEnabled = conn.serverReady && qualifiedEditorMode === 'css';
   const cssEditor = useCssCascadeEditor({
     iframeRef,
     projectPath,
     enabled: cssEditorEnabled,
+    cssModulesHint: projectType === 'nextjs',
     onToast,
   });
   // Settings tab (element tag/classes/attributes) — shares the cascade selection.
