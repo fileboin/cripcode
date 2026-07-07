@@ -26,6 +26,12 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.13.3', // v0.13.3
+    items: [
+      'Fixed frozen setup and connect terminals — a v0.13.2 regression froze onboarding, install, and connect terminals after their first moments of output (GitHub/Vercel/agent connections stuck at "Starting…", installs freezing mid-way). They stream correctly again',
+    ],
+  },
+  {
     version: '0.13.2', // v0.13.2
     items: [
       'Terminals no longer get stuck at "Starting…" — fixed the startup race that made agents look dead (Windows especially), and onboarding terminals now auto-retry and show a real error instead of hanging',

@@ -6,6 +6,10 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.13.3
+
+- **Fixed frozen setup and connect terminals** - A v0.13.2 regression froze onboarding, install, and connect terminals after their first moments of output — GitHub/Vercel/agent connections stuck at "Starting…" and installs freezing mid-way (like at the password prompt). They now stream output correctly again. If you got stuck setting up on v0.13.2, update and try again.
+
 ## What's New in v0.13.2
 
 - **Terminals no longer get stuck at "Starting…"** - Fixed the root cause: the terminal's first output could be lost in a startup race, making agents look dead (Windows especially, occasionally macOS). Onboarding terminals also auto-retry a wedged start and show a real error instead of hanging forever. Thanks to Sam Cotterill for the community fix.
