@@ -168,7 +168,7 @@ export function usePreviewCapture({
 
     setIsCapturing(true);
     try {
-      const captureUrl = `${baseUrl}${currentPage === '/' ? '' : currentPage}?_cb=${Date.now()}&shipstudio=1`;
+      const captureUrl = `${baseUrl}${currentPage === '/' ? '' : currentPage}`;
       const filePath = await invoke<string>('capture_fullpage_playwright', {
         projectPath,
         url: captureUrl,
