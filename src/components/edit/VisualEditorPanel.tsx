@@ -267,8 +267,8 @@ interface Props {
   autoSave: boolean;
   /** Toggle auto-save on/off. */
   onToggleAutoSave: () => void;
-  /** Step the gap utility one notch up (1) or down (-1). */
-  onStepGap: (dir: 1 | -1) => void;
+  /** Step the gap utility up (1) or down (-1), by `step` notches (default 1). */
+  onStepGap: (dir: 1 | -1, step?: number) => void;
   /** Set one side of padding/margin to a scale step or arbitrary value. */
   onSetSide: (type: BoxType, side: Side, value: SpacingValue) => void;
   /** Apply an enum option's token + inline-style preview. */

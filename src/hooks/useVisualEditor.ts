@@ -476,16 +476,16 @@ export function useVisualEditor({
     [postMutate, setLiveClass, activeBreakpoint, known]
   );
 
-  /** Step a spacing utility (padding/margin/gap) by one unit at the active
-   *  breakpoint, computed from that layer's current value (so stepping `md:` reads
-   *  the md value, not base). Steps the scale integer, or a numeric arbitrary
+  /** Step a spacing utility (padding/margin/gap) by `step` units (default 1) at the
+   *  active breakpoint, computed from that layer's current value (so stepping `md:`
+   *  reads the md value, not base). Steps the scale integer, or a numeric arbitrary
    *  value's magnitude (keeping its unit). Drives a breakpoint-scoped preview rule. */
   const stepSpacing = useCallback(
-    (kind: SpacingKind, dir: 1 | -1) => {
+    (kind: SpacingKind, dir: 1 | -1, step = 1) => {
       const ctrl = SPACING_CONTROLS.find((c) => c.kind === kind);
       if (!ctrl) return;
       const scoped = tokensForVariant(currentClassRef.current, activeBreakpoint.prefix, known);
-      const next = stepSpacingValue(spacingValue(scoped, ctrl.prefix), dir);
+      const next = stepSpacingValue(spacingValue(scoped, ctrl.prefix), dir * step);
       applyToken(spacingTokenFor(ctrl.prefix, next), { [ctrl.css]: spacingCss(next) });
     },
     [applyToken, activeBreakpoint, known]

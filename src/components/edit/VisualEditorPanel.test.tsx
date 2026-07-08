@@ -476,6 +476,141 @@ describe('VisualEditorPanel', () => {
     vi.unstubAllGlobals();
   });
 
+  // ── Arrow-key stepping (ArrowUp/Down; Shift ×10, Alt fine) ──
+
+  it('steps a padding side with ArrowUp/ArrowDown (Shift ×10)', () => {
+    const onSetSide = vi.fn();
+    renderPanel(
+      resolvedSelection,
+      'p-3',
+      BASE_BREAKPOINT,
+      vi.fn(),
+      false,
+      false,
+      vi.fn(),
+      vi.fn(),
+      onSetSide
+    );
+    const pt = screen.getByLabelText('Padding top');
+    fireEvent.keyDown(pt, { key: 'ArrowUp' });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', { kind: 'scale', n: 4 });
+    fireEvent.keyDown(pt, { key: 'ArrowDown' });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', { kind: 'scale', n: 2 });
+    fireEvent.keyDown(pt, { key: 'ArrowUp', shiftKey: true });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', { kind: 'scale', n: 13 });
+  });
+
+  it('clamps arrow-key stepping at zero for the spacing scale', () => {
+    const onSetSide = vi.fn();
+    renderPanel(
+      resolvedSelection,
+      'p-0',
+      BASE_BREAKPOINT,
+      vi.fn(),
+      false,
+      false,
+      vi.fn(),
+      vi.fn(),
+      onSetSide
+    );
+    fireEvent.keyDown(screen.getByLabelText('Padding top'), { key: 'ArrowDown' });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', { kind: 'scale', n: 0 });
+  });
+
+  it('steps an arbitrary spacing value preserving its unit (Alt = fine step)', () => {
+    const onSetSide = vi.fn();
+    renderPanel(
+      resolvedSelection,
+      'pt-[10rem]',
+      BASE_BREAKPOINT,
+      vi.fn(),
+      false,
+      false,
+      vi.fn(),
+      vi.fn(),
+      onSetSide
+    );
+    const pt = screen.getByLabelText('Padding top');
+    fireEvent.keyDown(pt, { key: 'ArrowUp' });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', {
+      kind: 'arbitrary',
+      raw: '11rem',
+    });
+    fireEvent.keyDown(pt, { key: 'ArrowUp', altKey: true });
+    expect(onSetSide).toHaveBeenLastCalledWith('padding', 'top', {
+      kind: 'arbitrary',
+      raw: '10.1rem',
+    });
+  });
+
+  it('steps the gap with arrow keys through the same stepper as the −/＋ buttons', () => {
+    const onStepGap = vi.fn();
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={resolvedSelection}
+        currentClass="gap-4"
+        onStepGap={onStepGap}
+      />
+    );
+    const gap = screen.getByLabelText('Gap');
+    fireEvent.keyDown(gap, { key: 'ArrowUp' });
+    expect(onStepGap).toHaveBeenLastCalledWith(1, 1);
+    fireEvent.keyDown(gap, { key: 'ArrowDown' });
+    expect(onStepGap).toHaveBeenLastCalledWith(-1, 1);
+    fireEvent.keyDown(gap, { key: 'ArrowUp', shiftKey: true });
+    expect(onStepGap).toHaveBeenLastCalledWith(1, 10);
+  });
+
+  it('steps a scale length (width) with arrow keys', () => {
+    const onApplyEnum = vi.fn();
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={resolvedSelection}
+        currentClass="w-64"
+        onApplyEnum={onApplyEnum}
+      />
+    );
+    fireEvent.keyDown(screen.getByLabelText('Width'), { key: 'ArrowUp' });
+    expect(onApplyEnum).toHaveBeenLastCalledWith('w-65', { width: '16.25rem' });
+  });
+
+  it('steps an arbitrary length preserving its unit', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const onApplyEnum = vi.fn();
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={resolvedSelection}
+        currentClass="w-[480px]"
+        onApplyEnum={onApplyEnum}
+      />
+    );
+    const width = screen.getByLabelText('Width');
+    fireEvent.keyDown(width, { key: 'ArrowUp' });
+    expect(onApplyEnum).toHaveBeenLastCalledWith('w-[481px]', { width: '481px' });
+    fireEvent.keyDown(width, { key: 'ArrowUp', shiftKey: true });
+    expect(onApplyEnum).toHaveBeenLastCalledWith('w-[491px]', { width: '491px' });
+    vi.unstubAllGlobals();
+  });
+
+  it('leaves keyword lengths alone on arrow keys', () => {
+    const onApplyEnum = vi.fn();
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={resolvedSelection}
+        currentClass="w-full"
+        onApplyEnum={onApplyEnum}
+      />
+    );
+    const width = screen.getByLabelText<HTMLInputElement>('Width');
+    fireEvent.keyDown(width, { key: 'ArrowUp' });
+    expect(onApplyEnum).not.toHaveBeenCalled();
+    expect(width.value).toBe('full');
+  });
+
   // ── Image section (asset replacement) ──
 
   const imgSelection: Selection = {

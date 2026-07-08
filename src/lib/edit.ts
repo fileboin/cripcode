@@ -527,7 +527,9 @@ export function parseSpacingInput(input: string, cssProp: string): ParsedSpacing
  *  arbitraries (e.g. `calc(…)`) are returned unchanged. */
 export function stepSpacingValue(v: SpacingValue | null, delta: number): SpacingValue {
   if (!v || v.kind === 'scale') {
-    return { kind: 'scale', n: Math.max(0, (v?.kind === 'scale' ? v.n : 0) + delta) };
+    // The scale is integer-stepped — round so a fine (fractional) delta can't
+    // mint an invalid token like `gap-4.1`.
+    return { kind: 'scale', n: Math.max(0, Math.round((v?.kind === 'scale' ? v.n : 0) + delta)) };
   }
   const m = /^(-?\d*\.?\d+)(.*)$/.exec(v.raw.trim());
   if (!m) return v;

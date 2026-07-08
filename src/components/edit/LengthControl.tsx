@@ -6,7 +6,7 @@
  * token, falling back to an arbitrary value only when off-scale.
  */
 
-import { useId, useState } from 'react';
+import { useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ResettableLabel } from './ResettableLabel';
 import {
   lengthValue,
@@ -62,6 +62,27 @@ export function LengthControl({
     return true;
   };
 
+  /** ArrowUp/Down step a numeric value (bare scale step or number+unit, keeping
+   *  the unit) and commit each press; Shift ×10, Alt fine (÷10 on unit values —
+   *  the Tailwind scale stays on whole steps). Keywords (`full`, `auto`) and
+   *  fractions (`1/2`) aren't steppable — the caret is left alone. */
+  const onArrowStep = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    const m = /^(-?\d*\.?\d+)\s*([a-z%]*)$/i.exec(text.trim());
+    if (!m) return; // non-numeric — leave the caret alone
+    const unit = m[2];
+    const fine = unit ? 0.1 : 1;
+    const step = e.shiftKey ? 10 : e.altKey ? fine : 1;
+    const dir = e.key === 'ArrowUp' ? 1 : -1;
+    const num = Math.max(0, Math.round((parseFloat(m[1]) + dir * step) * 100) / 100);
+    const next = `${num}${unit}`;
+    const parsed = parseLengthInput(next, prefix, css);
+    if (parsed.kind === 'invalid') return;
+    e.preventDefault();
+    setText(next);
+    setInvalid(false);
+    onApplyEnum(parsed.token, { [css]: parsed.css });
+  };
+
   return (
     <div className="ss-edit-panel__control">
       <ResettableLabel
@@ -97,6 +118,7 @@ export function LengthControl({
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && commit()) e.currentTarget.blur();
+          else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') onArrowStep(e);
         }}
       />
       <datalist id={listId}>

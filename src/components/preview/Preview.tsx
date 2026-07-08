@@ -1475,7 +1475,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
               }}
               autoSave={editor.autoSave}
               onToggleAutoSave={editor.toggleAutoSave}
-              onStepGap={(dir) => editor.stepSpacing('gap', dir)}
+              onStepGap={(dir, step) => editor.stepSpacing('gap', dir, step)}
               onSetSide={editor.setBoxSide}
               onApplyEnum={editor.applyEnum}
               onReset={editor.reset}
