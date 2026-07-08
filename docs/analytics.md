@@ -83,6 +83,7 @@ Fired from `useIntegrationStatus` once GitHub auth resolves with a username.
 | Event | Properties |
 |---|---|
 | `screenshot_captured` | `mode` (`viewport`/`fullpage`), `success`, `fell_back`, `fallback_success` (fullpage only, present when `fell_back` — whether the viewport fallback produced a file) |
+| `thumbnail_consent_answered` | `allowed` — the user's answer to the first-run "Preview thumbnails" explainer shown before the first automatic thumbnail capture (#160) |
 | `preview_refreshed` | `trigger: 'user'` |
 | `preview_page_selected` | `route_pattern` (id segments → `:id`, capped 200), `depth` |
 | `preview_fix_with_agent` | `has_logs`, `is_static`, `reason` (`server-down`/`blank-iframe`) |
@@ -160,6 +161,7 @@ To get an aggregate "any modal opened" count in PostHog, use a regex match on ev
 |---|---|
 | `calendar_visibility_toggled` | `visible` |
 | `terminal_gpu_toggled` | `enabled` |
+| `thumbnails_toggled` | `enabled` (the "Project thumbnails" auto-capture toggle) |
 | `projects_root_changed` | `is_custom` (false when reset to the default `~/ShipStudio`) |
 | `projects_moved` | `moved_count`, `skipped_count` (after moving projects into a newly-chosen folder) |
 

@@ -52,6 +52,7 @@ import { sessionRegistry } from './lib/sessionRegistry';
 import { unregisterProjectSession } from './lib/projectSessions';
 import { UpdateBanner } from './components/UpdateBanner';
 import { MonorepoPickerModal } from './components/dashboard/MonorepoPickerModal';
+import { ThumbnailConsentModal } from './components/preview/ThumbnailConsentModal';
 import { ModalFrame } from './components/primitives/ModalFrame';
 import { Button } from './components/primitives/Button';
 import { Spinner } from './components/primitives/Spinner';
@@ -301,6 +302,9 @@ function AppContents({ initialProjectPath }: AppProps) {
     handleCropComplete,
     handleCropCancel,
     handlePreviewReady: onPreviewReady,
+    showThumbnailConsent,
+    resolveThumbnailConsent,
+    dismissThumbnailConsent,
     startScreenshotInterval,
     clearScreenshotInterval,
   } = useScreenshotManagement({
@@ -1258,6 +1262,12 @@ function AppContents({ initialProjectPath }: AppProps) {
         onOpenProjectPicker={openProjectPicker}
         onSwitchAccount={() => setView('account-select')}
         isProjectDevServerRunning={isServerRunning}
+      />
+      <ThumbnailConsentModal
+        isOpen={showThumbnailConsent}
+        onAllow={() => void resolveThumbnailConsent(true)}
+        onDeny={() => void resolveThumbnailConsent(false)}
+        onDismiss={dismissThumbnailConsent}
       />
       {quitConfirmModal}
     </>

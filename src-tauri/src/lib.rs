@@ -482,6 +482,8 @@ pub fn run() {
             commands::settings::set_slack_cta_hidden,
             commands::settings::get_terminal_gpu_enabled,
             commands::settings::set_terminal_gpu_enabled,
+            commands::settings::get_thumbnails_enabled,
+            commands::settings::set_thumbnails_enabled,
             // Accounts (Workspaces)
             commands::accounts::list_accounts,
             commands::accounts::create_account,
