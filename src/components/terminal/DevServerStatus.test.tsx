@@ -93,4 +93,66 @@ describe('DevServerStatus', () => {
     renderStatus({ phase: 'loading', devServerOutput: '' });
     expect(screen.queryByText(/Logs/)).not.toBeInTheDocument();
   });
+
+  describe('dead dev-server process (issue #161)', () => {
+    it('swaps Retry for a real restart with a verbose explanation', () => {
+      const onRestartServer = vi.fn();
+      const props = renderStatus({
+        phase: 'error',
+        processExited: true,
+        exitCode: 137,
+        onRestartServer,
+      });
+
+      expect(screen.getByText('Dev server stopped')).toBeInTheDocument();
+      // Verbose error: says the process died, includes the exit code, and
+      // names the likely culprit so a non-developer isn't left guessing.
+      expect(screen.getByText(/no longer running \(exit code 137\)/)).toBeInTheDocument();
+      expect(screen.getByText(/AI agent/)).toBeInTheDocument();
+
+      expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('Restart dev server'));
+      expect(onRestartServer).toHaveBeenCalledOnce();
+      expect(props.onRetry).not.toHaveBeenCalled();
+    });
+
+    it('omits the exit code from the message when unknown', () => {
+      renderStatus({
+        phase: 'error',
+        processExited: true,
+        exitCode: null,
+        onRestartServer: vi.fn(),
+      });
+      expect(screen.getByText(/no longer running\. Something outside/)).toBeInTheDocument();
+      expect(screen.queryByText(/exit code/)).not.toBeInTheDocument();
+    });
+
+    it('keeps Fix with agent available, demoted to secondary', () => {
+      const props = renderStatus({
+        phase: 'error',
+        processExited: true,
+        onRestartServer: vi.fn(),
+      });
+      fireEvent.click(screen.getByText('Fix with agent'));
+      expect(props.onFixWithAgent).toHaveBeenCalledOnce();
+    });
+
+    it('falls back to Retry when no restart handler is wired', () => {
+      const props = renderStatus({ phase: 'error', processExited: true });
+      expect(screen.queryByText('Restart dev server')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('Retry'));
+      expect(props.onRetry).toHaveBeenCalledOnce();
+    });
+
+    it('never claims a static project process died (static has no PTY process)', () => {
+      renderStatus({
+        phase: 'error',
+        isStaticProject: true,
+        processExited: true,
+        onRestartServer: vi.fn(),
+      });
+      expect(screen.getByText(/index\.html/)).toBeInTheDocument();
+      expect(screen.queryByText(/no longer running/)).not.toBeInTheDocument();
+    });
+  });
 });

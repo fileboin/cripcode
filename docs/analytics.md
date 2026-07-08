@@ -86,7 +86,7 @@ Fired from `useIntegrationStatus` once GitHub auth resolves with a username.
 | `thumbnail_consent_answered` | `allowed` — the user's answer to the first-run "Preview thumbnails" explainer shown before the first automatic thumbnail capture (#160) |
 | `preview_refreshed` | `trigger: 'user'` |
 | `preview_page_selected` | `route_pattern` (id segments → `:id`, capped 200), `depth` |
-| `preview_fix_with_agent` | `has_logs`, `is_static`, `reason` (`server-down`/`blank-iframe`) |
+| `preview_fix_with_agent` | `has_logs`, `is_static`, `reason` (`server-down`/`blank-iframe`), `process_gone` (dev-server process known-dead) |
 | `logs_sent_to_agent` | `source` (`full_buffer`/`selection`), `char_count`, `line_count`, `had_question` |
 | `browser_tools_subtab_switched` | `from_tab`, `to_tab` |
 | `browser_tools_cleared` | `tab` |

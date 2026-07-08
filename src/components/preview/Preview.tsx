@@ -66,6 +66,7 @@ import { kbd } from '../../lib/shortcuts';
 import { useCommands } from '../../commands/useCommands';
 import { logger } from '../../lib/logger';
 import type { ProjectType } from '../../lib/static-server';
+import type { DevServerUnexpectedExit } from '../../hooks/useDevServer';
 import { isEditorFramework, resolveEditorMode } from '../../lib/editorGate';
 
 // SVG icons for breakpoints
@@ -210,6 +211,15 @@ interface PreviewProps {
    *  installed. Render an install CTA in the preview pane instead of the
    *  "Starting dev server..." spinner. */
   needsInstall?: { packageManager: string } | null;
+  /** Set when the managed dev-server process died without Ship Studio
+   *  stopping it (crash, or an external kill — e.g. an agent in the terminal
+   *  freeing the port). Switches the status card to a "Dev server stopped"
+   *  state whose primary action is a real process restart. */
+  devServerUnexpectedExit?: DevServerUnexpectedExit | null;
+  /** Restart the managed dev-server process (full kill-port → clear-cache →
+   *  respawn pipeline). Wired to the status card when the process is dead —
+   *  a poll-only Retry can never recover from that (issue #161). */
+  onRestartDevServer?: () => void;
   /** Action wired to the install CTA — kicks off the install flow + restart. */
   onRunInstall?: () => void;
   /** Jump to a source file:line in the Code tab (from the visual editor). */
@@ -285,6 +295,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     healthPanelRef,
     onHealthOutput,
     needsInstall,
+    devServerUnexpectedExit,
+    onRestartDevServer,
     onRunInstall,
     onOpenInCode,
     canUndo,
@@ -315,6 +327,13 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     onSendToClaude,
     onToast,
   });
+
+  // The managed dev-server process is known-dead (the exit watcher saw it die
+  // and no respawn has happened since). Static projects are excluded — they
+  // serve off the per-window static server, not a PTY-managed process — and a
+  // restart in flight means the death is already being handled.
+  const serverProcessGone =
+    !isStaticProject && !isDevServerRestarting && devServerUnexpectedExit != null;
 
   // Screenshot capture and crop selection (extracted to hook)
   const capture = usePreviewCapture({
@@ -834,6 +853,25 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
           `My site preview isn't loading. Ship Studio is serving this project as static ` +
           `files on http://localhost:${port} but nothing shows up. Please check the project ` +
           `has an index.html at its root (and any files it references) so the preview renders.`;
+      } else if (serverProcessGone) {
+        // The process demonstrably died out from under us — usually an agent
+        // killed the port or crashed the build. Steer the agent AWAY from
+        // spawning its own dev server: a second unmanaged server fighting
+        // Ship Studio's is exactly what breaks multi-agent workflows (#161).
+        const exitCode = devServerUnexpectedExit?.exitCode;
+        prompt =
+          `Ship Studio runs and manages this project's dev server itself on port ${port}, ` +
+          `but the dev-server process just stopped unexpectedly` +
+          `${typeof exitCode === 'number' ? ` (exit code ${exitCode})` : ''}.\n\n` +
+          (logs
+            ? `Its last output was:\n\n\`\`\`\n${logs}\n\`\`\`\n\n`
+            : `It produced no output before stopping.\n\n`) +
+          `Please find and fix the underlying cause (a crash, a broken build, a corrupted ` +
+          `cache, something killing the process). IMPORTANT: do NOT start your own dev ` +
+          `server (no \`npm run dev\` or similar) and do NOT kill or free port ${port} — ` +
+          `Ship Studio owns the dev server and I will restart it from the preview once ` +
+          `the cause is fixed. If another process is already listening on port ${port}, ` +
+          `tell me instead of killing it.`;
       } else {
         prompt =
           `My dev server isn't coming up — Ship Studio is waiting on ` +
@@ -842,17 +880,27 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
             ? `Recent dev-server output:\n\n\`\`\`\n${logs}\n\`\`\`\n\n`
             : `There's no dev-server output yet.\n\n`) +
           `Please work out why it won't start — a busy port, a crash, a missing ` +
-          `dependency, or a wrong or missing dev script — and fix it so it serves on ` +
-          `port ${port}.`;
+          `dependency, or a wrong or missing dev script — and fix the cause. ` +
+          `IMPORTANT: do NOT start a dev server yourself and do NOT kill or free ` +
+          `port ${port} — Ship Studio starts and manages the dev server on that port ` +
+          `itself, and a second unmanaged server will fight it.`;
       }
       onSendToClaude(prompt);
       void trackEvent('preview_fix_with_agent', {
         has_logs: !!logs,
         is_static: isStaticProject,
         reason,
+        process_gone: serverProcessGone,
       });
     };
-  }, [onSendToClaude, isStaticProject, devServerOutput, port]);
+  }, [
+    onSendToClaude,
+    isStaticProject,
+    devServerOutput,
+    port,
+    serverProcessGone,
+    devServerUnexpectedExit,
+  ]);
 
   if (needsInstall) {
     return (
@@ -887,7 +935,12 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   if (conn.isLoading || conn.isStopped || conn.hasError) {
     return (
       <DevServerStatus
-        phase={conn.isStopped ? 'stopped' : conn.hasError ? 'error' : 'loading'}
+        // A known-dead process escalates straight to the error card — polling
+        // a port nothing listens on can only end in the same place, minutes
+        // later, so don't make the user sit through the retry loop.
+        phase={
+          conn.isStopped ? 'stopped' : conn.hasError || serverProcessGone ? 'error' : 'loading'
+        }
         isStaticProject={isStaticProject}
         port={port}
         retryCount={conn.retryCount}
@@ -895,6 +948,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         devServerOutput={devServerOutput}
         onStop={conn.stopConnecting}
         onRetry={conn.handleRetry}
+        processExited={serverProcessGone}
+        exitCode={devServerUnexpectedExit?.exitCode ?? null}
+        onRestartServer={onRestartDevServer}
         onFixWithAgent={handleFixWithAgent && (() => handleFixWithAgent('server-down'))}
         onInput={onDevServerInput}
       />
