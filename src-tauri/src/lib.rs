@@ -380,6 +380,7 @@ pub fn run() {
             commands::edit::resolve_classname_source,
             commands::edit::apply_classname_edit,
             commands::edit::apply_classname_edit_multi,
+            commands::edit::insert_class_attr,
             commands::edit::resolve_text_source,
             commands::edit::apply_text_edit,
             commands::edit::resolve_image_source,

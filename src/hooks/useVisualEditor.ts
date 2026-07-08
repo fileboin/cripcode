@@ -38,6 +38,7 @@ import {
   resolveClassnameSource,
   applyClassnameEdit,
   applyClassnameEditMulti,
+  insertClassAttr,
   resolveImageSource,
   applySrcEdit,
   findComponentUsage,
@@ -630,6 +631,39 @@ export function useVisualEditor({
     [selection, projectPath, onToast, post, setLiveClass]
   );
 
+  /** Add the FIRST class to a class-less element (a `no_class` resolution): the
+   *  element has no class literal in source to resolve or replace, so the backend
+   *  INSERTS a fresh class attribute on its open tag (located by ancestor/text
+   *  anchoring — it rejects with a specific reason rather than guess). On success,
+   *  re-resolve so the panel transitions from the no-class state to full controls. */
+  const addFirstClass = useCallback(
+    async (name: string) => {
+      const sig = selectedSigRef.current;
+      const n = name.trim().replace(/^\./, '');
+      if (!sig || !n) return;
+      // Arm reload suppression before writing (same reasoning as a class commit).
+      post({ type: 'ss:suppressReload' });
+      try {
+        await insertClassAttr(projectPath, sig, n);
+        const nextSig = { ...sig, className: n };
+        selectedSigRef.current = nextSig;
+        setLiveClass(n);
+        post({ type: 'ss:mutate', className: n, rules: [] });
+        post({ type: 'ss:commit' });
+        // The inserted literal is now the element's source anchor — re-resolve so
+        // the selection gains a real location and the full controls appear.
+        const resolution = await resolveClassnameSource(projectPath, nextSig);
+        setSelection((prev) => (prev ? { ...prev, signature: nextSig, resolution } : prev));
+        recordCommit('visual_class_added', { mode: 'tailwind', first: true });
+        onToast?.('Class added', 'success');
+      } catch (err) {
+        logger.error('[VisualEditor] add first class failed', { error: String(err) });
+        onToast?.(formatCommandError(asCommandError(err)), 'error');
+      }
+    },
+    [projectPath, post, setLiveClass, onToast, recordCommit]
+  );
+
   /** The selected element's current className — read from the live class in
    *  element mode, or the (kept-fresh) signature while a class is being edited.
    *  The structural gestures below operate on THIS, never on a class's @apply. */
@@ -859,6 +893,8 @@ export function useVisualEditor({
     customClasses,
     /** Whether a writable Tailwind entry stylesheet exists (gates create). */
     classEntryReady,
+    /** Insert the first class on a class-less element, then re-resolve. */
+    addFirstClass,
     /** Append an existing custom class to the element and edit it. */
     applyClass,
     /** Remove a custom class from the element (keeps it defined in CSS). */

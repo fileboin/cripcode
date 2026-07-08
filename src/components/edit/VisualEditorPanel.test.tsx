@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { VisualEditorPanel } from './VisualEditorPanel';
 import {
   BASE_BREAKPOINT,
@@ -738,5 +738,59 @@ describe('VisualEditorPanel', () => {
     // Styles genuinely aren't editable here — that's worth surfacing alongside Image.
     expect(screen.getByText(/aren’t a static string/)).toBeInTheDocument();
     expect(screen.getByText('Image')).toBeInTheDocument();
+  });
+
+  // ── Class-less elements (no_class → Add class) ──
+
+  const noClassSelection: Selection = {
+    signature: { className: '', tagName: 'div', ancestorClasses: [] },
+    resolution: { status: 'no_class' },
+    instanceCount: 1,
+  };
+
+  it('offers "Add class" instead of a read-only dead end for a class-less element', () => {
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={noClassSelection}
+        currentClass=""
+        onAddFirstClass={vi.fn()}
+      />
+    );
+    // The add-a-class state, not the misleading "dynamic classes" banner…
+    expect(screen.getByText(/has no classes yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/aren’t a static string/)).not.toBeInTheDocument();
+    // …and no style controls or footer (there's nothing to write to yet).
+    expect(screen.queryByTestId('spacing-box')).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /auto-save/i })).not.toBeInTheDocument();
+    // The action is disabled until a name is typed.
+    expect(screen.getByRole('button', { name: 'Add class' })).toBeDisabled();
+  });
+
+  it('submits the typed first class (leading dot stripped) via onAddFirstClass', async () => {
+    const onAddFirstClass = vi.fn(async () => {});
+    render(
+      <VisualEditorPanel
+        {...mk()}
+        selection={noClassSelection}
+        currentClass=""
+        onAddFirstClass={onAddFirstClass}
+      />
+    );
+    const input = screen.getByLabelText('First class name');
+    fireEvent.change(input, { target: { value: '.hero-title' } });
+    // Flush the async submit so the busy flag releases before the next attempt.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Add class' }));
+      await Promise.resolve();
+    });
+    expect(onAddFirstClass).toHaveBeenCalledWith('hero-title');
+    // Enter in the input submits too.
+    fireEvent.change(input, { target: { value: 'flex gap-4' } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      await Promise.resolve();
+    });
+    expect(onAddFirstClass).toHaveBeenCalledWith('flex gap-4');
   });
 });

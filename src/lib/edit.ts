@@ -56,6 +56,12 @@ export type Resolution =
       locations: SourceLocation[];
       class_name: string;
     }
+  | {
+      /** The element has no class attribute at all — nothing to resolve or replace,
+       *  but a class can be INSERTED via `insertClassAttr`. Distinct from
+       *  `read_only` (a dynamic/computed class the editor mustn't touch). */
+      status: 'no_class';
+    }
   | { status: 'read_only'; reason: string };
 
 /** Resolve a clicked element to its source `className` location. */
@@ -64,6 +70,19 @@ export function resolveClassnameSource(
   signature: ElementSignature
 ): Promise<Resolution> {
   return invoke<Resolution>('resolve_classname_source', { projectPath, signature });
+}
+
+/** Insert a fresh `class`/`className` attribute on an element that has NO class in
+ *  source — the "Add class" path for unstyled elements, which the replace-only
+ *  write-back can't serve. The backend locates the open tag by ancestor-file and
+ *  text anchoring, and rejects (with a specific reason) rather than guess when
+ *  zero or multiple tags match. Resolves to the inserted literal's location. */
+export function insertClassAttr(
+  projectPath: string,
+  signature: ElementSignature,
+  newClass: string
+): Promise<SourceLocation> {
+  return invoke<SourceLocation>('insert_class_attr', { projectPath, signature, newClass });
 }
 
 // ───────────────────────────── Text content ─────────────────────────────────
