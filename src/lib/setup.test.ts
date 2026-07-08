@@ -27,6 +27,7 @@ import {
   isWizardStepComplete,
   getStepItems,
   findFirstIncompleteStep,
+  needsCmdExeWrapper,
 } from './setup';
 import {
   FRESH_INSTALL_ITEMS,
@@ -446,6 +447,19 @@ describe('TERMINAL_COMMANDS', () => {
     expect(TERMINAL_COMMANDS.claude_auth.command).toBe('claude');
   });
 
+  it('agent Connect buttons run dedicated auth flows, never the bare agent CLI (audit #7)', () => {
+    // A bare `claude`/`codex` invocation relies on the CLI auto-prompting for
+    // login; when it doesn't, non-technical users land in a full agent chat
+    // REPL with no idea what to do. Every agent auth entry must use the CLI's
+    // documented sign-in invocation, which exits when auth completes.
+    expect(TERMINAL_COMMANDS.claude_auth.args).toEqual(['auth', 'login']);
+    expect(TERMINAL_COMMANDS.codex_auth.args).toEqual(['login']);
+    expect(TERMINAL_COMMANDS.opencode_auth.command).toBe('opencode');
+    expect(TERMINAL_COMMANDS.opencode_auth.args).toEqual(['auth', 'login']);
+    expect(TERMINAL_COMMANDS.cursor_auth.command).toBe('cursor-agent');
+    expect(TERMINAL_COMMANDS.cursor_auth.args).toEqual(['login']);
+  });
+
   it('has vercel entry', () => {
     expect(TERMINAL_COMMANDS.vercel).toBeDefined();
   });
@@ -471,6 +485,59 @@ describe('TERMINAL_COMMANDS', () => {
     expect(script).toContain('exit 1');
     expect(script).toContain('[ -n "$script" ]');
     expect(script).toContain('exec /bin/bash -c "$script"');
+  });
+});
+
+// ============ needsCmdExeWrapper (Windows spawn shape) ============
+
+describe('needsCmdExeWrapper', () => {
+  // Wrapping a real executable in `cmd.exe /C` makes cmd re-parse the
+  // portable_pty-composed command line with its own quote rules — a second
+  // parse layer between us and the target (audit #13). Direct spawn removes
+  // that layer; both shapes are measured under a real ConPTY by the canary
+  // tests in src-tauri/src/commands/pty_session.rs — see needsCmdExeWrapper's
+  // doc comment for the evidence history.
+
+  it('wraps .cmd shims (npm-style) — batch scripts need cmd.exe', () => {
+    expect(needsCmdExeWrapper('npm', 'C:\\Program Files\\nodejs\\npm.cmd')).toBe(true);
+    expect(needsCmdExeWrapper('vercel', 'C:\\Users\\x\\AppData\\Roaming\\npm\\vercel.cmd')).toBe(
+      true
+    );
+    expect(needsCmdExeWrapper('legacy', 'C:\\tools\\legacy.BAT')).toBe(true);
+  });
+
+  it('never wraps PowerShell, even unresolved — real exe on every Windows', () => {
+    expect(needsCmdExeWrapper('powershell')).toBe(false);
+    expect(needsCmdExeWrapper('powershell', null)).toBe(false);
+    expect(needsCmdExeWrapper('pwsh', undefined)).toBe(false);
+    expect(needsCmdExeWrapper('POWERSHELL.EXE')).toBe(false);
+  });
+
+  it('spawns resolved real executables directly', () => {
+    expect(needsCmdExeWrapper('gh', 'C:\\Program Files\\GitHub CLI\\gh.exe')).toBe(false);
+    expect(needsCmdExeWrapper('claude', 'C:\\Users\\x\\.local\\bin\\claude.exe')).toBe(false);
+    expect(needsCmdExeWrapper('codex', 'C:\\Users\\x\\AppData\\Local\\codex\\codex.exe')).toBe(
+      false
+    );
+  });
+
+  it('keeps the conservative cmd.exe wrapper for unresolved unknown commands', () => {
+    // Resolution failed open — the command may be an npm-style .cmd shim
+    // that only PATH search inside cmd.exe would find.
+    expect(needsCmdExeWrapper('some-tool', undefined)).toBe(true);
+    expect(needsCmdExeWrapper('npm', null)).toBe(true);
+  });
+
+  it('wraps when the resolved path has no recognized executable extension', () => {
+    // npm ships an extensionless `npm` sh script NEXT TO npm.cmd; the
+    // backend's extended-PATH probe can return it. Direct-spawning a shell
+    // script via CreateProcess would fail — let cmd.exe re-search PATHEXT.
+    expect(needsCmdExeWrapper('npm', 'C:\\Users\\x\\AppData\\Roaming\\npm\\npm')).toBe(true);
+  });
+
+  it('judges a pathful command by its own extension when unresolved', () => {
+    expect(needsCmdExeWrapper('C:\\x\\tool.cmd')).toBe(true);
+    expect(needsCmdExeWrapper('C:\\x\\pwsh.exe')).toBe(false);
   });
 });
 

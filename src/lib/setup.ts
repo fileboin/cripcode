@@ -535,6 +535,61 @@ export async function resolveCliPath(name: string): Promise<ResolvedCli | null> 
 }
 
 /**
+ * Windows spawn decision: should this command be wrapped as
+ * `cmd.exe /C <command> <args...>`, or spawned directly through the PTY?
+ *
+ * Only `.cmd`/`.bat` shims (npm, vercel, npx, …) NEED the cmd.exe wrapper —
+ * they are batch scripts, not executables. For real executables the wrapper
+ * adds a second parse layer with its own quote rules: portable_pty rebuilds
+ * a single command-line string from the argv, and `cmd.exe /C` RE-PARSES
+ * that string (see the quote-processing rules in `cmd /?`) before the target
+ * ever sees it. Spawning the resolved executable directly removes that layer
+ * entirely — the target's CRT parses exactly what portable_pty composed.
+ *
+ * Whether cmd's re-parse actually mangles a piped `-Command` argument is
+ * measured (not assumed) by the canary pair in
+ * src-tauri/src/commands/pty_session.rs. RECORDED VERDICT (Windows runner,
+ * job 85754711506): the piped expression survives BOTH shapes intact — the
+ * quote-stripping hazard was a false alarm. (Two earlier CI hangs initially
+ * blamed on quote-stripping were the test harness not answering ConPTY's
+ * DSR handshake.) Direct spawn is kept as a defensive simplification —
+ * strictly more deterministic — not as a bug fix.
+ *
+ * @param command the command as configured (e.g. "npm", "powershell", "gh")
+ * @param resolvedPath absolute path from {@link resolveCliPath}, when
+ *   resolution succeeded; `undefined`/`null` when it failed or was skipped
+ *   (fail-open), in which case the conservative default is to wrap — except
+ *   for PowerShell, which is a real executable on every Windows install.
+ */
+export function needsCmdExeWrapper(command: string, resolvedPath?: string | null): boolean {
+  const base = command.toLowerCase().split(/[\\/]/).pop() ?? '';
+  if (
+    base === 'powershell' ||
+    base === 'powershell.exe' ||
+    base === 'pwsh' ||
+    base === 'pwsh.exe'
+  ) {
+    // Always safe to spawn directly — and required for piped -Command args.
+    return false;
+  }
+  // Judge by the binary the spawn will actually hit; fall back to the
+  // command string itself if it already names a script.
+  const probe = (resolvedPath ?? command).toLowerCase();
+  if (probe.endsWith('.cmd') || probe.endsWith('.bat')) {
+    return true; // batch shim — only cmd.exe can run it
+  }
+  if (probe.endsWith('.exe') || probe.endsWith('.com')) {
+    return false; // real executable — spawn directly
+  }
+  // Unresolved, or resolved to something without a recognized executable
+  // extension (npm ships an extensionless `npm` sh script NEXT TO npm.cmd,
+  // and the backend's extended-PATH probe can return it): keep the historical
+  // cmd.exe wrapper as the conservative default — cmd re-searches PATH with
+  // PATHEXT and finds the proper .cmd/.exe.
+  return true;
+}
+
+/**
  * Start GitHub authentication flow (opens browser).
  * Returns a message to display to the user.
  */
@@ -691,8 +746,14 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: ['-Command', 'irm https://claude.ai/install.ps1 | iex'],
       },
       claude_auth: {
+        // Dedicated sign-in flow (`claude auth login` — "Sign in to your
+        // Anthropic account"). The bare CLI used to be spawned here, which
+        // stranded non-technical users in the chat REPL when the CLI didn't
+        // auto-prompt for login (audit #7). The `claude auth` command family
+        // is the same one the backend already relies on for status checks
+        // (`claude auth status`, src-tauri/src/commands/accounts.rs).
         command: 'claude',
-        args: [],
+        args: ['auth', 'login'],
       },
       codex: {
         // --force clears EEXIST failures from stale/partial global installs,
@@ -701,8 +762,11 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: ['install', '-g', '@openai/codex', '--force'],
       },
       codex_auth: {
+        // Dedicated login subcommand (`codex login` — "Manage login") instead
+        // of the bare CLI, which dropped users into the agent chat UI when it
+        // didn't auto-prompt for sign-in (audit #7). Exits when auth completes.
         command: 'codex',
-        args: [],
+        args: ['login'],
       },
       opencode: {
         // No clean PowerShell one-liner installer exists for Windows; install
@@ -785,8 +849,10 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: ['-c', 'curl -fsSL https://claude.ai/install.sh | bash'],
       },
       claude_auth: {
+        // Dedicated sign-in flow (`claude auth login`) — see the Windows entry
+        // above for why the bare CLI is not spawned here (audit #7).
         command: 'claude',
-        args: [],
+        args: ['auth', 'login'],
       },
       codex: {
         // --force clears EEXIST failures from stale/partial global installs,
@@ -795,8 +861,10 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         args: ['-c', 'npm install -g @openai/codex --force'],
       },
       codex_auth: {
+        // Dedicated login subcommand (`codex login`) — see the Windows entry
+        // above for why the bare CLI is not spawned here (audit #7).
         command: 'codex',
-        args: [],
+        args: ['login'],
       },
       opencode: {
         command: '/bin/bash',

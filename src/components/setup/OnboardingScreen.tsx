@@ -423,9 +423,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       // Refresh status immediately
       void fetchStatus();
       // For auth items, do a delayed re-check in case the auth process
-      // was still completing when the user cancelled (e.g., gh/vercel
-      // writing the token after receiving the OAuth callback)
-      if (itemId === 'gh_auth' || itemId === 'vercel_auth' || itemId === 'claude_auth') {
+      // was still completing when the user cancelled (e.g., gh/vercel/codex
+      // writing the token after receiving the OAuth callback). Derived from
+      // the `*_auth` convention so new auth flows get this for free.
+      if (itemId.endsWith('_auth')) {
         setTimeout(() => void fetchStatus(), 2000);
       }
     }

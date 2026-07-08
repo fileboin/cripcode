@@ -16,7 +16,7 @@ import { homeDir } from '@tauri-apps/api/path';
 import { getSystemEnv, getShellPath } from '../../lib/project';
 import { readDir, exists } from '@tauri-apps/plugin-fs';
 import { loadNerdFonts } from '../../lib/fonts';
-import { isWindows, resolveCliPath, ResolvedCli } from '../../lib/setup';
+import { isWindows, needsCmdExeWrapper, resolveCliPath, ResolvedCli } from '../../lib/setup';
 import { isPasteChord, readClipboardText } from '../../lib/clipboard';
 import { createPtyChunkDecoder, toPtyBytes, type PtyChunk } from '../../lib/terminalDiagnostics';
 import { logger } from '../../lib/logger';
@@ -232,9 +232,12 @@ export function OnboardingTerminal({ command, args, cwd, onExit }: OnboardingTer
             TERM: 'xterm-256color',
           };
 
-          // Wrap command through cmd.exe /C for .cmd scripts (vercel, npx, etc.)
-          spawnCmd = 'cmd.exe';
-          spawnArgs = ['/C', command, ...args];
+          // Placeholder — the real Windows spawn shape (direct vs. wrapped in
+          // cmd.exe /C) is decided AFTER binary resolution below, because the
+          // decision depends on what the command resolves to (.cmd shim vs.
+          // real executable). See needsCmdExeWrapper in lib/setup.ts.
+          spawnCmd = command;
+          spawnArgs = args;
         } else {
           // macOS/Linux: existing Unix path and env logic
           const userPaths = [
@@ -298,8 +301,8 @@ export function OnboardingTerminal({ command, args, cwd, onExit }: OnboardingTer
         // PTY that spawns nothing and hangs. Resolution errors fail OPEN —
         // the spawn proceeds and the watchdog below stays the backstop.
         const isBareName = !command.includes('/') && !command.includes('\\');
+        let resolved: ResolvedCli | null | undefined;
         if (isBareName) {
-          let resolved: ResolvedCli | null | undefined;
           try {
             resolved = await resolveCliPath(command);
           } catch (err) {
@@ -329,11 +332,36 @@ export function OnboardingTerminal({ command, args, cwd, onExit }: OnboardingTer
             }
             if (!isWin) {
               // Spawn the resolved absolute path — deterministic, no PATH
-              // shadowing. (Windows keeps the cmd.exe /C wrapper: .cmd shims
-              // need it, and quoting paths with spaces through cmd is riskier
-              // than the PATH append above.)
+              // shadowing. (The Windows equivalent happens in the spawn-shape
+              // block below, where wrapper-vs-direct is decided.)
               spawnCmd = resolved.path;
             }
+          }
+        }
+
+        if (isWin) {
+          // Windows spawn shape. Only .cmd/.bat shims (npm, vercel, npx)
+          // go through `cmd.exe /C` — they are batch scripts and need it.
+          // Real executables (powershell, gh, claude, codex, git) are
+          // spawned DIRECTLY: routing them through cmd.exe adds a second
+          // parse layer (cmd re-parses the portable_pty-composed command
+          // line with its own quote rules) between us and the target;
+          // direct spawn removes it, so arguments like a piped PowerShell
+          // installer one-liner reach the target exactly as composed. Both
+          // spawn shapes are exercised under a real ConPTY by the canary
+          // tests in src-tauri/src/commands/pty_session.rs (windows-check
+          // CI job, "PTY spawn-shape canaries" step) — see
+          // needsCmdExeWrapper's doc comment for the evidence history.
+          if (needsCmdExeWrapper(command, resolved?.path)) {
+            spawnCmd = 'cmd.exe';
+            spawnArgs = ['/C', command, ...args];
+          } else {
+            // Prefer the resolved absolute path (deterministic, no PATH
+            // shadowing — quoting paths with spaces is safe without cmd.exe
+            // in the middle); fall back to the bare name on the extended
+            // PATH when resolution failed open (powershell reaches here).
+            spawnCmd = resolved?.path ?? command;
+            spawnArgs = args;
           }
         }
 
