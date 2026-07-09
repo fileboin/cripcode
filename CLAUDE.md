@@ -59,6 +59,7 @@ Command modules in `src-tauri/src/commands/`. Domains with submodules are direct
 - `skills/` - Agent skill search and install
 
 Single-file domains:
+- `agent_bridge.rs` - Commands for the agent preview bridge (the loopback MCP server in `src-tauri/src/agent_bridge.rs` that lets the workspace agent read the preview's console/network/DOM, navigate it, and take screenshots)
 - `ai.rs` - AI-powered PR title/description generation via the agent CLI
 - `analytics.rs` - PostHog event tracking (API key stays in Rust; see `docs/analytics.md`)
 - `assets.rs` - Assets panel file management (configurable root, default `/public`)
@@ -116,6 +117,7 @@ Single-file domains:
 #### Frontend Libraries
 Key modules in `src/lib/` (not exhaustive — `ls src/lib` for the full list):
 - `agents-management.ts` / `agent.ts` - Agent CLI detection, install state, default-agent selection
+- `agentBridge.ts` - Frontend half of the agent preview bridge: executes forwarded MCP tool calls against the inspect store / preview and registers the server with the agent CLI
 - `ai.ts` - AI generation wrapper for PR descriptions
 - `analytics.ts` - PostHog event wrapper (every event documented in `docs/analytics.md`)
 - `assets.ts` - Asset management (list, upload, delete; configurable assets root)

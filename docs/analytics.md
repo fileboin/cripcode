@@ -92,6 +92,9 @@ Fired from `useIntegrationStatus` once GitHub auth resolves with a username.
 | `browser_tools_cleared` | `tab` |
 | `browser_tools_dom_refreshed` | — |
 | `browser_tools_sent_to_agent` | `tab`, `entry_count` (null for elements), `had_data`, `char_count` |
+| `agent_bridge_tool_used` | `tool` (preview_console/network/dom/navigate/reload/screenshot), `is_error` — the workspace agent called a preview MCP tool via the agent bridge |
+| `preview_size_popover_opened` | — (dimensions readout clicked open) |
+| `preview_size_applied` | `width`, `has_height` (exact preview size set from the dimensions popover) |
 | `terminal_tab_restarted` | — (relaunched an exited agent tab with a fresh session; fired from the in-terminal Enter prompt, toolbar, or palette) |
 | `code_file_opened` | `file_extension` |
 | `code_file_saved` | `file_extension` (a file edited in-app and written to disk via the Code tab editor) |
