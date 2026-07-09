@@ -181,15 +181,20 @@ To get an aggregate "any modal opened" count in PostHog, use a regex match on ev
 
 | Event | Properties |
 |---|---|
-| `setup_started` | `entry_path` (`wizard`/`fast_path`), `entry_step` |
+| `setup_started` | `entry_path` (`wizard`/`fast_path`/`agent_led`), `entry_step` |
 | `setup_step_entered` | `step_id`, `step_index` |
 | `setup_step_completed` | `step_id`, `step_index`, `duration_ms`, `is_final` |
 | `setup_step_skipped` | `step_id`, `step_index`, `reason: 'already_complete'` |
 | `setup_step_navigated_back` | `from_step`, `to_step` |
-| `setup_action_clicked` | `item_id`, `action` (`install`/`connect`), `step_id` |
+| `setup_action_clicked` | `item_id`, `action` (`install`/`connect`), `step_id` (wizard step, or `agent_led_pick`) |
 | `setup_action_failed` | `item_id`, `exit_code`, `error_excerpt` (extracted from terminal output, capped 200) |
-| `onboarding_completed` | `agents`, `entry_path` |
+| `onboarding_completed` | `agents`, `entry_path` (`wizard`/`fast_path`/`agent_led`/`agent_led_fast_path`) |
 | `default_agent_selected` | `agent_id`, `agent_count` |
+| `onboarding_mode_switched` | `to` (`classic`/`agent`) — the escape-hatch health metric: a spike in `to: classic` means agent-led onboarding is failing people |
+| `agent_card_selected` | `key` (`claude`/`codex`/`cursor`/`opencode`/`other`), `already_ready` |
+| `onboarding_host_selected` | `host` (`vercel`/`cloudflare`/`skipped`) — becomes the workspace default host |
+| `agent_guided_setup_started` | `agent_id` (`other` for bring-your-own), `missing_items`, `host`, `demo` (true under mock mode) |
+| `agent_guided_setup_restarted` | `agent_id` — the agent session ended before setup finished and the user relaunched it |
 
 ### Errors & misc
 
