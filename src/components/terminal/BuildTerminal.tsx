@@ -28,6 +28,7 @@ import {
   attachPtySession,
   writePtySessionLogged,
   resizePtySession,
+  detachPtySession,
   onPtySessionData,
   onPtySessionExit,
   createAttachGate,
@@ -247,6 +248,7 @@ export function BuildTerminal({
     return () => {
       cancelled = true;
       resizeObserver.disconnect();
+      void detachPtySession(sessionId);
       for (const dispose of disposers) {
         try {
           dispose();

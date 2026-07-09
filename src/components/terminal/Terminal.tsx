@@ -24,6 +24,7 @@ import {
   writePtySessionLogged,
   resizePtySession,
   killPtySession,
+  detachPtySession,
   onPtySessionData,
   onPtySessionExit,
   createAttachGate,
@@ -220,6 +221,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     // imperative `kill()` handle (close tab, switch agent, close project).
     // That separation is what lets a background project's Terminal unmount
     // freely while its agent keeps running.
+    const sessionId = ptyRef.current?.sessionId;
+    if (sessionId) {
+      void detachPtySession(sessionId);
+    }
+
     for (const d of ptyDisposablesRef.current) {
       try {
         d.dispose();

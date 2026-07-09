@@ -89,6 +89,7 @@ struct Session {
     project_path: Option<String>,
     tab_session_id: Option<String>,
     alive: AtomicBool,
+    attached: AtomicBool,
     exit_code: Mutex<Option<i32>>,
     buffer: Mutex<SessionBuffer>,
     writer: Mutex<Box<dyn std::io::Write + Send>>,
@@ -139,6 +140,44 @@ fn append_to_ring(ring: &mut VecDeque<u8>, bytes: &[u8]) {
         ring.pop_front();
     }
     ring.extend(bytes.iter().copied());
+}
+
+/// Answer ConPTY's Device Status Report query (`ESC[6n`) when no frontend
+/// terminal is attached to do so.
+///
+/// ConPTY queries the cursor position on startup and BLOCKS pumping child
+/// output until it gets a report back (recorded on a real Windows runner —
+/// see the canary tests below). An attached xterm.js answers automatically;
+/// this covers the window where no frontend is attached: session startup
+/// (the frontend attaches only after spawn returns) and detached background
+/// sessions. When a frontend IS attached, stay silent so xterm's reply —
+/// which knows the real cursor position — is the only one.
+///
+/// `carry` holds the previous chunk's tail so a query split across two reads
+/// is still seen — split queries were observed on the CI runner.
+fn handle_dsr_intercept(
+    chunk: &[u8],
+    carry: &mut Vec<u8>,
+    attached: &AtomicBool,
+    writer: &Mutex<Box<dyn std::io::Write + Send>>,
+) {
+    const QUERY: &[u8] = b"\x1b[6n";
+    let mut scan = std::mem::take(carry);
+    scan.extend_from_slice(chunk);
+    let queries = scan.windows(QUERY.len()).filter(|w| *w == QUERY).count();
+    // Keep up to 3 trailing bytes for the next read: long enough to complete a
+    // split query, too short to ever re-count a full one.
+    let keep_from = scan.len().saturating_sub(QUERY.len() - 1);
+    carry.extend_from_slice(&scan[keep_from..]);
+    if queries == 0 || attached.load(Ordering::Relaxed) {
+        return;
+    }
+    if let Ok(mut w) = writer.lock() {
+        for _ in 0..queries {
+            let _ = w.write_all(b"\x1b[1;1R");
+        }
+        let _ = w.flush();
+    }
 }
 
 #[derive(Serialize)]
@@ -278,6 +317,7 @@ pub async fn pty_session_open(
         project_path: project_path.clone(),
         tab_session_id: tab_session_id.clone(),
         alive: AtomicBool::new(true),
+        attached: AtomicBool::new(false),
         exit_code: Mutex::new(None),
         buffer: Mutex::new(SessionBuffer::new()),
         writer: Mutex::new(writer),
@@ -298,6 +338,7 @@ pub async fn pty_session_open(
         let app_for_reader = app.clone();
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
+            let mut dsr_carry: Vec<u8> = Vec::new();
             loop {
                 let n = match reader.read(&mut buf) {
                     Ok(0) => break, // EOF — child closed slave
@@ -305,6 +346,14 @@ pub async fn pty_session_open(
                     Err(_) => break,
                 };
                 let chunk = &buf[..n];
+
+                handle_dsr_intercept(
+                    chunk,
+                    &mut dsr_carry,
+                    &session_for_reader.attached,
+                    &session_for_reader.writer,
+                );
+
                 // Capture the chunk's start offset under the SAME lock that
                 // appends it to the ring — this atomicity is what guarantees
                 // an attach snapshot's end_offset always lands on a chunk
@@ -454,6 +503,7 @@ pub fn pty_session_attach(session_id: String) -> Result<AttachResult, CommandErr
     let Some(session) = session else {
         return Err("unknown session".to_string().into());
     };
+    session.attached.store(true, Ordering::Relaxed);
     // Snapshot bytes AND end offset under one lock acquisition: the pair
     // must be consistent for the frontend's offset filter to be exact.
     let (buffer, end_offset): (Vec<u8>, u64) = {
@@ -476,6 +526,21 @@ pub fn pty_session_attach(session_id: String) -> Result<AttachResult, CommandErr
         exit_code,
         end_offset,
     })
+}
+
+#[tauri::command]
+#[tracing::instrument]
+pub fn pty_session_detach(session_id: String) -> Result<(), CommandError> {
+    let session = {
+        let map = REGISTRY
+            .lock()
+            .map_err(|e| format!("pty registry poisoned: {e}"))?;
+        map.get(&session_id).cloned()
+    };
+    if let Some(session) = session {
+        session.attached.store(false, Ordering::Relaxed);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -640,6 +705,96 @@ mod tests {
         assert!(env_has_key(&env, "SystemRoot"));
         assert!(env_has_key(&env, "systemroot"));
         assert!(!env_has_key(&env, "COMSPEC"));
+    }
+
+    #[test]
+    fn test_handle_dsr_intercept_respects_attached_gate() -> Result<(), String> {
+        struct DummyWriter {
+            data: Arc<Mutex<Vec<u8>>>,
+        }
+        impl std::io::Write for DummyWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                let mut d = self
+                    .data
+                    .lock()
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                d.extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let written = Arc::new(Mutex::new(Vec::new()));
+        let writer: Box<dyn std::io::Write + Send> = Box::new(DummyWriter {
+            data: written.clone(),
+        });
+        let writer_mutex = Mutex::new(writer);
+
+        let attached = AtomicBool::new(false);
+        let mut carry: Vec<u8> = Vec::new();
+
+        // Case 1: DSR query received and attached is false -> should auto-reply
+        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert_eq!(*data, b"\x1b[1;1R");
+        }
+
+        // Clear written buffer
+        {
+            let mut data = written.lock().map_err(|e| e.to_string())?;
+            data.clear();
+        }
+
+        // Case 2: DSR query received but attached is true -> should NOT auto-reply
+        attached.store(true, Ordering::Relaxed);
+        carry.clear();
+        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert!(data.is_empty());
+        }
+
+        // Case 3: No DSR query received, attached is false -> should NOT reply
+        attached.store(false, Ordering::Relaxed);
+        carry.clear();
+        handle_dsr_intercept(b"foobar", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert!(data.is_empty());
+        }
+
+        // Case 4: query SPLIT across two reads — observed on the CI runner —
+        // must still be answered exactly once.
+        carry.clear();
+        handle_dsr_intercept(b"boot\x1b[", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert!(data.is_empty());
+        }
+        handle_dsr_intercept(b"6n rest", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert_eq!(*data, b"\x1b[1;1R");
+        }
+
+        // Case 5: a complete query at a chunk boundary must not be re-counted
+        // from the carried tail on the next read.
+        {
+            let mut data = written.lock().map_err(|e| e.to_string())?;
+            data.clear();
+        }
+        carry.clear();
+        handle_dsr_intercept(b"foo\x1b[6n", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"bar", &mut carry, &attached, &writer_mutex);
+        {
+            let data = written.lock().map_err(|e| e.to_string())?;
+            assert_eq!(*data, b"\x1b[1;1R");
+        }
+
+        Ok(())
     }
 
     /// Spawn `argv` through a real ConPTY, read its output with a hard
