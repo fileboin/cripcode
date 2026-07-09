@@ -6,6 +6,20 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.14.0
+
+- **Push and Pull, the way git means it** - The header button now always says **Push** — no more guessing whether "Publish", "Sync", or "Go Live" will do the thing. And there's a new **Pull** button beside the branch name: one click grabs the latest from GitHub. If a pull hits merge conflicts you get the visual resolver — with a new **Send to Agent** button that hands the whole merge to your agent. A pull can never overwrite unsaved work; git stops safely and the app tells you exactly what to do.
+- **The visual CSS editor now works on Next.js projects with plain CSS** - Point-and-click editing of your global stylesheets on Next.js, not just Astro/HTML. CSS Modules are detected and explained rather than mis-edited.
+- **New "Next.js (Vanilla)" starter** - A plain-CSS Next.js template built for the visual editor. The existing starter is now labeled "Next.js (Tailwind)" so the choice is clear.
+- **You can style unstyled elements now** - Selecting an element with no class used to dead-end with "can't edit this element's classes in source." Both editors now offer **Add class**, which writes a real class attribute into your source — and refuses with a precise explanation if it can't safely tell which element you mean, rather than ever guessing.
+- **Arrow keys step values in the editor** - Click any value field (padding, margin, gap, width, font-size…) and press ↑/↓ to nudge it. Shift jumps ×10, Alt fine-steps. Works in both editors, matching the drag-to-scrub behavior.
+- **Editor dropdowns match the app** - Length preset menus no longer use the macOS system popup that ignored the dark theme.
+- **Windows: terminals no longer stall at startup** - Windows' ConPTY blocks all terminal output until a cursor-position query is answered; if the app wasn't ready to answer, the terminal sat at "Starting…" forever. The backend now answers whenever no terminal view is attached. Community fix by Vasanth — thank you!
+- **Agent connect flows actually sign you in** - The Connect buttons for Claude/Codex now run the real sign-in flows (`claude auth login` / `codex login`) instead of leaving you stranded in the agent's chat prompt.
+- **Preview reliability** - Next.js hot-reload no longer goes stale until you re-enter the project, and if an agent kills your dev server the preview now says so honestly — with a Restart button that actually restarts.
+- **Import can't crash the app anymore** - Importing a repository with a symlink loop (or other unusual layouts) used to crash Ship Studio outright; every import step now fails gracefully with a specific message.
+- **The screen-recording prompt explains itself** - macOS asks for screen-recording permission for project thumbnails; the app now tells you why before the scary system dialog, and respects a "no" instead of re-asking forever.
+
 ## What's New in v0.13.4
 
 - **Fixed dragging files into terminals on Retina Macs** - Dropping a file or screenshot into an agent terminal silently did nothing since v0.13.2 (a coordinate-scaling bug in the drop routing). Drops land correctly again — and still go only to the terminal under your cursor.

@@ -26,6 +26,22 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.14.0', // v0.14.0
+    items: [
+      'Push and Pull, the way git means it — the header button always says Push now, and a new Pull button beside the branch name grabs the latest from GitHub in one click. Merge conflicts open the visual resolver, with a Send to Agent button that hands the whole merge to your agent. A pull can never overwrite unsaved work',
+      'The visual CSS editor works on Next.js projects with plain CSS — point-and-click editing of your global stylesheets, with CSS Modules detected and explained rather than mis-edited',
+      'New "Next.js (Vanilla)" starter built for the visual editor; the existing starter is now "Next.js (Tailwind)"',
+      'Style unstyled elements — selecting an element with no class used to dead-end; both editors now offer Add class, which writes a real class attribute into your source (and refuses with a precise reason instead of guessing when ambiguous)',
+      'Arrow keys step values in the editor — ↑/↓ nudges any value field, Shift jumps ×10, Alt fine-steps; matches drag-to-scrub in both editors',
+      'Editor preset dropdowns match the app theme instead of using the macOS system popup',
+      "Windows: terminals no longer stall at 'Starting…' — the backend now answers ConPTY's startup cursor query whenever no terminal view is attached. Community fix by Vasanth!",
+      'Agent Connect runs real sign-in flows (claude auth login / codex login) instead of stranding you in the chat prompt',
+      'Preview reliability — Next.js hot-reload no longer goes stale until you re-enter the project, and a dev server killed by an agent is reported honestly with a working Restart',
+      'Import can no longer crash the app — repositories with symlink loops or unusual layouts fail gracefully with a specific message',
+      'The macOS screen-recording prompt (for project thumbnails) explains itself first and respects a "no" instead of re-asking forever',
+    ],
+  },
+  {
     version: '0.13.4', // v0.13.4
     items: [
       'Fixed dragging files/screenshots into terminals on Retina Macs — drops were silently ignored since v0.13.2; they land correctly again, still only in the terminal under your cursor',
