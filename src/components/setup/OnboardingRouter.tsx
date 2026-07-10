@@ -13,16 +13,24 @@ import { OnboardingScreen } from './OnboardingScreen';
 import { AgentOnboardingScreen } from './agent-led/AgentOnboardingScreen';
 import { trackEvent } from '../../lib/analytics';
 import { logger } from '../../lib/logger';
+import { isWindows } from '../../lib/setup';
 
 export type OnboardingMode = 'agent' | 'classic';
 
 const MODE_STORAGE_KEY = 'shipstudio.onboardingMode';
 
 function readStoredMode(): OnboardingMode {
+  // Windows defaults to the classic wizard until the agent-led flow gets a
+  // real Windows pass — a broken first run is the one place the "classic is
+  // one click away" fallback isn't enough, because a brand-new user doesn't
+  // know it's the fix. "Try agent-guided setup" stays available as an opt-in.
+  const fallback: OnboardingMode = isWindows() ? 'classic' : 'agent';
   try {
-    return localStorage.getItem(MODE_STORAGE_KEY) === 'classic' ? 'classic' : 'agent';
+    const stored = localStorage.getItem(MODE_STORAGE_KEY);
+    if (stored === 'classic' || stored === 'agent') return stored;
+    return fallback;
   } catch {
-    return 'agent';
+    return fallback;
   }
 }
 
