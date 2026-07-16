@@ -14,6 +14,7 @@ import {
   CursorIcon,
   FolderIcon,
   GlobeIcon,
+  LayersIcon,
   PlusIcon,
   SettingsIcon,
 } from '../components/icons';
@@ -276,6 +277,23 @@ export function useAppCommands({
         category: 'settings',
         keywords: ['version', 'upgrade'],
         run: () => void runCheckUpdates(),
+      },
+      {
+        id: 'modal.attachedLibraries',
+        title: 'Shared libraries',
+        icon: <LayersIcon size={14} />,
+        category: 'settings',
+        keywords: [
+          'library',
+          'attached',
+          'workspace',
+          'skills',
+          'add-dir',
+          'vault',
+          'reference',
+          'cross-project',
+        ],
+        run: () => openModal('attachedLibraries'),
       },
     ],
     [

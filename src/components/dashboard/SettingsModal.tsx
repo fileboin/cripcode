@@ -34,6 +34,7 @@ import {
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import { EditIcon } from '../icons';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useOpenModal } from '../../contexts/ModalContext';
 
 const errMsg = (err: unknown) => formatCommandError(asCommandError(err));
 
@@ -62,6 +63,7 @@ export function SettingsModal({
   onProjectsRootChanged,
 }: SettingsModalProps) {
   const { showToast } = useOptionalToast();
+  const openModal = useOpenModal();
   // Projects folder is per-workspace; reflect the active one in the label.
   const { activeAccount, accounts } = useActiveAccount();
   const multipleWorkspaces = accounts.length > 1;
@@ -286,6 +288,25 @@ export function SettingsModal({
                   </button>
                 )}
               </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-info">
+                <span className="settings-row-label">Shared libraries</span>
+                <span className="settings-row-description">
+                  Folders your agent brings along to every project in this workspace — brand docs,
+                  snippets, your own skills. Works with Claude Code.
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  openModal('attachedLibraries');
+                }}
+              >
+                Manage
+              </Button>
             </div>
             <div className="settings-row">
               <div className="settings-row-info">

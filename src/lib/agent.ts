@@ -24,6 +24,14 @@ export interface AgentConfig {
   processName: string;
   /** Flag to skip permission prompts, or null if not supported */
   autoAcceptFlag: string | null;
+  /**
+   * Flag this agent uses to attach an additional working directory (read
+   * access + skills), or null if the agent has no equivalent. Ship Studio
+   * appends `<flag> <path>` per attached library at launch so the user's
+   * cross-project library rides along. Claude Code: `--add-dir` (its skills
+   * load and files are readable, but the directory's CLAUDE.md is not loaded).
+   */
+  additionalDirFlag: string | null;
   /** Whether this agent supports the skills system */
   supportsSkills: boolean;
   /** Whether this agent supports MCP (Model Context Protocol) servers */
@@ -45,6 +53,7 @@ export const CLAUDE_CODE: AgentConfig = {
   binaryName: 'claude',
   processName: 'claude',
   autoAcceptFlag: '--dangerously-skip-permissions',
+  additionalDirFlag: '--add-dir',
   supportsSkills: true,
   supportsMcp: true,
   supportsStatusDetection: true,
@@ -60,6 +69,8 @@ export const CODEX: AgentConfig = {
   binaryName: 'codex',
   processName: 'codex',
   autoAcceptFlag: '--yolo',
+  // Codex has no `--add-dir` equivalent yet; attached libraries are a no-op.
+  additionalDirFlag: null,
   supportsSkills: true,
   supportsMcp: true,
   supportsStatusDetection: false,
@@ -75,6 +86,7 @@ export const OPENCODE: AgentConfig = {
   binaryName: 'opencode',
   processName: 'opencode',
   autoAcceptFlag: null,
+  additionalDirFlag: null,
   supportsSkills: false,
   supportsMcp: true,
   supportsStatusDetection: false,
@@ -90,6 +102,7 @@ export const CURSOR: AgentConfig = {
   binaryName: 'cursor-agent',
   processName: 'cursor-agent',
   autoAcceptFlag: '--force',
+  additionalDirFlag: null,
   supportsSkills: false,
   supportsMcp: false,
   supportsStatusDetection: false,
@@ -105,6 +118,7 @@ export const TERMINAL: AgentConfig = {
   binaryName: isWindows() ? 'powershell.exe' : '/bin/zsh',
   processName: isWindows() ? 'powershell' : 'zsh',
   autoAcceptFlag: null,
+  additionalDirFlag: null,
   supportsSkills: false,
   supportsMcp: false,
   supportsStatusDetection: false,
