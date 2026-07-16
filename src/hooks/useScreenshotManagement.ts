@@ -24,7 +24,12 @@ const SCREENSHOT_INTERVAL_MS = 5 * 60 * 1000;
 
 interface UseScreenshotManagementParams {
   previewRef: RefObject<PreviewHandle | null>;
-  devServerPort: number;
+  /** The current project's dev-server port, or null when no port is
+   *  affirmatively known for it. Capture writes into the project's own
+   *  `.shipstudio/thumbnail.png`, so a guessed/fallback port here would
+   *  screenshot whatever server happens to answer it — possibly another
+   *  project's — and file it under the wrong project. Null skips capture. */
+  devServerPort: number | null;
   pasteToActiveTerminal: (text: string) => void;
   currentProjectPathRef: RefObject<string | null>;
 }
@@ -35,6 +40,12 @@ export function useScreenshotManagement({
   pasteToActiveTerminal,
   currentProjectPathRef,
 }: UseScreenshotManagementParams) {
+  // Read the port through a ref at capture time. The 5-minute interval and
+  // its retry timers hold long-lived closures — a closed-over port would go
+  // stale the moment the server moves, and the stale port may belong to a
+  // different project by then.
+  const devServerPortRef = useRef(devServerPort);
+  devServerPortRef.current = devServerPort;
   // Capture state
   const [isCapturing, setIsCapturing] = useState(false);
   const [isCropMode, setIsCropMode] = useState(false);
@@ -138,6 +149,13 @@ export function useScreenshotManagement({
         });
         return;
       }
+      const port = devServerPortRef.current;
+      if (port === null) {
+        logger.info('[Thumbnail] Skipping - no port affirmatively known for project', {
+          projectPath,
+        });
+        return;
+      }
       const decision = decideAutoCapture(await getThumbnailsEnabled());
       if (decision === 'skip') {
         logger.info('[Thumbnail] Skipping - thumbnails disabled in Settings');
@@ -154,13 +172,13 @@ export function useScreenshotManagement({
       try {
         logger.info('[Thumbnail] Capturing now', {
           projectPath,
-          port: devServerPort,
+          port,
           attempt,
           sessionId,
         });
         await invoke('capture_project_thumbnail', {
           projectPath,
-          url: `http://localhost:${devServerPort}`,
+          url: `http://localhost:${port}`,
         });
         logger.info('Thumbnail captured successfully', { projectPath, attempt });
       } catch (error) {
@@ -195,7 +213,7 @@ export function useScreenshotManagement({
         }
       }
     },
-    [devServerPort, previewRef, currentProjectPathRef]
+    [previewRef, currentProjectPathRef]
   );
 
   // Called when preview server signals it's ready

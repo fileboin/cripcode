@@ -174,6 +174,46 @@ describe('useScreenshotManagement auto-capture consent gate', () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
+  it('unknown port: skips capture instead of guessing a fallback', async () => {
+    vi.mocked(getThumbnailsEnabled).mockResolvedValue(true);
+    const { result } = renderHook(() =>
+      useScreenshotManagement({ ...makeParams(), devServerPort: null })
+    );
+
+    await triggerAutoCapture(result);
+
+    // No capture and no consent prompt — a guessed port could screenshot a
+    // different project's server into this project's thumbnail.
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(result.current.showThumbnailConsent).toBe(false);
+  });
+
+  it('captures with the port current at capture time, not schedule time', async () => {
+    vi.mocked(getThumbnailsEnabled).mockResolvedValue(true);
+    const base = makeParams();
+    let port: number | null = 3100;
+    const { result, rerender } = renderHook(() =>
+      useScreenshotManagement({ ...base, devServerPort: port })
+    );
+
+    act(() => {
+      result.current.handlePreviewReady(PROJECT);
+    });
+
+    // The dev server announces it actually bound a different port while the
+    // 8s capture delay is pending.
+    port = 3101;
+    rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8_000);
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('capture_project_thumbnail', {
+      projectPath: PROJECT,
+      url: 'http://localhost:3101',
+    });
+  });
+
   it('non-denial failure keeps the retry behavior', async () => {
     vi.mocked(getThumbnailsEnabled).mockResolvedValue(true);
     invokeMock.mockRejectedValue('Dev server not responding, skipping thumbnail capture');

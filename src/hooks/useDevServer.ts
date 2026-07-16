@@ -83,6 +83,7 @@ import { trackEvent } from '../lib/analytics';
 import { getWindowLabel } from '../lib/window';
 import type { HealthTabPanelRef } from '../components/code/HealthTabPanel';
 import { stripAnsi } from '../lib/ansi';
+import { extractAnnouncedPort } from '../lib/ports';
 
 /** Record of a dev-server process that died without Ship Studio stopping it. */
 export interface DevServerUnexpectedExit {
@@ -97,6 +98,13 @@ export interface DevServerUnexpectedExit {
 interface ProjectServerState {
   handle: DevServerHandle | null;
   port: number;
+  /** False until `port` holds a value that affirmatively belongs to THIS
+   *  project — a reservation, a static-server bind, or a port the server
+   *  announced in its own output. While false, `port` is just the 3000
+   *  placeholder and must not be used for anything that writes per-project
+   *  artifacts (thumbnail capture targets the port and saves under the
+   *  project — a guessed port screenshots someone else's server). */
+  portKnown: boolean;
   type: ProjectType;
   customCommand: string | null;
   outputBuffer: string;
@@ -161,6 +169,7 @@ function makeState(): ProjectServerState {
   return {
     handle: null,
     port: DEFAULT_PORT,
+    portKnown: false,
     type: 'unknown',
     customCommand: null,
     outputBuffer: '',
@@ -275,6 +284,11 @@ export function useDevServer(currentProjectPath: string | null) {
   );
 
   const devServerPort = activeState?.port ?? DEFAULT_PORT;
+  // Null until the current project's port is affirmatively its own (reserved,
+  // static-bound, or announced by the server). Consumers that write
+  // per-project artifacts (thumbnail capture) must use this and skip on null
+  // rather than fall back to the 3000 placeholder.
+  const knownDevServerPort = activeState?.portKnown ? activeState.port : null;
   const projectType = activeState?.type ?? 'unknown';
   const customDevCommand = activeState?.customCommand ?? null;
   const needsInstall = activeState?.needsInstall ?? null;
@@ -343,6 +357,7 @@ export function useDevServer(currentProjectPath: string | null) {
       if (!path) return;
       const s = getOrCreateState(path);
       s.port = port;
+      s.portKnown = true;
       bump();
     },
     [bump, getOrCreateState]
@@ -463,6 +478,26 @@ export function useDevServer(currentProjectPath: string | null) {
         const { kept, pending } = filterProbeChunk(s.pendingOutputLine, data);
         s.pendingOutputLine = pending;
         if (!kept) return; // chunk was entirely buffered or entirely filtered
+        // Frameworks silently auto-increment when their requested port is
+        // taken, so the "Local: http://localhost:XXXX" line in their own
+        // output is the ground truth for which port THIS server bound —
+        // adopt it over the port we asked for. (Cheap substring pre-filter:
+        // every announcement shape contains "local" or "url:".)
+        if (/local|url:/i.test(kept)) {
+          for (const line of kept.split('\n')) {
+            const announced = line ? extractAnnouncedPort(stripAnsi(line)) : null;
+            if (announced !== null && (announced !== s.port || !s.portKnown)) {
+              logger.info('[DevServer] Adopting port announced by dev server', {
+                projectPath,
+                announced,
+                previous: s.port,
+              });
+              s.port = announced;
+              s.portKnown = true;
+              if (projectPath === currentPathRef.current) bump();
+            }
+          }
+        }
         s.outputBuffer += kept;
         if (s.outputBuffer.length > OUTPUT_BUFFER_MAX) {
           s.outputBuffer = s.outputBuffer.slice(-OUTPUT_BUFFER_MAX);
@@ -522,6 +557,7 @@ export function useDevServer(currentProjectPath: string | null) {
       // Re-enable output handling for the (possibly new) server on this path.
       s.suppressed = false;
       s.port = port;
+      s.portKnown = true;
       // A fresh spawn supersedes any prior death — clear the record so the
       // Preview pane doesn't keep reporting a stale "process stopped".
       s.unexpectedExit = null;
@@ -659,6 +695,7 @@ export function useDevServer(currentProjectPath: string | null) {
         try {
           const staticPort = await startStaticServer(windowLabel, cwd);
           s.port = staticPort;
+          s.portKnown = true;
           bump();
           void trackEvent('dev_server_started', {
             project_type: 'statichtml',
@@ -878,6 +915,8 @@ export function useDevServer(currentProjectPath: string | null) {
         if (!s.handle) {
           logger.error('Failed to start dev server: spawn timed out');
         } else {
+          s.port = effectivePort;
+          s.portKnown = true;
           wireExitWatcher(projectPath, s);
         }
       };
@@ -926,6 +965,7 @@ export function useDevServer(currentProjectPath: string | null) {
           await delay(300);
           const newPort = await startStaticServer(windowLabel, cwd);
           s.port = newPort;
+          s.portKnown = true;
           bump();
         } else {
           try {
@@ -1038,6 +1078,7 @@ export function useDevServer(currentProjectPath: string | null) {
 
     // Current-project scalars
     devServerPort,
+    knownDevServerPort,
     setDevServerPort,
     projectType,
     setProjectType,

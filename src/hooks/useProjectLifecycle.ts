@@ -71,9 +71,7 @@ import { startProjectSession, endProjectSession } from '../lib/session';
 import { basename } from '../lib/paths';
 
 import type { AppView } from '../lib/types';
-
-/** Preferred port for Next.js dev server (will find available port if taken) */
-const PREFERRED_DEV_SERVER_PORT = 3000;
+import { preferredPortForProject } from '../lib/ports';
 
 export interface UseProjectLifecycleParams {
   currentProject: Project | null;
@@ -587,9 +585,12 @@ export function useProjectLifecycle({
       return;
     }
 
-    // Load saved dev server port preference
+    // Load saved dev server port preference. Absent an explicit per-project
+    // setting, the preference is derived from the project path — every
+    // project preferring 3000 meant reservation order (not the project)
+    // decided who got which port, and any desync previewed the wrong server.
     stepStart = performance.now();
-    let preferredPort = PREFERRED_DEV_SERVER_PORT;
+    let preferredPort = preferredPortForProject(project.path);
     try {
       const savedPort = await invoke<number | null>('get_dev_server_port', {
         projectPath: project.path,

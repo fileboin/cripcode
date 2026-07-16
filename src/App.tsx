@@ -224,6 +224,7 @@ function AppContents({ initialProjectPath }: AppProps) {
     devServerRef,
     healthPanelRef,
     devServerPort,
+    knownDevServerPort,
     setDevServerPort,
     projectType,
     isRestartingDevServer,
@@ -310,7 +311,9 @@ function AppContents({ initialProjectPath }: AppProps) {
     clearScreenshotInterval,
   } = useScreenshotManagement({
     previewRef,
-    devServerPort,
+    // Thumbnail capture must only ever target a port that provably belongs
+    // to the current project — null (skip) beats the 3000 fallback here.
+    devServerPort: knownDevServerPort,
     pasteToActiveTerminal,
     currentProjectPathRef,
   });

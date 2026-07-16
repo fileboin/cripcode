@@ -63,6 +63,9 @@ describe('useDevServer', () => {
     const { result } = renderHook(() => useDevServer('/path/to/project'));
 
     expect(result.current.devServerPort).toBe(3000);
+    // No reservation, bind, or announcement yet — 3000 is a placeholder, not
+    // a port that belongs to this project.
+    expect(result.current.knownDevServerPort).toBeNull();
     expect(result.current.projectType).toBe('unknown');
     expect(result.current.isRestartingDevServer).toBe(false);
     expect(result.current.devServerOutputVersion).toBe(0);
@@ -137,6 +140,84 @@ describe('useDevServer', () => {
       });
 
       expect(result.current.devServerPort).toBe(8080);
+      expect(result.current.knownDevServerPort).toBe(8080);
+    });
+  });
+
+  describe('announced-port adoption', () => {
+    /** Start a PTY dev server and capture its output callback so tests can
+     *  feed it framework banner lines. */
+    async function startWithCapturedOutput(result: {
+      current: ReturnType<typeof useDevServer>;
+    }): Promise<(data: string) => void> {
+      const project = await import('../lib/project');
+      let onOutput: ((data: string) => void) | undefined;
+      vi.mocked(project.startDevServer).mockImplementation((_cwd, _port, _label, out) => {
+        onOutput = out;
+        return Promise.resolve({
+          pty: { kill: vi.fn(), onExit: vi.fn() } as never,
+          stop: vi.fn().mockResolvedValue(undefined),
+        } as never);
+      });
+      await act(async () => {
+        await result.current.startServerForProject('/path/to/project', 'proj', 3100, 'main');
+      });
+      expect(onOutput).toBeDefined();
+      return onOutput!;
+    }
+
+    it('adopts the port the dev server announces in its own output', async () => {
+      const { result } = renderHook(() => useDevServer('/path/to/project'));
+      const onOutput = await startWithCapturedOutput(result);
+
+      expect(result.current.devServerPort).toBe(3100);
+      expect(result.current.knownDevServerPort).toBe(3100);
+
+      // The requested port was taken — the framework auto-incremented.
+      act(() => {
+        onOutput('  ➜  Local:   http://localhost:3101/\n');
+      });
+
+      expect(result.current.devServerPort).toBe(3101);
+      expect(result.current.knownDevServerPort).toBe(3101);
+    });
+
+    it('strips ANSI colors before reading the announcement', async () => {
+      const { result } = renderHook(() => useDevServer('/path/to/project'));
+      const onOutput = await startWithCapturedOutput(result);
+
+      act(() => {
+        onOutput(
+          '  \x1b[32m➜\x1b[0m  \x1b[1mLocal\x1b[0m:   \x1b[36mhttp://localhost:4444/\x1b[0m\n'
+        );
+      });
+
+      expect(result.current.devServerPort).toBe(4444);
+    });
+
+    it('does not move the port for incidental localhost mentions', async () => {
+      const { result } = renderHook(() => useDevServer('/path/to/project'));
+      const onOutput = await startWithCapturedOutput(result);
+
+      act(() => {
+        onOutput('proxying api requests to http://localhost:8080\n');
+      });
+
+      expect(result.current.devServerPort).toBe(3100);
+    });
+
+    it('handles announcements split across PTY chunks', async () => {
+      const { result } = renderHook(() => useDevServer('/path/to/project'));
+      const onOutput = await startWithCapturedOutput(result);
+
+      act(() => {
+        onOutput('  - Local:        http://loc');
+      });
+      expect(result.current.devServerPort).toBe(3100);
+      act(() => {
+        onOutput('alhost:3102\n');
+      });
+      expect(result.current.devServerPort).toBe(3102);
     });
   });
 
