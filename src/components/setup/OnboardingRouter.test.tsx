@@ -37,19 +37,19 @@ describe('OnboardingRouter', () => {
     expect(screen.queryByTestId('classic-screen')).not.toBeInTheDocument();
   });
 
-  it('defaults Windows to the classic wizard (agent-led stays opt-in)', () => {
+  it('defaults Windows to the agent-led experience too', () => {
     isWindowsMock.mockReturnValue(true);
-    render(<OnboardingRouter onComplete={vi.fn()} />);
-    expect(screen.getByTestId('classic-screen')).toBeInTheDocument();
-    // The opt-in toggle into agent-led is still pinned in view.
-    expect(screen.getByRole('button', { name: 'Try agent-guided setup' })).toBeInTheDocument();
-  });
-
-  it('a stored agent choice on Windows overrides the classic default', () => {
-    isWindowsMock.mockReturnValue(true);
-    localStorage.setItem('shipstudio.onboardingMode', 'agent');
     render(<OnboardingRouter onComplete={vi.fn()} />);
     expect(screen.getByTestId('agent-screen')).toBeInTheDocument();
+    // The classic escape hatch stays pinned in view.
+    expect(screen.getByRole('button', { name: 'Try classic onboarding' })).toBeInTheDocument();
+  });
+
+  it('a stored classic choice on Windows overrides the agent default', () => {
+    isWindowsMock.mockReturnValue(true);
+    localStorage.setItem('shipstudio.onboardingMode', 'classic');
+    render(<OnboardingRouter onComplete={vi.fn()} />);
+    expect(screen.getByTestId('classic-screen')).toBeInTheDocument();
   });
 
   it('always shows the classic escape hatch in agent mode', () => {
