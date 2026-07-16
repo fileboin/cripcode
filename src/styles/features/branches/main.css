@@ -116,6 +116,27 @@
   font-weight: 500;
 }
 
+/* Sync state: is this branch on GitHub or only local? */
+.branch-sync-badge {
+  font-size: var(--font-size-xs);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* "On GitHub" is the normal state — neutral. "Local only" is the one that
+   might need action (not backed up), so it carries the gentle warning tint. */
+.branch-sync-badge.synced {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.branch-sync-badge.local {
+  background: rgba(var(--warning-rgb), 0.12);
+  color: var(--warning);
+}
+
 .branch-changes-dot {
   width: 6px;
   height: 6px;

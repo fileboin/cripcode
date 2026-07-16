@@ -1513,6 +1513,7 @@ export const WorkspaceView = memo(function WorkspaceView({
                         fetchBranchInfo={fetchBranchInfo}
                         handleResolveConflicts={handleResolveConflicts}
                         handleGitHubConnect={handleGitHubConnect}
+                        onSendToAgent={sendToClaude}
                       />
                     </div>
                   }
