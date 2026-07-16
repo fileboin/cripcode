@@ -2,12 +2,14 @@
 //!
 //! Commands for AI-powered features like PR description generation.
 
-use crate::agent::get_active_agent;
+use crate::agent::{get_active_agent, AgentConfig};
 use crate::commands::claude::find_agent_binary;
 use crate::errors::CommandError;
 use crate::external_command::run_with_timeout;
 use crate::types::GeneratedPR;
 use crate::utils::{create_command, get_extended_path, validate_project_path};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use tracing::{debug, error, info, warn};
 
 /// Maximum diff size in bytes to send to Claude (~40KB)
@@ -28,7 +30,134 @@ pub const DEFAULT_COMMIT_MESSAGE: &str = "Update from Ship Studio";
 /// these run via async tokio process, not std `.output()` on the executor.
 const GIT_TIMEOUT_SECS: u64 = 60;
 
-/// Gather git context and generate a PR title and description using Claude CLI.
+/// How the active agent can answer a one-shot prompt without a TTY.
+enum HeadlessInvocation {
+    /// A real print mode (Claude `--print -p`, Cursor `-p --print`): the
+    /// answer is the process' stdout.
+    PrintMode(Vec<String>),
+    /// Codex `exec`: stdout is a session transcript (which echoes the prompt —
+    /// unsafe to parse), so the final message is captured via
+    /// `--output-last-message` into a temp file instead.
+    CodexExec {
+        args: Vec<String>,
+        output_file: PathBuf,
+    },
+}
+
+/// Build the headless invocation for `agent`, or `None` when the agent can't
+/// run one-shot prompts (Opencode today) — callers surface a friendly
+/// "switch your default agent" error instead of spawning an interactive
+/// session that dies with "stdin is not a terminal".
+fn headless_invocation(agent: &AgentConfig, prompt: &str) -> Option<HeadlessInvocation> {
+    if !agent.print_mode_flags.is_empty() {
+        let mut args: Vec<String> = agent
+            .print_mode_flags
+            .iter()
+            .map(|f| f.to_string())
+            .collect();
+        args.push(prompt.to_string());
+        return Some(HeadlessInvocation::PrintMode(args));
+    }
+    if agent.id == "codex" {
+        let output_file = std::env::temp_dir().join(format!(
+            "shipstudio-ai-{}-{}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        // --skip-git-repo-check: worktrees/external folders can trip Codex's
+        // trusted-directory heuristic even though we always run in a validated
+        // project path.
+        let args = vec![
+            "exec".to_string(),
+            "--skip-git-repo-check".to_string(),
+            "--color".to_string(),
+            "never".to_string(),
+            "--output-last-message".to_string(),
+            output_file.to_string_lossy().to_string(),
+            prompt.to_string(),
+        ];
+        return Some(HeadlessInvocation::CodexExec { args, output_file });
+    }
+    None
+}
+
+/// Run the active agent headlessly with `prompt` in `cwd` and return its final
+/// answer text. `extra_envs` is injected on top of the extended PATH.
+async fn run_agent_headless(
+    agent: &AgentConfig,
+    agent_path: &Path,
+    prompt: &str,
+    cwd: &Path,
+    extra_envs: HashMap<String, String>,
+    timeout_secs: u64,
+) -> Result<String, CommandError> {
+    let invocation = headless_invocation(agent, prompt).ok_or_else(|| {
+        format!(
+            "{} can't generate text non-interactively yet — set Claude Code as your default agent in Settings and try again.",
+            agent.display_name
+        )
+    })?;
+    let (args, output_file) = match &invocation {
+        HeadlessInvocation::PrintMode(args) => (args.clone(), None),
+        HeadlessInvocation::CodexExec { args, output_file } => {
+            (args.clone(), Some(output_file.clone()))
+        }
+    };
+
+    let mut cmd = create_command(agent_path);
+    cmd.args(&args)
+        .env("PATH", get_extended_path())
+        .envs(extra_envs)
+        // No TTY here: an EOF'd stdin keeps agents that read it (Codex exec)
+        // from waiting on input that will never come.
+        .stdin(std::process::Stdio::null())
+        .current_dir(cwd);
+    let tokio_cmd = tokio::process::Command::from(cmd);
+    let output = run_with_timeout(
+        tokio_cmd,
+        format!("{} CLI", agent.display_name),
+        timeout_secs,
+    )
+    .await;
+
+    // The temp file must not outlive the call, success or not.
+    let read_and_cleanup = |file: &Option<PathBuf>| -> Option<String> {
+        let file = file.as_ref()?;
+        let contents = std::fs::read_to_string(file).ok();
+        let _ = std::fs::remove_file(file);
+        contents
+    };
+
+    let output = match output {
+        Ok(o) => o,
+        Err(e) => {
+            read_and_cleanup(&output_file);
+            return Err(e);
+        }
+    };
+
+    let final_message = read_and_cleanup(&output_file);
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("{} CLI failed: {}", agent.display_name, stderr);
+        return Err(format!("{} CLI failed: {}", agent.display_name, stderr).into());
+    }
+
+    match final_message {
+        // Codex: the file carries exactly the final message.
+        Some(message) if !message.trim().is_empty() => Ok(message),
+        Some(_) => Err(format!("{} returned an empty response", agent.display_name).into()),
+        // Print mode: stdout is the answer.
+        None => Ok(String::from_utf8_lossy(&output.stdout).to_string()),
+    }
+}
+
+/// Gather git context and generate a PR title and description using the active
+/// agent CLI in headless mode.
 #[tauri::command]
 #[tracing::instrument(skip(project_path), fields(project = %project_path, base = %base_branch))]
 pub async fn generate_pr_description(
@@ -75,35 +204,20 @@ pub async fn generate_pr_description(
 
     debug!("Calling {} CLI for PR generation", agent.display_name);
 
-    let mut args: Vec<&str> = agent.print_mode_flags.to_vec();
-    args.push(&prompt);
-
-    let mut cmd = create_command(&agent_path);
-    cmd.args(&args)
-        .env("PATH", get_extended_path())
-        // Use the project's workspace creds (Anthropic base URL / API key), not
-        // whichever workspace is globally active, so AI generation for a
-        // project bills/authenticates against that project's workspace.
-        .envs(crate::commands::accounts::get_env_vars_for_project(
-            &validated_path,
-        ))
-        .current_dir(&validated_path);
-    let tokio_cmd = tokio::process::Command::from(cmd);
-    let output = run_with_timeout(
-        tokio_cmd,
-        format!("{} CLI", agent.display_name),
+    // Use the project's workspace creds (Anthropic base URL / API key), not
+    // whichever workspace is globally active, so AI generation for a
+    // project bills/authenticates against that project's workspace.
+    let envs = crate::commands::accounts::get_env_vars_for_project(&validated_path);
+    let response = run_agent_headless(
+        agent,
+        &agent_path,
+        &prompt,
+        &validated_path,
+        envs,
         AGENT_CLI_TIMEOUT_SECS,
     )
     .await?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("{} CLI failed: {}", agent.display_name, stderr);
-        return Err((format!("{} CLI failed: {}", agent.display_name, stderr)).into());
-    }
-
-    let response = String::from_utf8_lossy(&output.stdout).to_string();
-    debug!("Claude response length: {} chars", response.len());
+    debug!("Agent response length: {} chars", response.len());
 
     parse_response(&response).map_err(CommandError::from)
 }
@@ -332,12 +446,12 @@ pub async fn generate_commit_message_for_path(
 ) -> Result<String, CommandError> {
     let agent = get_active_agent();
 
-    // Only agents with a real headless print mode can run non-interactively.
-    // Codex/Opencode have no print flag today, so we don't risk launching an
-    // interactive session that would just hang until the timeout.
-    if agent.print_mode_flags.is_empty() {
+    // Only agents with a headless mode can run non-interactively (Claude and
+    // Cursor via print flags, Codex via `exec`). For the rest, bail before
+    // launching an interactive session that would just hang until the timeout.
+    if headless_invocation(agent, "").is_none() {
         return Err(format!(
-            "{} has no headless print mode; cannot auto-generate commit message",
+            "{} has no headless mode; cannot auto-generate commit message",
             agent.display_name
         )
         .into());
@@ -356,28 +470,15 @@ pub async fn generate_commit_message_for_path(
 
     debug!("Calling {} CLI for commit message", agent.display_name);
 
-    let mut args: Vec<&str> = agent.print_mode_flags.to_vec();
-    args.push(&prompt);
-
-    let mut cmd = create_command(&agent_path);
-    cmd.args(&args)
-        .env("PATH", get_extended_path())
-        .current_dir(path);
-    let tokio_cmd = tokio::process::Command::from(cmd);
-    let output = run_with_timeout(
-        tokio_cmd,
-        format!("{} CLI", agent.display_name),
+    let response = run_agent_headless(
+        agent,
+        &agent_path,
+        &prompt,
+        path,
+        HashMap::new(),
         COMMIT_MSG_CLI_TIMEOUT_SECS,
     )
     .await?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("{} CLI failed: {}", agent.display_name, stderr);
-        return Err(format!("{} CLI failed: {}", agent.display_name, stderr).into());
-    }
-
-    let response = String::from_utf8_lossy(&output.stdout).to_string();
     parse_commit_message(&response).map_err(CommandError::from)
 }
 
@@ -483,6 +584,44 @@ fn parse_commit_message(response: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn headless_invocation_uses_print_mode_when_available() {
+        let inv = headless_invocation(&crate::agent::CLAUDE_CODE, "hello").unwrap();
+        match inv {
+            HeadlessInvocation::PrintMode(args) => {
+                assert_eq!(args, vec!["--print", "-p", "hello"]);
+            }
+            HeadlessInvocation::CodexExec { .. } => panic!("Claude should use print mode"),
+        }
+    }
+
+    #[test]
+    fn headless_invocation_codex_captures_last_message_to_file() {
+        let inv = headless_invocation(&crate::agent::CODEX, "hello").unwrap();
+        match inv {
+            HeadlessInvocation::CodexExec { args, output_file } => {
+                assert_eq!(args[0], "exec");
+                assert!(args.contains(&"--skip-git-repo-check".to_string()));
+                let file_arg = args
+                    .iter()
+                    .position(|a| a == "--output-last-message")
+                    .map(|i| &args[i + 1])
+                    .expect("has --output-last-message");
+                assert_eq!(file_arg, &output_file.to_string_lossy().to_string());
+                // Prompt is the final argument.
+                assert_eq!(args.last().unwrap(), "hello");
+            }
+            HeadlessInvocation::PrintMode(_) => panic!("Codex should use exec mode"),
+        }
+    }
+
+    #[test]
+    fn headless_invocation_none_for_opencode() {
+        // Opencode has no headless mode — callers must show a friendly error
+        // instead of spawning an interactive session ("stdin is not a terminal").
+        assert!(headless_invocation(&crate::agent::OPENCODE, "hello").is_none());
+    }
 
     #[test]
     fn test_parse_response_standard() {
