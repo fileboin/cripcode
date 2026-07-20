@@ -6,6 +6,17 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.16.0
+
+- **Structural editing in the visual editor** - Insert, duplicate, and delete elements right on the canvas, committed straight to source (community feature by Benoît)
+- **Shared libraries** - Attach folders of skills and reference docs your agent brings into every project in the workspace (community feature by Sam)
+- **A clearer git workflow** - Redesigned Branches tab: sync badges, base-branch selection, friendly git errors, and an on-demand branch graph (community feature by Adam)
+- **Dedicated dev-server ports** - Every project gets its own port; no more collisions on 3000 or cross-project thumbnails
+- **Dashboard list view** - Switch to a list layout and act on multiple projects in bulk (community feature by Ben)
+- **AI generation with Codex** - PR titles/descriptions and commit messages now generate with Codex as your default agent
+- **Windows improvements** - Robust project deletion and plugin installs, terminal spawn fix, and agent-led onboarding by default (community fixes by Vasanth)
+
+
 ## What's New in v0.15.0
 
 - **Your agent can now use the preview** - Claude Code (and Codex, Opencode, Cursor) get built-in tools to see and drive your live preview: screenshots, console errors, network requests, clicking, typing, page and breakpoint switching — so the agent verifies its own changes. A green glow and cursor show exactly what it's doing. Zero setup on every project you open.
