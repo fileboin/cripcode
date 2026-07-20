@@ -26,6 +26,18 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.16.0', // v0.16.0
+    items: [
+      'Build pages visually: add, duplicate, and delete elements right on the canvas — a floating toolbar on your selection (plus a right-click menu in the element tree and Cmd+K commands) inserts headings, paragraphs, buttons, images and more, before/after/inside the selected element, written straight into your source and immediately styleable. Community feature by Benoît!',
+      'Shared libraries — attach folders of things you reuse (brand guidelines, reference docs, your own agent skills) and your agent brings them along to every project in the workspace, without copying anything into each repo. Cmd+K → "Shared libraries". Works with Claude Code. Community feature by Sam!',
+      'The Branches tab grew up — cleaner branch cards with "On GitHub" / "Local only" badges, pick a base branch when creating one, plain-English git error messages, and an on-demand branch graph tucked at the bottom that loads only when you expand it. Submitting for review now tells you honestly if your latest changes could not be saved instead of opening a PR without them. Community feature by Adam!',
+      "Every project now gets its own dedicated dev-server port instead of everyone fighting over 3000 — run projects side by side without collisions, and project thumbnails can no longer capture a different project's site. If a project hardcodes localhost:3000 (OAuth callbacks, CORS lists), update it to the port shown next to the dev server",
+      'The dashboard has a list view — switch between grid and list, select multiple projects, and organize or delete them in bulk. Community feature by Ben!',
+      '"Generate with AI" works with Codex — PR titles, descriptions, and publish commit messages now generate when Codex is your default agent; agents without a headless mode get a clear message instead of a cryptic failure',
+      'Windows round-up: deleting projects handles read-only files (no more undeletable node_modules), plugin installs report failures instead of failing silently, agent terminals spawn with the right shell, and new machines start with agent-led onboarding. Community fixes by Vasanth!',
+    ],
+  },
+  {
     version: '0.15.0', // v0.15.0
     items: [
       'Your agent can now use the preview — ask it to look at your site and it takes screenshots, reads console errors and network requests, clicks buttons, fills forms, switches pages and breakpoints, then fixes what it finds. A green glow and cursor show exactly what the agent is doing. Zero setup: works automatically on every project you open, with Claude Code, Codex, Opencode, and Cursor',
