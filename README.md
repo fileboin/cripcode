@@ -176,10 +176,9 @@ and putting in the hours to keep it that way.
 ### [Native](https://www.native.agency/) — Web & product agency
 
 Native is the web and product team for companies who value speed and quality
-above all else. One team covering strategy, design, and development, turning
-projects around in about a week.
+above all else. One team covering strategy, design, and development.
 
-Native funds a share of Ship Studio's running costs and contributes
+Native funds Ship Studio's running costs and contributes
 development hours to the app itself. It's also part-owned by Ship Studio's
 founders, so when you hire Native for a project, you're directly supporting
 this one too.
