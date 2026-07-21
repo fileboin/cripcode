@@ -56,6 +56,7 @@ import {
   RedoIcon,
 } from '../icons';
 import { useSnapshots } from '../../hooks/useSnapshots';
+import { useWorktreeWorkflow } from '../../hooks/useWorktreeWorkflow';
 import { ToolbarDropdown } from './ToolbarDropdown';
 import { TerminalSplitHeaders } from './TerminalSplitHeaders';
 import { TerminalSplitDividers } from './TerminalSplitDividers';
@@ -140,6 +141,9 @@ interface DevServerProps {
    *  (crash / external kill). Lets the Preview offer a real process restart. */
   devServerUnexpectedExit: DevServerUnexpectedExit | null;
   onRunInstall: () => void;
+  /** Path-scoped install trigger — used to auto-install a fresh worktree's
+   *  dependencies without waiting for the Preview CTA click. */
+  onRunInstallFor: (projectPath: string, packageManager: string) => void;
   /** Type into the dev-server PTY (interactive CLI prompts in the logs pane). */
   onDevServerInput: (data: string) => void;
   /** Sync the dev-server PTY size to the logs terminal. */
@@ -460,6 +464,7 @@ export const WorkspaceView = memo(function WorkspaceView({
     needsInstall,
     devServerUnexpectedExit,
     onRunInstall,
+    onRunInstallFor,
     onDevServerInput,
     onDevServerResize,
   } = devServer;
@@ -549,6 +554,16 @@ export const WorkspaceView = memo(function WorkspaceView({
   const { isEducationMode, closeEducation } = modals;
 
   const { toasts: toastList, showToast, dismissToast } = toasts;
+
+  // Worktrees of the current project's repository (state, create-modal
+  // trigger, post-create open + auto-install). Logic lives in the hook.
+  const worktree = useWorktreeWorkflow({
+    projectPath: currentProject.path,
+    showToast,
+    onSelectProject,
+    onCloseProject,
+    onRunInstallFor,
+  });
 
   const {
     currentBranch,
@@ -735,6 +750,8 @@ export const WorkspaceView = memo(function WorkspaceView({
     openPushDropdown: () => setForcePublishOpen(true),
     handlePullLatest: () => void handlePullLatest(),
     isGitHubConnected: integrations.projectGithub?.status === 'connected',
+    openWorktreeCreate: worktree.openCreate,
+    hasWorktreeData: worktree.worktrees.length > 0,
   });
 
   // Shopify themes: preview gate state + palette commands.
@@ -1020,6 +1037,7 @@ export const WorkspaceView = memo(function WorkspaceView({
     onPublishStatusChange: () => {
       void handleGitHubStatusChange();
       void fetchBranchInfo(currentProject.path);
+      void worktree.refresh();
     },
     onCreatePR: () => setShowSubmitReview(currentBranch || 'main'),
     forcePublishOpen,
@@ -1116,6 +1134,8 @@ export const WorkspaceView = memo(function WorkspaceView({
                 isWebProject && devServerPort > 0 ? `http://localhost:${devServerPort}` : undefined
               }
               isProjectDevServerRunning={isProjectDevServerRunning}
+              worktrees={worktree.worktrees}
+              onAddWorktree={worktree.openCreate}
               onSwitchAccount={onSwitchAccount}
             />
             <div className="workspace-main">
@@ -1514,6 +1534,7 @@ export const WorkspaceView = memo(function WorkspaceView({
                         handleResolveConflicts={handleResolveConflicts}
                         handleGitHubConnect={handleGitHubConnect}
                         onSendToAgent={sendToClaude}
+                        {...worktree.tabProps}
                       />
                     </div>
                   }
@@ -1606,6 +1627,9 @@ export const WorkspaceView = memo(function WorkspaceView({
           installTerminalExited={installTerminalExited}
           onCloseInstallTerminal={onCloseInstallTerminal}
           onInstallTerminalExit={onInstallTerminalExit}
+          currentBranch={currentBranch || 'main'}
+          worktrees={worktree.worktrees}
+          onWorktreeCreated={worktree.handleCreated}
           customDevCommand={customDevCommand}
           onSaveDevCommand={handleSaveDevCommand}
           devServerPort={devServerPort}
