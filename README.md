@@ -168,6 +168,30 @@ own keys or strip telemetry entirely.
 Found a vulnerability? **Do not file a public issue.** See
 [SECURITY.md](SECURITY.md) for private reporting.
 
+## Sponsors
+
+Ship Studio is free and open source. These are the people covering the bills
+and putting in the hours to keep it that way.
+
+### [Native](https://www.native.agency/) — Web & product agency
+
+Native is the web and product team for companies who value speed and quality
+above all else. One team covering strategy, design, and development, turning
+projects around in about a week.
+
+Native funds a share of Ship Studio's running costs and contributes
+development hours to the app itself. It's also part-owned by Ship Studio's
+founders, so when you hire Native for a project, you're directly supporting
+this one too.
+
+- **Need a website or product?** [Work with Native ↗](https://www.native.agency/contact)
+- **Agency or freelancer?** Native teams up on projects too — [reach out ↗](https://www.native.agency/contact)
+
+### Support Ship Studio
+
+Want to support the project with contributions or financially?
+[Reach out](mailto:juliangalluzzois@gmail.com) — `juliangalluzzois@gmail.com`.
+
 ## Community
 
 - [GitHub Discussions](https://github.com/ship-studio/ship-studio/discussions) — questions, ideas, show-and-tell
