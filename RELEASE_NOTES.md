@@ -6,6 +6,11 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.17.1
+
+- **Fixed worktree sidebar duplication** - Projects no longer show duplicate rows in the sidebar when worktrees are open. Grouping now asks git which repository a worktree belongs to, so it works for imported projects living outside ~/ShipStudio too. Creating a worktree while working inside another worktree now files it under the project itself.
+
+
 ## What's New in v0.17.0
 
 - **Worktrees** - Work on multiple branches of the same project at the same time. Each worktree opens as its own workspace — its own agent, terminal, dev server, and preview — switchable from the sidebar with everything staying hot. Real git underneath, so your terminal and the app always agree.
