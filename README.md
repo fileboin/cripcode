@@ -21,7 +21,7 @@ lives on your machine, not on our servers.
 
 *Dev tools for the rest of us.*
 
-[**Download for free**](https://www.ship.studio/download) · [Website](https://www.ship.studio/) · [Community Slack](https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
+[**Download for free**](https://www.ship.studio/download) · [Website](https://www.ship.studio/) · [Community Slack](https://ship.studio/slack) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
 
 ---
 
@@ -194,7 +194,7 @@ Want to support the project with contributions or financially?
 ## Community
 
 - [GitHub Discussions](https://github.com/ship-studio/ship-studio/discussions) — questions, ideas, show-and-tell
-- [Community Slack](https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g) — real-time chat with maintainers and users
+- [Community Slack](https://ship.studio/slack) — real-time chat with maintainers and users
 - [Issues](https://github.com/ship-studio/ship-studio/issues) — bug reports and feature requests
 - [@galluzzo_julian](https://x.com/galluzzo_julian) — follow along on X
 - [YouTube](https://www.youtube.com/@shipstudio_app) — tutorials, demos, and walkthroughs

@@ -7,13 +7,11 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { EyeOffIcon, SlackIcon } from '../icons';
 import { Button } from '../primitives/Button';
+import { SLACK_INVITE_URL } from '../../lib/links';
 
 interface DashboardCommunityBannerProps {
   onHide: () => void;
 }
-
-const SLACK_INVITE_URL =
-  'https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g';
 
 /**
  * Renders the dashboard community banner with join and hide actions.

@@ -26,6 +26,12 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.17.2', // v0.17.2
+    items: [
+      'Slack links now go through ship.studio/slack, so the community invite always stays fresh — no more expired invite links in older app versions',
+    ],
+  },
+  {
     version: '0.17.1', // v0.17.1
     items: [
       'Worktree fix — the sidebar no longer shows duplicate rows for a project when its worktrees are open. Grouping now asks git which repository a worktree belongs to, so it works for imported projects living outside ~/ShipStudio too',

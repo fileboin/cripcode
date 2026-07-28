@@ -9,9 +9,7 @@ import type { LibraryArticle } from '@cstar.help/js/library';
 import type { SupportView } from './SupportPanel';
 import { trackEvent } from '../../lib/analytics';
 import { SlackIcon } from '../icons';
-
-const SLACK_INVITE_URL =
-  'https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g';
+import { SLACK_INVITE_URL } from '../../lib/links';
 
 interface SupportHomeProps {
   onNavigate: (view: SupportView) => void;

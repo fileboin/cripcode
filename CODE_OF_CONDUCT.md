@@ -13,7 +13,7 @@ In short:
 ## Reporting
 
 If you experience or witness behavior that violates this code, please DM a
-maintainer privately in our [community Slack](https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g),
+maintainer privately in our [community Slack](https://ship.studio/slack),
 or email [juliangalluzzois@gmail.com](mailto:juliangalluzzois@gmail.com).
 Reports are handled in confidence. We will not retaliate against good-faith
 reporters.
