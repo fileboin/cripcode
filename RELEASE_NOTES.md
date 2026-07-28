@@ -6,6 +6,11 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.17.2
+
+- **Fresh Slack invites** - All Slack links in the app now go through ship.studio/slack, so the community invite always stays fresh — even in older app versions
+
+
 ## What's New in v0.17.1
 
 - **Fixed worktree sidebar duplication** - Projects no longer show duplicate rows in the sidebar when worktrees are open. Grouping now asks git which repository a worktree belongs to, so it works for imported projects living outside ~/ShipStudio too. Creating a worktree while working inside another worktree now files it under the project itself.
