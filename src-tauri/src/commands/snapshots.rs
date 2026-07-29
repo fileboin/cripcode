@@ -143,9 +143,8 @@ fn is_relevant_path(p: &Path, project_root: &Path) -> bool {
 /// Capture the current working tree as a stash commit. Returns the SHA, or
 /// empty string if the tree is clean (nothing to snapshot).
 fn capture_snapshot(project_path: &Path) -> Result<String, CommandError> {
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(project_path)?
         .args(["stash", "create"])
-        .current_dir(project_path)
         .output()
         .map_err(|e| CommandError::Io {
             message: format!("git stash create: {e}"),
@@ -177,12 +176,11 @@ fn diff_files(project_path: &Path, from_sha: &str, to_sha: &str) -> Vec<String> 
     if from_ref == to_ref {
         return Vec::new();
     }
-    let Ok(mut diff_cmd) = crate::utils::git_command() else {
+    let Ok(mut diff_cmd) = crate::utils::git_command_in(project_path) else {
         return Vec::new();
     };
     let output = match diff_cmd
         .args(["diff", "--name-only", from_ref, to_ref])
-        .current_dir(project_path)
         .output()
     {
         Ok(o) if o.status.success() => o,
@@ -202,9 +200,8 @@ fn diff_files(project_path: &Path, from_sha: &str, to_sha: &str) -> Vec<String> 
 fn apply_snapshot(project_path: &Path, sha: &str) -> Result<(), CommandError> {
     if sha.is_empty() {
         // Clean working tree: reset tracked files to HEAD.
-        let out = crate::utils::git_command()?
+        let out = crate::utils::git_command_in(project_path)?
             .args(["checkout-index", "-a", "-f"])
-            .current_dir(project_path)
             .output()
             .map_err(|e| CommandError::Io {
                 message: format!("git checkout-index: {e}"),
@@ -222,9 +219,8 @@ fn apply_snapshot(project_path: &Path, sha: &str) -> Result<(), CommandError> {
     // `stash create` produces a merge commit whose first parent is HEAD and
     // whose tree is the working tree. Apply that tree to both the index and
     // the working directory.
-    let read_tree = crate::utils::git_command()?
+    let read_tree = crate::utils::git_command_in(project_path)?
         .args(["read-tree", "-u", "--reset", sha])
-        .current_dir(project_path)
         .output()
         .map_err(|e| CommandError::Io {
             message: format!("git read-tree: {e}"),

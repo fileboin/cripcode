@@ -237,9 +237,8 @@ pub async fn generate_pr_description(
 }
 
 async fn get_branch_name(path: &std::path::Path) -> Result<String, CommandError> {
-    let mut cmd = crate::utils::git_command()?;
-    cmd.args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(path);
+    let mut cmd = crate::utils::git_command_in(path)?;
+    cmd.args(["rev-parse", "--abbrev-ref", "HEAD"]);
     let output = run_with_timeout(
         tokio::process::Command::from(cmd),
         "git rev-parse",
@@ -255,15 +254,14 @@ async fn get_branch_name(path: &std::path::Path) -> Result<String, CommandError>
 }
 
 async fn get_commit_messages(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = crate::utils::git_command()?;
+    let mut cmd = crate::utils::git_command_in(path)?;
     cmd.args([
         "--no-pager",
         "log",
         &format!("{base}..HEAD"),
         "--pretty=format:%s",
         "--no-merges",
-    ])
-    .current_dir(path);
+    ]);
     let output = run_with_timeout(
         tokio::process::Command::from(cmd),
         "git log",
@@ -276,9 +274,8 @@ async fn get_commit_messages(path: &std::path::Path, base: &str) -> Result<Strin
 }
 
 async fn get_diff_stat(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = crate::utils::git_command()?;
-    cmd.args(["--no-pager", "diff", &format!("{base}...HEAD"), "--stat"])
-        .current_dir(path);
+    let mut cmd = crate::utils::git_command_in(path)?;
+    cmd.args(["--no-pager", "diff", &format!("{base}...HEAD"), "--stat"]);
     let output = run_with_timeout(
         tokio::process::Command::from(cmd),
         "git diff --stat",
@@ -290,9 +287,8 @@ async fn get_diff_stat(path: &std::path::Path, base: &str) -> Result<String, Com
 }
 
 async fn get_diff(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = crate::utils::git_command()?;
-    cmd.args(["--no-pager", "diff", &format!("{base}...HEAD")])
-        .current_dir(path);
+    let mut cmd = crate::utils::git_command_in(path)?;
+    cmd.args(["--no-pager", "diff", &format!("{base}...HEAD")]);
     let output = run_with_timeout(
         tokio::process::Command::from(cmd),
         "git diff",
@@ -497,9 +493,8 @@ pub async fn generate_commit_message_for_path(
 }
 
 fn git_status_porcelain(path: &std::path::Path) -> Result<String, CommandError> {
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(path)?
         .args(["status", "--porcelain"])
-        .current_dir(path)
         .output()
         .map_err(CommandError::from)?;
     if !output.status.success() {
@@ -512,11 +507,10 @@ fn git_status_porcelain(path: &std::path::Path) -> Result<String, CommandError> 
 /// unborn branch (no commits) `git diff HEAD` fails; we return whatever stdout
 /// it produced (empty) and let the porcelain file list carry the context.
 fn git_working_diff(path: &std::path::Path) -> String {
-    let Ok(mut cmd) = crate::utils::git_command() else {
+    let Ok(mut cmd) = crate::utils::git_command_in(path) else {
         return String::new();
     };
     cmd.args(["--no-pager", "diff", "HEAD"])
-        .current_dir(path)
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default()
@@ -750,10 +744,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
         let git = |args: &[&str]| {
-            crate::utils::git_command()
+            crate::utils::git_command_in(dir)
                 .unwrap()
                 .args(args)
-                .current_dir(dir)
                 .output()
                 .unwrap()
         };
@@ -781,10 +774,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
         let git = |args: &[&str]| {
-            crate::utils::git_command()
+            crate::utils::git_command_in(dir)
                 .unwrap()
                 .args(args)
-                .current_dir(dir)
                 .output()
                 .unwrap()
         };

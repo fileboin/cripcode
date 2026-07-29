@@ -56,7 +56,9 @@ pub(crate) async fn run_git_net(
 ) -> Result<std::process::Output, CommandError> {
     let workspace_env = crate::commands::accounts::get_env_vars_for_project(cwd);
 
-    let mut cmd = crate::utils::git_command()?;
+    // git_command_in also passes `-c safe.directory=<cwd>` (issue #305) and
+    // sets the working directory.
+    let mut cmd = crate::utils::git_command_in(cwd)?;
 
     // Force HTTPS credential resolution through gh (which reads the GH_CONFIG_DIR
     // injected below) for every workspace. The empty `credential.helper=` first
@@ -76,7 +78,6 @@ pub(crate) async fn run_git_net(
     }
 
     cmd.args(args)
-        .current_dir(cwd)
         .env("PATH", get_extended_path())
         // Never block on an interactive credential prompt: a GUI-spawned git has
         // no usable tty, so a prompt would hang the worker. Fail fast instead.
@@ -91,9 +92,8 @@ pub(crate) async fn run_git_net(
 
 /// Checks if there are uncommitted changes (staged or unstaged tracked files).
 pub fn git_has_uncommitted_changes(path: &std::path::Path) -> Result<bool, String> {
-    let status = crate::utils::git_command()?
+    let status = crate::utils::git_command_in(path)?
         .args(["status", "--porcelain", "-uno"])
-        .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -102,9 +102,8 @@ pub fn git_has_uncommitted_changes(path: &std::path::Path) -> Result<bool, Strin
 
 /// Checks if there are any changes (including untracked) in the working directory.
 pub fn git_has_any_changes(path: &std::path::Path) -> Result<bool, String> {
-    let status = crate::utils::git_command()?
+    let status = crate::utils::git_command_in(path)?
         .args(["status", "--porcelain"])
-        .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -115,9 +114,8 @@ pub fn git_has_any_changes(path: &std::path::Path) -> Result<bool, String> {
 /// Returns true if a commit was made, false if nothing to commit.
 pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<bool, String> {
     // Stage all changes
-    let add_output = crate::utils::git_command()?
+    let add_output = crate::utils::git_command_in(path)?
         .args(["add", "-A"])
-        .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -129,9 +127,8 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
         // changes are fine (issue #275). Retry with --sparse, which stages
         // out-of-cone paths instead of refusing.
         if add_stderr.contains("outside of your sparse-checkout definition") {
-            let sparse_output = crate::utils::git_command()?
+            let sparse_output = crate::utils::git_command_in(path)?
                 .args(["add", "-A", "--sparse"])
-                .current_dir(path)
                 .output()
                 .map_err(|e| e.to_string())?;
             if !sparse_output.status.success() {
@@ -150,9 +147,8 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
     }
 
     // Commit
-    let commit_output = crate::utils::git_command()?
+    let commit_output = crate::utils::git_command_in(path)?
         .args(["commit", "-m", message])
-        .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -179,10 +175,9 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
 
 /// Get the current branch name synchronously (for internal use)
 pub fn get_current_branch_sync(path: &std::path::Path) -> Option<String> {
-    let output = crate::utils::git_command()
+    let output = crate::utils::git_command_in(path)
         .ok()?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(path)
         .output()
         .ok()?;
 
@@ -200,7 +195,7 @@ pub fn get_current_branch_sync(path: &std::path::Path) -> Option<String> {
 
 /// Calculates how many commits `branch` is ahead/behind compared to `compare_to`.
 pub fn get_ahead_behind(path: &std::path::Path, branch: &str, compare_to: &str) -> (i32, i32) {
-    let Ok(mut cmd) = crate::utils::git_command() else {
+    let Ok(mut cmd) = crate::utils::git_command_in(path) else {
         return (0, 0);
     };
     let output = cmd
@@ -210,7 +205,6 @@ pub fn get_ahead_behind(path: &std::path::Path, branch: &str, compare_to: &str) 
             "--count",
             &format!("{branch}...{compare_to}"),
         ])
-        .current_dir(path)
         .output();
 
     match output {
@@ -248,13 +242,12 @@ pub fn get_ahead_behind_batch(
     // being parsed as a flag.
     for name in branch_names {
         let range = format!("{name}...{compare_to}");
-        let Ok(mut cmd) = crate::utils::git_command() else {
+        let Ok(mut cmd) = crate::utils::git_command_in(path) else {
             break;
         };
         let output = cmd
             .args(["rev-list", "--left-right", "--count", "--end-of-options"])
             .arg(&range)
-            .current_dir(path)
             .output();
 
         let (ahead, behind) = match output {
@@ -381,9 +374,8 @@ pub async fn init_git_repo(project_path: String) -> Result<(), CommandError> {
     info!("Initializing git repository");
 
     // Initialize git repo
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["init"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| {
             error!(error = %e, "Failed to execute git init");

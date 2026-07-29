@@ -727,25 +727,32 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         // subset of what the status checks search, so "installed ✓ but Unable
         // to spawn claude" was possible (issue #280). Resolution errors fail
         // OPEN — the spawn proceeds with the bare name as before.
-        try {
-          const resolved = await resolveCliPath(agent.binaryName);
-          if (resolved) {
-            const pathSep = isWin ? ';' : ':';
-            if (!env.PATH.split(pathSep).includes(resolved.dir)) {
-              env.PATH = `${env.PATH}${pathSep}${resolved.dir}`;
+        //
+        // Guard: only bare names go to the resolver. The raw Terminal tab's
+        // "binary" is an absolute path (/bin/zsh), which the backend rejects
+        // with a validation error on every open (issue #303).
+        const isBareName = !agent.binaryName.includes('/') && !agent.binaryName.includes('\\');
+        if (isBareName) {
+          try {
+            const resolved = await resolveCliPath(agent.binaryName);
+            if (resolved) {
+              const pathSep = isWin ? ';' : ':';
+              if (!env.PATH.split(pathSep).includes(resolved.dir)) {
+                env.PATH = `${env.PATH}${pathSep}${resolved.dir}`;
+              }
+              if (!isWin) {
+                // Spawn the resolved absolute path — deterministic, no PATH
+                // shadowing. (Windows keeps the cmd.exe wrapper; the appended
+                // PATH dir makes the shim resolvable there.)
+                spawnCmd = resolved.path;
+              }
             }
-            if (!isWin) {
-              // Spawn the resolved absolute path — deterministic, no PATH
-              // shadowing. (Windows keeps the cmd.exe wrapper; the appended
-              // PATH dir makes the shim resolvable there.)
-              spawnCmd = resolved.path;
-            }
+          } catch (err) {
+            logger.warn('[Terminal] resolveCliPath failed — spawning bare name', {
+              binary: agent.binaryName,
+              error: String(err),
+            });
           }
-        } catch (err) {
-          logger.warn('[Terminal] resolveCliPath failed — spawning bare name', {
-            binary: agent.binaryName,
-            error: String(err),
-          });
         }
 
         // The backend session id is the tab's sessionName UUID — it survives

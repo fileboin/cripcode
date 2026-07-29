@@ -25,9 +25,8 @@ pub async fn publish_to_github(
     info!(message = %message, "Publishing to GitHub");
 
     // Get current branch name
-    let branch_output = crate::utils::git_command()?
+    let branch_output = crate::utils::git_command_in(&validated_path)?
         .args(["branch", "--show-current"])
-        .current_dir(&validated_path)
         .output()
         .map_err(CommandError::from)?;
 
@@ -205,9 +204,8 @@ pub async fn publish_branch(
     let message = resolve_commit_message(&validated_path, commit_message).await;
 
     // Get current branch name
-    let branch_output = crate::utils::git_command()?
+    let branch_output = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map_err(CommandError::from)?;
 

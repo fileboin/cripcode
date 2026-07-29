@@ -120,7 +120,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_list_load', err, 'Plugin Manager');
       logger.error('Failed to load plugins', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       setPlugins([]);
     } finally {
@@ -142,7 +142,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_registry_load', err, 'Plugin Manager');
       logger.error('Failed to fetch plugin registry', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       setRegistry([]);
     } finally {
@@ -170,7 +170,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_uninstall', err, 'Plugin Manager');
       logger.error('Failed to uninstall plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
     } finally {
       setRemovingId(null);
@@ -193,7 +193,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_toggle', err, 'Plugin Manager');
       logger.error('Failed to toggle plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
     } finally {
       setTogglingId(null);
@@ -213,7 +213,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_update_check', err, 'Plugin Manager');
       logger.error('Failed to check for update', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       setUpdateStates((prev) => ({ ...prev, [pluginId]: 'idle' }));
     }
@@ -232,7 +232,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_update', err, 'Plugin Manager');
       logger.error('Failed to update plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       setUpdateStates((prev) => ({ ...prev, [pluginId]: 'available' }));
     }
@@ -258,7 +258,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_install', err, 'Plugin Manager');
       logger.error('Failed to install plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       const msg = formatCommandError(asCommandError(err));
       setError(msg);
@@ -289,7 +289,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_install_url', err, 'Plugin Manager');
       logger.error('Failed to install plugin from URL', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       const msg = formatCommandError(asCommandError(err));
       setError(msg);
@@ -318,7 +318,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_dev_link', err, 'Plugin Manager');
       logger.error('Failed to link dev plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       setError(formatCommandError(asCommandError(err)));
     } finally {
@@ -352,7 +352,7 @@ export function PluginManager({
     } catch (err) {
       trackError('plugin_dev_unlink', err, 'Plugin Manager');
       logger.error('Failed to unlink dev plugin', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
     } finally {
       setUnlinkingId(null);

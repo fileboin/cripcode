@@ -35,9 +35,8 @@ pub async fn check_git_has_changes(project_path: String) -> Result<bool, Command
     }
 
     // Check for unpushed commits
-    let unpushed = crate::utils::git_command()?
+    let unpushed = crate::utils::git_command_in(&project)?
         .args(["--no-pager", "log", "@{u}..", "--oneline"])
-        .current_dir(&project)
         .output();
 
     let result = match unpushed {
@@ -47,9 +46,8 @@ pub async fn check_git_has_changes(project_path: String) -> Result<bool, Command
         }
         Err(_) => {
             // No upstream set, check if we have commits
-            let commits = crate::utils::git_command()?
+            let commits = crate::utils::git_command_in(&project)?
                 .args(["--no-pager", "log", "--oneline", "-1"])
-                .current_dir(&project)
                 .output()
                 .map_err(|e| e.to_string())?;
 
@@ -83,9 +81,8 @@ pub async fn get_changed_files(project_path: String) -> Result<Vec<ChangedFile>,
     }
 
     // Run git status --porcelain (include untracked files)
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&project)?
         .args(["status", "--porcelain"])
-        .current_dir(&project)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -142,9 +139,8 @@ pub async fn get_file_diff(
     let validated_path = validate_project_path(&project_path)?;
 
     // Run git diff HEAD -- <filepath> to get all uncommitted changes
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["diff", "HEAD", "--", &file_path])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -153,9 +149,8 @@ pub async fn get_file_diff(
     // If diff is empty, the file might be untracked (new file)
     if diff_content.trim().is_empty() {
         // Check if file is untracked
-        let status_output = crate::utils::git_command()?
+        let status_output = crate::utils::git_command_in(&validated_path)?
             .args(["status", "--porcelain", "--", &file_path])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -235,9 +230,8 @@ pub async fn get_branch_status(project_path: String) -> Result<BranchStatus, Com
     }
 
     // Check if staging branch exists on remote
-    let staging_check = crate::utils::git_command()?
+    let staging_check = crate::utils::git_command_in(&validated_path)?
         .args(["ls-remote", "--heads", "origin", "staging"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -247,14 +241,13 @@ pub async fn get_branch_status(project_path: String) -> Result<BranchStatus, Com
 
     // Get commits ahead/behind for staging
     let (staging_ahead, staging_behind) = if staging_exists {
-        let output = crate::utils::git_command()?
+        let output = crate::utils::git_command_in(&validated_path)?
             .args([
                 "rev-list",
                 "--left-right",
                 "--count",
                 "HEAD...origin/staging",
             ])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -270,9 +263,8 @@ pub async fn get_branch_status(project_path: String) -> Result<BranchStatus, Com
     };
 
     // Get commits ahead/behind for main
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["rev-list", "--left-right", "--count", "HEAD...origin/main"])
-        .current_dir(&validated_path)
         .output();
 
     let (main_ahead, main_behind) = if let Ok(output) = output {
@@ -317,9 +309,8 @@ pub async fn reset_to_branch(project_path: String, branch: String) -> Result<(),
     }
 
     // Reset hard to the remote branch
-    let reset = crate::utils::git_command()?
+    let reset = crate::utils::git_command_in(&validated_path)?
         .args(["reset", "--hard", remote_branch])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -329,9 +320,8 @@ pub async fn reset_to_branch(project_path: String, branch: String) -> Result<(),
     }
 
     // Clean untracked files
-    let clean = crate::utils::git_command()?
+    let clean = crate::utils::git_command_in(&validated_path)?
         .args(["clean", "-fd"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 

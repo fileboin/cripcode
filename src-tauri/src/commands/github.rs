@@ -250,12 +250,11 @@ pub async fn get_project_github_status(project_path: String) -> ProjectGitHubSta
 
     // Get remote URL (with timeout)
     let step_start = std::time::Instant::now();
-    let Ok(mut remote_cmd) = crate::utils::git_command() else {
+    let Ok(mut remote_cmd) = crate::utils::git_command_in(&project) else {
         return not_a_repo;
     };
     remote_cmd
         .args(["remote", "get-url", "origin"])
-        .current_dir(&project)
         .env("PATH", get_extended_path());
 
     let remote_url = match run_command_with_timeout(remote_cmd, GITHUB_CLI_TIMEOUT_SECS).await {
@@ -353,16 +352,14 @@ pub async fn get_project_github_status(project_path: String) -> ProjectGitHubSta
 /// Ensures git user.name and user.email are configured for the repo.
 /// If not set, fetches the user's identity from GitHub CLI and sets it locally.
 pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandError> {
-    let has_name = crate::utils::git_command()?
+    let has_name = crate::utils::git_command_in(repo_path)?
         .args(["config", "user.name"])
-        .current_dir(repo_path)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    let has_email = crate::utils::git_command()?
+    let has_email = crate::utils::git_command_in(repo_path)?
         .args(["config", "user.email"])
-        .current_dir(repo_path)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -391,9 +388,8 @@ pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandErr
 
     if !has_name {
         let display_name = name.unwrap_or(login);
-        crate::utils::git_command()?
+        crate::utils::git_command_in(repo_path)?
             .args(["config", "user.name", display_name])
-            .current_dir(repo_path)
             .output()
             .map_err(|e| format!("Failed to set git user.name: {e}"))?;
     }
@@ -408,9 +404,8 @@ pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandErr
         } else {
             user_email.to_string()
         };
-        crate::utils::git_command()?
+        crate::utils::git_command_in(repo_path)?
             .args(["config", "user.email", &final_email])
-            .current_dir(repo_path)
             .output()
             .map_err(|e| format!("Failed to set git user.email: {e}"))?;
     }
@@ -433,9 +428,8 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
     // Check if it's already a git repo, if not initialize
     let git_dir = validated_path.join(".git");
     if !git_dir.exists() {
-        crate::utils::git_command()?
+        crate::utils::git_command_in(&validated_path)?
             .args(["init"])
-            .current_dir(&validated_path)
             .output()
             .map_err(CommandError::from)?;
     }
@@ -454,22 +448,20 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
     );
 
     // Ensure at least one commit exists (gh repo create --push requires it)
-    let has_commits = crate::utils::git_command()?
+    let has_commits = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
     if !has_commits {
-        let output = crate::utils::git_command()?
+        let output = crate::utils::git_command_in(&validated_path)?
             .args([
                 "commit",
                 "--allow-empty",
                 "-m",
                 "Initial commit from Ship Studio",
             ])
-            .current_dir(&validated_path)
             .output()
             .map_err(CommandError::from)?;
 

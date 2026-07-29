@@ -174,9 +174,8 @@ fn pick_free_port(start: u16) -> Option<u16> {
 }
 
 fn run_worktree_git(cwd: &Path, args: &[&str]) -> Result<std::process::Output, CommandError> {
-    crate::utils::git_command()?
+    crate::utils::git_command_in(cwd)?
         .args(args)
-        .current_dir(cwd)
         .output()
         .map_err(|e| CommandError::Io {
             message: e.to_string(),

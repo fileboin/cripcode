@@ -41,7 +41,7 @@ impl RawBranch {
 /// Mirrors `list_branches` but does no background fetch — the graph reflects
 /// whatever refs are already present.
 fn list_raw_branches(path: &std::path::Path) -> Vec<RawBranch> {
-    let Ok(mut cmd) = crate::utils::git_command() else {
+    let Ok(mut cmd) = crate::utils::git_command_in(path) else {
         return Vec::new();
     };
     let output = cmd
@@ -50,7 +50,6 @@ fn list_raw_branches(path: &std::path::Path) -> Vec<RawBranch> {
             "-a",
             "--format=%(refname:short)|%(committerdate:unix)|%(HEAD)",
         ])
-        .current_dir(path)
         .output();
 
     let stdout = match output {
@@ -124,7 +123,7 @@ fn detect_default_branch(names: &HashSet<String>) -> Option<String> {
 
 /// Commit hash a ref points at.
 fn rev_parse(path: &std::path::Path, git_ref: &str) -> Option<String> {
-    let out = crate::utils::git_command()
+    let out = crate::utils::git_command_in(path)
         .ok()?
         .args([
             "rev-parse",
@@ -133,7 +132,6 @@ fn rev_parse(path: &std::path::Path, git_ref: &str) -> Option<String> {
             "--end-of-options",
             git_ref,
         ])
-        .current_dir(path)
         .output()
         .ok()?;
     if !out.status.success() {
@@ -149,10 +147,9 @@ fn rev_parse(path: &std::path::Path, git_ref: &str) -> Option<String> {
 
 /// The merge-base commit of two refs, plus its committer timestamp.
 fn merge_base(path: &std::path::Path, a: &str, b: &str) -> Option<(String, i64)> {
-    let out = crate::utils::git_command()
+    let out = crate::utils::git_command_in(path)
         .ok()?
         .args(["merge-base", a, b])
-        .current_dir(path)
         .output()
         .ok()?;
     if !out.status.success() {
@@ -162,10 +159,9 @@ fn merge_base(path: &std::path::Path, a: &str, b: &str) -> Option<(String, i64)>
     if hash.is_empty() {
         return None;
     }
-    let date_out = crate::utils::git_command()
+    let date_out = crate::utils::git_command_in(path)
         .ok()?
         .args(["show", "-s", "--format=%ct", &hash])
-        .current_dir(path)
         .output()
         .ok()?;
     let date = String::from_utf8_lossy(&date_out.stdout)

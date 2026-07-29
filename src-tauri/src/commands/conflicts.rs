@@ -113,9 +113,8 @@ pub async fn get_conflict_info(project_path: String) -> Result<Vec<ConflictedFil
     let validated_path = validate_project_path(&project_path)?;
 
     // Get list of files with unmerged changes
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["diff", "--name-only", "--diff-filter=U"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -133,9 +132,8 @@ pub async fn get_conflict_info(project_path: String) -> Result<Vec<ConflictedFil
         let file_path = validated_path.join(file);
 
         // Check if file is binary
-        let is_binary = crate::utils::git_command()?
+        let is_binary = crate::utils::git_command_in(&validated_path)?
             .args(["diff", "--numstat", file])
-            .current_dir(&validated_path)
             .output()
             .map(|out| {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -266,9 +264,8 @@ pub async fn resolve_conflict(
 
     // If no more conflicts, stage the file
     if !has_more_conflicts {
-        let add_output = crate::utils::git_command()?
+        let add_output = crate::utils::git_command_in(&validated_path)?
             .args(["add", &file_path])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -287,9 +284,8 @@ pub async fn resolve_conflict(
 pub async fn abort_merge(project_path: String) -> Result<(), CommandError> {
     let validated_path = validate_project_path(&project_path)?;
 
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["merge", "--abort"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -308,9 +304,8 @@ pub async fn complete_merge(project_path: String) -> Result<(), CommandError> {
     let validated_path = validate_project_path(&project_path)?;
 
     // Stage all changes
-    let add_output = crate::utils::git_command()?
+    let add_output = crate::utils::git_command_in(&validated_path)?
         .args(["add", "."])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -323,9 +318,8 @@ pub async fn complete_merge(project_path: String) -> Result<(), CommandError> {
     let _ = ensure_git_identity(&validated_path);
 
     // Create the merge commit
-    let commit_output = crate::utils::git_command()?
+    let commit_output = crate::utils::git_command_in(&validated_path)?
         .args(["commit", "-m", "Resolved merge conflicts via Ship Studio"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 

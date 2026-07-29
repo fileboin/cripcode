@@ -103,9 +103,8 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
     let validated_path = validate_project_path(&project_path)?;
 
     // Discard changes to tracked files
-    let checkout_output = crate::utils::git_command()?
+    let checkout_output = crate::utils::git_command_in(&validated_path)?
         .args(["checkout", "."])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -115,9 +114,8 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
     }
 
     // Remove untracked files
-    let clean_output = crate::utils::git_command()?
+    let clean_output = crate::utils::git_command_in(&validated_path)?
         .args(["clean", "-fd"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 

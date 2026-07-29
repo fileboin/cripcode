@@ -59,9 +59,8 @@ pub async fn list_branches(project_path: String) -> Result<Vec<BranchInfo>, Comm
     }
 
     // Get all branches (local and remote)
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["branch", "-a", "--format=%(refname:short)|%(objectname:short)|%(committerdate:unix)|%(authorname)|%(HEAD)"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -189,9 +188,8 @@ pub async fn get_current_branch(project_path: String) -> Result<String, CommandE
 
     let validated_path = validate_project_path(&project_path)?;
 
-    let output = crate::utils::git_command()?
+    let output = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -239,14 +237,13 @@ pub async fn switch_branch(
     let has_changes = git_has_any_changes(&validated_path)?;
 
     if has_changes && auto_stash {
-        let stash_output = crate::utils::git_command()?
+        let stash_output = crate::utils::git_command_in(&validated_path)?
             .args([
                 "stash",
                 "push",
                 "-m",
                 &format!("Auto-stash by Ship Studio (from {current_branch})"),
             ])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -281,18 +278,16 @@ pub async fn switch_branch(
     }
 
     // Try to checkout the branch
-    let checkout_output = crate::utils::git_command()?
+    let checkout_output = crate::utils::git_command_in(&validated_path)?
         .args(["checkout", "--end-of-options", &branch_name])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
     if !checkout_output.status.success() {
         // Checkout failed - restore the stash if we made one
         if stashed {
-            if let Err(e) = crate::utils::git_command()?
+            if let Err(e) = crate::utils::git_command_in(&validated_path)?
                 .args(["stash", "pop"])
-                .current_dir(&validated_path)
                 .output()
             {
                 warn!("Failed to restore stash after checkout failure: {}", e);
@@ -323,9 +318,8 @@ pub async fn switch_branch(
         // If we're switching back to the branch where we stashed from, offer to apply
         if stash_info.from_branch == branch_name {
             // Try to auto-apply the stash
-            let pop_output = crate::utils::git_command()?
+            let pop_output = crate::utils::git_command_in(&validated_path)?
                 .args(["stash", "pop"])
-                .current_dir(&validated_path)
                 .output();
 
             if let Ok(output) = pop_output {
@@ -348,9 +342,8 @@ pub async fn switch_branch(
     }
 
     // Pull latest changes from remote
-    if let Err(e) = crate::utils::git_command()?
+    if let Err(e) = crate::utils::git_command_in(&validated_path)?
         .args(["pull", "--ff-only"])
-        .current_dir(&validated_path)
         .output()
     {
         warn!("Failed to pull latest changes after branch switch: {}", e);
@@ -406,9 +399,8 @@ pub async fn create_branch(
     }
 
     // Get the current branch name
-    let current_branch_output = crate::utils::git_command()?
+    let current_branch_output = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -428,9 +420,8 @@ pub async fn create_branch(
 
     if is_from_current {
         // Create branch from current HEAD (preserves local changes)
-        let output = crate::utils::git_command()?
+        let output = crate::utils::git_command_in(&validated_path)?
             .args(["checkout", "-b", &branch_name])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -452,10 +443,9 @@ pub async fn create_branch(
         let explicit_remote = from_branch.starts_with("origin/");
 
         let local_exists = !explicit_remote
-            && crate::utils::git_command()?
+            && crate::utils::git_command_in(&validated_path)?
                 .args(["show-ref", "--verify", "--quiet"])
                 .arg(format!("refs/heads/{plain}"))
-                .current_dir(&validated_path)
                 .output()
                 .map(|o| o.status.success())
                 .unwrap_or(false);
@@ -469,9 +459,8 @@ pub async fn create_branch(
             format!("origin/{plain}")
         };
 
-        let output = crate::utils::git_command()?
+        let output = crate::utils::git_command_in(&validated_path)?
             .args(["checkout", "-b", &branch_name, &base_ref])
-            .current_dir(&validated_path)
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -570,9 +559,8 @@ pub async fn delete_branch(
     }
 
     // Get current branch to make sure we're not on it
-    let current = crate::utils::git_command()?
+    let current = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -586,9 +574,8 @@ pub async fn delete_branch(
     }
 
     // Delete local branch
-    let local_output = crate::utils::git_command()?
+    let local_output = crate::utils::git_command_in(&validated_path)?
         .args(["branch", "-D", "--", &branch_name])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -623,9 +610,8 @@ pub async fn delete_branch(
         // surfaces remote-tracking refs as branches, that stale ref makes the branch
         // look undeleted (the reported "auto clean doesn't delete the branch anymore").
         // `-rD` is a harmless no-op when the ref is already gone or there's no remote.
-        let _ = crate::utils::git_command()?
+        let _ = crate::utils::git_command_in(&validated_path)?
             .args(["branch", "-rD", &format!("origin/{branch_name}")])
-            .current_dir(&validated_path)
             .output();
     }
 

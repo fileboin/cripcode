@@ -395,6 +395,27 @@ pub fn git_command() -> Result<Command, crate::errors::CommandError> {
     }
 }
 
+/// Like [`git_command`], but scoped to a repository directory: sets the
+/// working directory and passes `-c safe.directory=<dir>` so git's
+/// dubious-ownership safeguard (CVE-2022-24765) doesn't hard-fail when the
+/// repo is owned by a different OS user than the one running Ship Studio —
+/// e.g. a project restored or synced from another Windows profile (issue
+/// #305). Trust is scoped per-invocation to this exact directory (which
+/// callers have already passed through `validate_project_path`); nothing is
+/// ever written to the user's global git config, and never a blanket `*`.
+pub fn git_command_in(
+    dir: impl AsRef<std::path::Path>,
+) -> Result<Command, crate::errors::CommandError> {
+    let dir = dir.as_ref();
+    let mut cmd = git_command()?;
+    // git compares safe.directory entries against forward-slash paths,
+    // including on Windows.
+    let safe = dir.to_string_lossy().replace('\\', "/");
+    cmd.arg("-c").arg(format!("safe.directory={safe}"));
+    cmd.current_dir(dir);
+    Ok(cmd)
+}
+
 /// Finds an executable by checking common installation paths.
 /// This is needed because bundled macOS apps don't inherit the user's shell PATH.
 /// On Windows, checks standard Program Files and AppData locations.

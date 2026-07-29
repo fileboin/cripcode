@@ -12,6 +12,16 @@ import { logger } from '../lib/logger';
 import { trackEvent } from '../lib/analytics';
 import { getThumbnailsEnabled, setThumbnailsEnabled } from '../lib/settings';
 import { decideAutoCapture, isPermissionDenialError } from '../lib/thumbnailGate';
+import { asCommandError, formatCommandError } from '../lib/errors';
+
+/** Backend rejection meaning the project's root directory no longer exists
+ *  (deleted, renamed, or moved while its session stayed hot). Permanent for
+ *  this path — retrying can never succeed. */
+function isProjectGoneError(error: unknown): boolean {
+  return formatCommandError(asCommandError(error)).includes(
+    'Invalid path in validate_project_path'
+  );
+}
 
 /** Delay after page load before capturing screenshot (8 seconds to allow Next.js/Vite to fully compile) */
 const SCREENSHOT_DELAY_MS = 8000;
@@ -189,6 +199,23 @@ export function useScreenshotManagement({
           // → Privacy & Security → Screen Recording).
           logger.error('[Thumbnail] Permission denied - disabling auto-capture', { error });
           void setThumbnailsEnabled(false);
+          return;
+        }
+        if (isProjectGoneError(error)) {
+          // The project's folder vanished while its session stayed hot —
+          // retrying can't succeed, and the 5-minute interval would re-burn
+          // 5 attempts forever with no user-facing signal (issue #300).
+          // Cancel the session and stop the schedule for this project;
+          // reopening it goes through the dashboard's missing-folder
+          // recovery (#266).
+          logger.warn('[Thumbnail] Project folder no longer exists — stopping auto-capture', {
+            projectPath,
+          });
+          captureSessionIdRef.current++;
+          if (screenshotIntervalRef.current) {
+            clearInterval(screenshotIntervalRef.current);
+            screenshotIntervalRef.current = null;
+          }
           return;
         }
         if (captureSessionIdRef.current !== sessionId) {

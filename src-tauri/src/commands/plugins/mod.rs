@@ -291,10 +291,9 @@ fn plugins_owner_root(validated: &Path) -> PathBuf {
         }
     }
     let resolved = (|| {
-        let output = crate::utils::git_command()
+        let output = crate::utils::git_command_in(validated)
             .ok()?
             .args(["rev-parse", "--git-common-dir"])
-            .current_dir(validated)
             .output()
             .ok()?;
         if !output.status.success() {

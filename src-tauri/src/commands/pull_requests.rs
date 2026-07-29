@@ -100,13 +100,10 @@ pub async fn create_pull_request(
     let validated_path = validate_project_path(&project_path)?;
 
     // Push the branch to the remote first (gh pr create requires this)
-    let mut push_cmd = crate::utils::git_command()?;
-    push_cmd
-        .args(["push", "-u", "origin", "HEAD"])
-        .envs(crate::commands::accounts::get_env_vars_for_project(
-            &validated_path,
-        ))
-        .current_dir(&validated_path);
+    let mut push_cmd = crate::utils::git_command_in(&validated_path)?;
+    push_cmd.args(["push", "-u", "origin", "HEAD"]).envs(
+        crate::commands::accounts::get_env_vars_for_project(&validated_path),
+    );
     let push_output = run_net(push_cmd, "git push").await?;
 
     if !push_output.status.success() {
@@ -189,9 +186,8 @@ pub async fn checkout_pull_request(
     }
 
     // Return the branch name that was checked out
-    let branch_output = crate::utils::git_command()?
+    let branch_output = crate::utils::git_command_in(&validated_path)?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&validated_path)
         .output()
         .map_err(|e| e.to_string())?;
 
