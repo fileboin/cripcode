@@ -19,8 +19,9 @@ import {
   type PluginThemeData,
 } from '../../contexts/PluginContext';
 import { execPluginShell, readPluginStorage, writePluginStorage } from '../../lib/plugins';
-import { markPluginCrashed, isPluginCrashed } from '../../lib/plugin-loader';
+import { markPluginCrashed, isPluginCrashed, wasPluginUnloaded } from '../../lib/plugin-loader';
 import { asCommandError, formatCommandError } from '../../lib/errors';
+import { logger } from '../../lib/logger';
 import { invoke } from '@tauri-apps/api/core';
 import { WarningIcon } from '../icons';
 import type { LoadedPlugin } from '../../hooks/usePlugins';
@@ -169,6 +170,15 @@ export function buildContext(
 
   /** Toast the rejection (naming the plugin), then re-throw for the caller. */
   const report = (e: unknown): never => {
+    // A call that was already in flight when its plugin was unloaded
+    // (project switch, uninstall) rejects after the plugin is gone —
+    // an expected transient state, not an actionable error (issue #288).
+    if (wasPluginUnloaded(projectPath, pluginId)) {
+      logger.warn(`Plugin "${pluginId}" call rejected after unload — suppressing toast`, {
+        error: formatCommandError(asCommandError(e)),
+      });
+      throw e;
+    }
     actions.showToast(`Plugin "${pluginName}": ${formatCommandError(asCommandError(e))}`, 'error');
     throw e;
   };

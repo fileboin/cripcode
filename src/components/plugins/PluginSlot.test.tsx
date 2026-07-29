@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { buildContext } from './PluginSlot';
+import { unloadPluginModule } from '../../lib/plugin-loader';
 import type { PluginAppActions, PluginThemeData } from '../../contexts/PluginContext';
 
 const theme: PluginThemeData = {
@@ -94,6 +95,19 @@ describe('buildContext failure reporting', () => {
     await expect(ctx.invoke.call('allowed_cmd')).rejects.toThrow('boom from backend');
     expect(showToast).toHaveBeenCalledTimes(1);
     expect(showToast.mock.calls[0][0]).toContain('Plugin "Sanity"');
+  });
+
+  it('suppresses the toast for a call that raced a plugin unload (#288)', async () => {
+    const { actions, showToast } = makeActions();
+    const stale = { ...project, path: '/p/stale' };
+    const ctx = buildContext('vercel', 'Vercel', stale, actions, theme, []);
+
+    // Call goes out, then the plugin is unloaded (project switch/uninstall)
+    // before the rejection lands — no user-facing toast, but still re-throws.
+    const pending = ctx.shell.exec('vercel', ['whoami']);
+    unloadPluginModule(stale.path, 'vercel');
+    await expect(pending).rejects.toThrow('boom from backend');
+    expect(showToast).not.toHaveBeenCalled();
   });
 
   it('does not toast when the call succeeds', async () => {

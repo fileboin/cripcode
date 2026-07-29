@@ -2769,49 +2769,37 @@ pub struct ElementHtml {
     pub file: String,
     pub line: usize,
     pub html: String,
+    /// Present when the element's class string resolves to several identical
+    /// source spots whose markup is byte-identical: every candidate location.
+    /// Edits write to all of them by default; a `location` argument targets one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locations: Option<Vec<Location>>,
 }
 
-/// Resolve an element to the source markup span, file, and contents, plus the
-/// byte span — shared by resolve/apply (and `edit_structure`'s insert/
-/// duplicate/delete) so every caller derives the span identically.
-pub(crate) fn locate_element(
-    project_path: &str,
-    signature: ElementSignature,
-) -> Result<(String, std::path::PathBuf, String, usize, usize, usize), CommandError> {
-    let resolution = resolve_classname_source(project_path.to_string(), signature)?;
-    let (file, line, class_name) = match resolution {
-        Resolution::Resolved {
-            file,
-            line,
-            class_name,
-            ..
-        } => (file, line, class_name),
-        Resolution::Multi { .. } => {
-            return Err(CommandError::Validation {
-                field: "element".into(),
-                reason: "This element appears in several identical places, so editing its markup here could change the wrong one. Ask your agent to edit it instead.".into(),
-            })
-        }
-        Resolution::NoClass => {
-            return Err(CommandError::Validation {
-                field: "element".into(),
-                reason: "This element has no class in source to anchor its markup on. Add a class to it first (the Add class action), then its markup becomes editable.".into(),
-            })
-        }
-        // The class resolver couldn't anchor this element to source (its classes
-        // are dynamic/generated). The markup editor is class-anchored, so phrase
-        // it for *markup*, not the class-string reason.
-        Resolution::ReadOnly { .. } => {
-            return Err(CommandError::Validation {
-                field: "element".into(),
-                reason: "This element can't be matched to its source markup (it has no static class to anchor on). Edit it with your agent instead.".into(),
-            })
-        }
-    };
-    let root = validate_project_path(project_path)?;
-    let abs = root.join(&file);
+/// One located instance of an element: its file, that file's source, and the
+/// byte span of the element's markup (opening tag → matching close tag).
+#[derive(Debug)]
+pub(crate) struct LocatedInstance {
+    pub(crate) file: String,
+    pub(crate) abs: std::path::PathBuf,
+    pub(crate) src: String,
+    pub(crate) line: usize,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+/// Locate the element anchored by the className literal at `file:line` and
+/// derive its markup span — the shared tail of every element-markup path, so
+/// single- and multi-instance callers derive spans identically.
+fn locate_instance(
+    root: &Path,
+    file: &str,
+    line: usize,
+    class_name: &str,
+) -> Result<LocatedInstance, CommandError> {
+    let abs = root.join(file);
     let src = std::fs::read_to_string(&abs).map_err(CommandError::from)?;
-    let span = find_attr_spans(&src, attrs_for_path(&file))
+    let span = find_attr_spans(&src, attrs_for_path(file))
         .into_iter()
         .find(|s| s.line == line && s.value == class_name)
         .ok_or_else(|| CommandError::Validation {
@@ -2823,26 +2811,149 @@ pub(crate) fn locate_element(
             field: "element".into(),
             reason: "couldn't map this element to its source markup".into(),
         })?;
-    Ok((file, abs, src, line, start, end))
+    Ok(LocatedInstance {
+        file: file.to_string(),
+        abs,
+        src,
+        line,
+        start,
+        end,
+    })
+}
+
+/// Locate every editable instance of an element under `root`.
+///
+/// `Resolved` yields one instance. `Multi` (one class string at several
+/// identical source spots) yields all of them when their markup is
+/// byte-identical — the markup editor then offers edit-all/pick-one, exactly
+/// like the class editor (issue #287) — or the picked one when `target` names
+/// a location from the set. Instances whose markup has diverged can't be
+/// group-edited safely and fail closed.
+fn locate_instances_at(
+    root: &Path,
+    resolution: Resolution,
+    target: Option<&Location>,
+) -> Result<(Vec<LocatedInstance>, Option<Vec<Location>>), CommandError> {
+    match resolution {
+        Resolution::Resolved {
+            file,
+            line,
+            class_name,
+            ..
+        } => Ok((vec![locate_instance(root, &file, line, &class_name)?], None)),
+        Resolution::Multi {
+            locations,
+            class_name,
+        } => {
+            if let Some(t) = target {
+                if !locations
+                    .iter()
+                    .any(|l| l.file == t.file && l.line == t.line)
+                {
+                    return Err(CommandError::Validation {
+                        field: "location".into(),
+                        reason: "that source location no longer matches — reselect the element"
+                            .into(),
+                    });
+                }
+                let inst = locate_instance(root, &t.file, t.line, &class_name)?;
+                return Ok((vec![inst], Some(locations)));
+            }
+            let instances = locations
+                .iter()
+                .map(|l| locate_instance(root, &l.file, l.line, &class_name))
+                .collect::<Result<Vec<_>, _>>()?;
+            let first_html = &instances[0].src[instances[0].start..instances[0].end];
+            if instances
+                .iter()
+                .any(|i| &i.src[i.start..i.end] != first_html)
+            {
+                return Err(CommandError::Validation {
+                    field: "element".into(),
+                    reason: "This element appears in several places whose markup differs, so editing it here could change the wrong one. Ask your agent to edit it instead.".into(),
+                });
+            }
+            Ok((instances, Some(locations)))
+        }
+        Resolution::NoClass => Err(CommandError::Validation {
+            field: "element".into(),
+            reason: "This element has no class in source to anchor its markup on. Add a class to it first (the Add class action), then its markup becomes editable.".into(),
+        }),
+        // The class resolver couldn't anchor this element to source (its classes
+        // are dynamic/generated). The markup editor is class-anchored, so phrase
+        // it for *markup*, not the class-string reason.
+        Resolution::ReadOnly { .. } => Err(CommandError::Validation {
+            field: "element".into(),
+            reason: "This element can't be matched to its source markup (it has no static class to anchor on). Edit it with your agent instead.".into(),
+        }),
+    }
+}
+
+/// Validate the project path, resolve the signature, and locate instances —
+/// the command-facing wrapper around [`locate_instances_at`].
+fn locate_element_instances(
+    project_path: &str,
+    signature: ElementSignature,
+    target: Option<&Location>,
+) -> Result<(Vec<LocatedInstance>, Option<Vec<Location>>), CommandError> {
+    let resolution = resolve_classname_source(project_path.to_string(), signature)?;
+    let root = validate_project_path(project_path)?;
+    locate_instances_at(&root, resolution, target)
+}
+
+/// Resolve an element to the source markup span, file, and contents, plus the
+/// byte span — used by `edit_structure`'s insert/duplicate/delete, which need
+/// exactly one unambiguous instance (structural ops on one of several
+/// identical elements can't default to "all").
+pub(crate) fn locate_element(
+    project_path: &str,
+    signature: ElementSignature,
+) -> Result<(String, std::path::PathBuf, String, usize, usize, usize), CommandError> {
+    let resolution = resolve_classname_source(project_path.to_string(), signature)?;
+    if let Resolution::Multi { .. } = resolution {
+        return Err(CommandError::Validation {
+            field: "element".into(),
+            reason: "This element appears in several identical places, so editing its markup here could change the wrong one. Ask your agent to edit it instead.".into(),
+        });
+    }
+    let root = validate_project_path(project_path)?;
+    let (instances, _) = locate_instances_at(&root, resolution, None)?;
+    let inst = instances.into_iter().next().expect("resolved yields one");
+    Ok((
+        inst.file, inst.abs, inst.src, inst.line, inst.start, inst.end,
+    ))
 }
 
 /// Resolve a clicked element to its source HTML (opening tag → closing tag).
+///
+/// `location` (optional) targets one instance of a multi-sourced element —
+/// the "just one" path; omitted, a `Multi` element resolves to its shared
+/// markup with `locations` listing every spot.
 #[tauri::command]
 #[tracing::instrument(skip(signature), fields(project = %project_path))]
 pub fn resolve_element_html(
     project_path: String,
     signature: ElementSignature,
+    location: Option<Location>,
 ) -> Result<ElementHtml, CommandError> {
-    let (file, _abs, src, line, start, end) = locate_element(&project_path, signature)?;
+    let (instances, locations) =
+        locate_element_instances(&project_path, signature, location.as_ref())?;
+    let first = &instances[0];
     Ok(ElementHtml {
-        file,
-        line,
-        html: src[start..end].to_string(),
+        file: first.file.clone(),
+        line: first.line,
+        html: first.src[first.start..first.end].to_string(),
+        locations,
     })
 }
 
 /// Replace an element's source markup, after verifying it still equals
 /// `old_html` (drift guard — the file may have changed since selection).
+///
+/// A multi-sourced element writes to every instance (or just `location`, if
+/// given), skipping spots whose markup has drifted — mirroring
+/// `apply_classname_edit_multi`. Returns how many instances were updated;
+/// zero (everything drifted) is an error.
 #[tauri::command]
 #[tracing::instrument(skip(signature, old_html, new_html), fields(project = %project_path))]
 pub fn apply_element_html(
@@ -2850,22 +2961,57 @@ pub fn apply_element_html(
     signature: ElementSignature,
     old_html: String,
     new_html: String,
-) -> Result<(), CommandError> {
-    let (_file, abs, src, _line, start, end) = locate_element(&project_path, signature)?;
-    if src[start..end] != old_html {
+    location: Option<Location>,
+) -> Result<usize, CommandError> {
+    let (instances, _) = locate_element_instances(&project_path, signature, location.as_ref())?;
+    let applied = apply_html_to_instances(&instances, &old_html, &new_html)?;
+    if applied == 0 {
         return Err(CommandError::Validation {
             field: "old_html".into(),
             reason: "source no longer matches — reselect the element".into(),
         });
     }
-    let mut updated = String::with_capacity(src.len() + new_html.len());
-    updated.push_str(&src[..start]);
-    updated.push_str(&new_html);
-    updated.push_str(&src[end..]);
-    std::fs::write(&abs, updated).map_err(CommandError::from)?;
     let root = validate_project_path(&project_path)?;
     invalidate_index_cache(&root);
-    Ok(())
+    Ok(applied)
+}
+
+/// Write `new_html` over every instance whose span still equals `old_html`.
+/// Instances are grouped per file and rewritten in one pass in descending
+/// span order, so several spots in the same file don't invalidate each
+/// other's offsets; each file is written at most once.
+fn apply_html_to_instances(
+    instances: &[LocatedInstance],
+    old_html: &str,
+    new_html: &str,
+) -> Result<usize, CommandError> {
+    let mut by_file: std::collections::BTreeMap<&std::path::Path, (&str, Vec<(usize, usize)>)> =
+        std::collections::BTreeMap::new();
+    for inst in instances {
+        by_file
+            .entry(inst.abs.as_path())
+            .or_insert((&inst.src, Vec::new()))
+            .1
+            .push((inst.start, inst.end));
+    }
+    let mut applied = 0usize;
+    for (abs, (src, mut spans)) in by_file {
+        spans.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut updated = src.to_string();
+        let mut changed = false;
+        for (start, end) in spans {
+            if &src[start..end] != old_html {
+                continue; // drifted since selection — skip this spot
+            }
+            updated.replace_range(start..end, new_html);
+            changed = true;
+            applied += 1;
+        }
+        if changed {
+            std::fs::write(abs, updated).map_err(CommandError::from)?;
+        }
+    }
+    Ok(applied)
 }
 
 #[cfg(test)]
@@ -2927,6 +3073,168 @@ mod tests {
         // must not be read as markup — the outer div's real close wins.
         let src = r#"<div class="cls"><script>if (a < b) { x("</div>") }</script>done</div>"#;
         assert_eq!(span_str(src), src);
+    }
+
+    // ── Multi-instance markup editing (issue #287) ───────────────────────────
+
+    fn multi_res(locs: &[(&str, usize)], class: &str) -> Resolution {
+        Resolution::Multi {
+            locations: locs
+                .iter()
+                .map(|(f, l)| Location {
+                    file: f.to_string(),
+                    line: *l,
+                    column: 1,
+                })
+                .collect(),
+            class_name: class.to_string(),
+        }
+    }
+
+    #[test]
+    fn multi_identical_markup_resolves_and_applies_to_all() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let card = r#"export const C = () => <div className="card">Buy now</div>;"#;
+        std::fs::write(root.join("A.tsx"), card).unwrap();
+        std::fs::write(root.join("B.tsx"), card).unwrap();
+
+        let res = multi_res(&[("A.tsx", 1), ("B.tsx", 1)], "card");
+        let (instances, locations) = locate_instances_at(root, res, None).unwrap();
+        assert_eq!(instances.len(), 2);
+        assert_eq!(locations.as_ref().map(Vec::len), Some(2));
+        let html = &instances[0].src[instances[0].start..instances[0].end];
+        assert_eq!(html, r#"<div className="card">Buy now</div>"#);
+
+        let applied =
+            apply_html_to_instances(&instances, html, r#"<div className="card">Buy later</div>"#)
+                .unwrap();
+        assert_eq!(applied, 2);
+        for f in ["A.tsx", "B.tsx"] {
+            assert!(std::fs::read_to_string(root.join(f))
+                .unwrap()
+                .contains("Buy later"));
+        }
+    }
+
+    #[test]
+    fn multi_differing_markup_fails_closed() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        std::fs::write(
+            root.join("A.tsx"),
+            r#"export const A = () => <div className="card">Alpha</div>;"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("B.tsx"),
+            r#"export const B = () => <div className="card">Beta</div>;"#,
+        )
+        .unwrap();
+
+        let res = multi_res(&[("A.tsx", 1), ("B.tsx", 1)], "card");
+        let err = locate_instances_at(root, res, None).unwrap_err();
+        match err {
+            CommandError::Validation { reason, .. } => {
+                assert!(reason.contains("markup differs"), "got: {reason}")
+            }
+            other => panic!("expected Validation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn multi_target_location_edits_only_that_instance() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let card = r#"export const C = () => <div className="card">Buy now</div>;"#;
+        std::fs::write(root.join("A.tsx"), card).unwrap();
+        std::fs::write(root.join("B.tsx"), card).unwrap();
+
+        let target = Location {
+            file: "B.tsx".into(),
+            line: 1,
+            column: 1,
+        };
+        let res = multi_res(&[("A.tsx", 1), ("B.tsx", 1)], "card");
+        let (instances, _) = locate_instances_at(root, res, Some(&target)).unwrap();
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].file, "B.tsx");
+
+        let applied = apply_html_to_instances(
+            &instances,
+            r#"<div className="card">Buy now</div>"#,
+            r#"<div className="card">Buy later</div>"#,
+        )
+        .unwrap();
+        assert_eq!(applied, 1);
+        assert!(std::fs::read_to_string(root.join("B.tsx"))
+            .unwrap()
+            .contains("Buy later"));
+        assert!(std::fs::read_to_string(root.join("A.tsx"))
+            .unwrap()
+            .contains("Buy now"));
+    }
+
+    #[test]
+    fn multi_same_file_instances_apply_without_offset_drift() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        std::fs::write(
+            root.join("List.tsx"),
+            "export const L = () => (\n  <ul>\n    <li className=\"item\">One thing</li>\n    <li className=\"item\">One thing</li>\n  </ul>\n);\n",
+        )
+        .unwrap();
+
+        let res = multi_res(&[("List.tsx", 3), ("List.tsx", 4)], "item");
+        let (instances, _) = locate_instances_at(root, res, None).unwrap();
+        assert_eq!(instances.len(), 2);
+        let applied = apply_html_to_instances(
+            &instances,
+            r#"<li className="item">One thing</li>"#,
+            r#"<li className="item">Another thing entirely</li>"#,
+        )
+        .unwrap();
+        assert_eq!(applied, 2);
+        let updated = std::fs::read_to_string(root.join("List.tsx")).unwrap();
+        assert_eq!(updated.matches("Another thing entirely").count(), 2);
+        assert!(!updated.contains("One thing"));
+    }
+
+    #[test]
+    fn multi_apply_skips_drifted_spot() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let card = r#"export const C = () => <div className="card">Buy now</div>;"#;
+        std::fs::write(root.join("A.tsx"), card).unwrap();
+        std::fs::write(root.join("B.tsx"), card).unwrap();
+
+        let res = multi_res(&[("A.tsx", 1), ("B.tsx", 1)], "card");
+        let (instances, _) = locate_instances_at(root, res, None).unwrap();
+        // B drifts after locating (user edited the file directly).
+        std::fs::write(
+            root.join("B.tsx"),
+            r#"export const C = () => <div className="card">Changed</div>;"#,
+        )
+        .unwrap();
+        // Spans were captured pre-drift; only spans still matching old_html write.
+        let fresh_a = locate_instance(root, "A.tsx", 1, "card").unwrap();
+        let drifted_b = LocatedInstance {
+            src: std::fs::read_to_string(root.join("B.tsx")).unwrap(),
+            ..instances.into_iter().find(|i| i.file == "B.tsx").unwrap()
+        };
+        let applied = apply_html_to_instances(
+            &[fresh_a, drifted_b],
+            r#"<div className="card">Buy now</div>"#,
+            r#"<div className="card">Buy later</div>"#,
+        )
+        .unwrap();
+        assert_eq!(applied, 1);
+        assert!(std::fs::read_to_string(root.join("A.tsx"))
+            .unwrap()
+            .contains("Buy later"));
+        assert!(std::fs::read_to_string(root.join("B.tsx"))
+            .unwrap()
+            .contains("Changed"));
     }
 
     fn sig(class: &str, tag: &str, ancestors: &[&str]) -> ElementSignature {

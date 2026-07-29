@@ -49,12 +49,15 @@ fn strip_ansi(s: &str) -> String {
 /// Find the agent binary path.
 ///
 /// Uses the same thorough resolver as the rest of the app
-/// (`claude::find_binary_by_name`: every NVM version's bin, `~/.<agent>/bin`,
-/// pnpm/volta/fnm dirs…) — the narrower `find_executable` missed installs like
-/// `~/.codex/bin/codex`, so the MCP modal said "Codex binary not found" while
-/// the Agents panel showed it installed (issue #250).
+/// (every NVM version's bin, `~/.<agent>/bin`, pnpm/volta/fnm dirs…) — the
+/// narrower `find_executable` missed installs like `~/.codex/bin/codex`, so
+/// the MCP modal said "Codex binary not found" while the Agents panel showed
+/// it installed (issue #250). Candidates are validated with the agent's
+/// version flag so a broken install (e.g. an npm package whose platform
+/// vendor binary is missing on disk) is skipped instead of being invoked and
+/// surfacing its internal ENOENT stack trace (issue #286).
 fn find_agent_binary(agent: &crate::agent::AgentConfig) -> Result<std::path::PathBuf, String> {
-    crate::commands::claude::find_binary_by_name(agent.binary_name)
+    crate::commands::claude::find_validated_binary(agent.binary_name, agent.version_flag)
         .ok_or_else(|| format!("{} binary not found", agent.display_name))
 }
 

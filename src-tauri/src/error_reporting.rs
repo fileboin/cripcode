@@ -392,6 +392,14 @@ pub fn report_command_error(err: &crate::errors::CommandError) {
         if lower.contains("already exists on this account") {
             return;
         }
+        // Stale plugin call racing an uninstall/project switch: an exec that
+        // was already in flight when its plugin was unloaded rejects with
+        // "Plugin 'x' not found" — an expected transient state, not a
+        // malfunction (issue #288). The "not found in registry" variants from
+        // update/check flows don't match this suffix and still report.
+        if lower.starts_with("plugin '") && lower.ends_with("' not found") {
+            return;
+        }
     }
     let fingerprint = command_error_fingerprint(err);
     report_error(

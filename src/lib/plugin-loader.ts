@@ -43,6 +43,18 @@ const moduleCache = new Map<string, PluginModule>();
 /** Cache of blob URLs for cleanup */
 const blobUrlCache = new Map<string, string>();
 
+/**
+ * Tombstones for unloaded plugin modules, keyed like `moduleCache`.
+ *
+ * `onDeactivate` can't cancel work that's already in flight (a timer tick
+ * that fired just before deactivation, a promise awaiting a backend round
+ * trip), so those calls reject after the plugin is gone — e.g. with
+ * "Plugin 'x' not found" on project switch or uninstall (issue #288).
+ * Callers check `wasPluginUnloaded` to treat such late rejections as an
+ * expected transient state instead of a user-facing error.
+ */
+const unloadedKeys = new Set<string>();
+
 function cacheKey(projectPath: string, pluginId: string): string {
   return `${projectPath}:${pluginId}`;
 }
@@ -99,6 +111,7 @@ export async function loadPluginModule(
     };
 
     moduleCache.set(key, pluginModule);
+    unloadedKeys.delete(key);
 
     // Call onActivate lifecycle hook
     if (pluginModule.onActivate) {
@@ -146,12 +159,22 @@ export function unloadPluginModule(
   }
 
   moduleCache.delete(key);
+  unloadedKeys.add(key);
 
   const blobUrl = blobUrlCache.get(key);
   if (blobUrl) {
     URL.revokeObjectURL(blobUrl);
     blobUrlCache.delete(key);
   }
+}
+
+/**
+ * Whether a plugin module was unloaded (and not since re-loaded) for this
+ * project. Used to recognize backend rejections from calls that were already
+ * in flight when the plugin was deactivated (issue #288).
+ */
+export function wasPluginUnloaded(projectPath: string, pluginId: string): boolean {
+  return unloadedKeys.has(cacheKey(projectPath, pluginId));
 }
 
 /** Plugins that crashed at render time. Checked synchronously by PluginSlot to skip them. */

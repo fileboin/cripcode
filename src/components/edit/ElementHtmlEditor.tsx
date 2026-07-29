@@ -18,10 +18,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../primitives/Button';
 import { CodeOverlayEditor } from './CodeOverlayEditor';
+import { MultiSourceControl } from './MultiSourceControl';
 import { useOptionalToast } from '../../contexts/ToastContext';
 import { resolveElementHtml, applyElementHtml } from '../../lib/edit-html';
 import { asCommandError, formatCommandError } from '../../lib/errors';
-import type { ElementSignature } from '../../lib/edit';
+import type { ElementSignature, SourceLocation } from '../../lib/edit';
 
 /** Friendly, prefix-free message for the panel — the backend's Validation
  *  reasons are already complete sentences, so show them verbatim. */
@@ -41,6 +42,11 @@ export function ElementHtmlEditor({ projectPath, signature }: Props) {
   const [error, setError] = useState('');
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  // Set when the markup lives at several identical source spots: Save writes
+  // to all of them (default) or the one the user picked — same edit-all /
+  // pick-one affordance as the class editor (issue #287).
+  const [locations, setLocations] = useState<SourceLocation[] | null>(null);
+  const [multiTarget, setMultiTarget] = useState<'all' | number>('all');
   const baselineRef = useRef('');
   const sigRef = useRef(signature);
   sigRef.current = signature;
@@ -54,6 +60,8 @@ export function ElementHtmlEditor({ projectPath, signature }: Props) {
         if (cancelled) return;
         baselineRef.current = res.html;
         setText(res.html);
+        setLocations(res.locations && res.locations.length > 1 ? res.locations : null);
+        setMultiTarget('all');
         setStatus('ready');
       })
       .catch((e) => {
@@ -71,9 +79,16 @@ export function ElementHtmlEditor({ projectPath, signature }: Props) {
     if (!dirty) return;
     setSaving(true);
     try {
-      await applyElementHtml(projectPath, sigRef.current, baselineRef.current, text);
+      const target = locations && multiTarget !== 'all' ? locations[multiTarget] : undefined;
+      const applied = await applyElementHtml(
+        projectPath,
+        sigRef.current,
+        baselineRef.current,
+        text,
+        target
+      );
       baselineRef.current = text;
-      showToast('Markup saved', 'success');
+      showToast(applied > 1 ? `Markup saved in ${applied} places` : 'Markup saved', 'success');
     } catch (e) {
       showToast(editorErrorText(e), 'error');
     } finally {
@@ -90,6 +105,10 @@ export function ElementHtmlEditor({ projectPath, signature }: Props) {
         <code className="ss-htmltab__tag">&lt;{signature.tagName || 'element'}&gt;</code>
         {firstClass && <span className="ss-htmltab__cls">.{firstClass}</span>}
       </div>
+
+      {status === 'ready' && locations && (
+        <MultiSourceControl locations={locations} target={multiTarget} onChange={setMultiTarget} />
+      )}
 
       <div className="ss-htmltab__main">
         {status === 'loading' && <div className="ss-htmltab__msg">Loading markup…</div>}
