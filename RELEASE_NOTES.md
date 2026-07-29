@@ -6,6 +6,11 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.0
+
+- **Automatic bug reports** - When something goes wrong, Ship Studio now reports the error automatically (fully anonymized — never your code or file contents) so bugs get found and fixed faster. Opt out anytime in Settings → Usage analytics & error reports.
+
+
 ## What's New in v0.17.2
 
 - **Fresh Slack invites** - All Slack links in the app now go through ship.studio/slack, so the community invite always stays fresh — even in older app versions
