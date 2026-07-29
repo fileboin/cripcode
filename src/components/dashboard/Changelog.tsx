@@ -26,6 +26,18 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.2', // v0.18.2
+    items: [
+      'Another 11 auto-reported bugs fixed within hours of being detected — the automatic error reporting keeps paying for itself',
+      'Installing agents on a slow connection works now: the setup terminal was mistaking a quiet download for a frozen one and restarting it forever. Downloads now show live progress instead of a blank screen',
+      'Git commands find git reliably on Windows (even when installed mid-setup), and a missing tool now tells you which one is missing instead of just "program not found"',
+      'Editing the markup of a repeated element (like a card in a grid) now offers "edit all copies or just this one" instead of refusing — same choice the class editor already had',
+      'Broken agent installs are detected and skipped: registering the preview MCP server picks a working binary instead of crashing with a raw error, and registration no longer races itself into "already exists" failures',
+      'Plugins can no longer hang the app for hours with a runaway command — shell timeouts are capped and timed-out commands are actually stopped, and a plugin removed mid-operation no longer throws confusing "not found" errors',
+      'Error reporting got much quieter behind the scenes: routine states (a tool not installed yet, a security guardrail doing its job, input validation) are no longer treated as bugs — real malfunctions still report',
+    ],
+  },
+  {
     version: '0.18.1', // v0.18.1
     items: [
       'The new automatic error reporting paid off immediately: 40+ bugs found, diagnosed, and fixed within two days of v0.18.0. Highlights below — plus dozens of errors across the app that now explain what actually went wrong instead of showing raw error codes',
