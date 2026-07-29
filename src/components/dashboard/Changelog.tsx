@@ -26,6 +26,12 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.0', // v0.18.0
+    items: [
+      'Bugs now fix themselves faster: when something goes wrong, Ship Studio automatically reports the error (anonymized — never your code or files) so it can be investigated and patched. Opt out anytime in Settings → Usage analytics & error reports',
+    ],
+  },
+  {
     version: '0.17.2', // v0.17.2
     items: [
       'Slack links now go through ship.studio/slack, so the community invite always stays fresh — no more expired invite links in older app versions',
