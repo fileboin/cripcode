@@ -33,8 +33,27 @@ pub enum CommandError {
     #[error("Pull request {pr_number} cannot be merged cleanly: {stderr}")]
     MergeConflict { pr_number: i32, stderr: String },
 
+    /// An anticipated, by-design refusal or environment gap — the app
+    /// *working correctly*: editor guardrails, path-security refusals,
+    /// "install X first" states, benign races. Rendered to the frontend
+    /// identically to `Other` (it serializes as `Other`, so no TS change),
+    /// but never auto-reported to telemetry. This is the typed intent that
+    /// replaces the substring denylist in `report_command_error` — classify
+    /// at the throw site, don't sniff message text downstream.
+    #[error("{message}")]
+    Expected { message: String },
+
     #[error("{message}")]
     Other { message: String },
+}
+
+impl CommandError {
+    /// Shorthand for [`CommandError::Expected`].
+    pub fn expected(message: impl Into<String>) -> Self {
+        CommandError::Expected {
+            message: message.into(),
+        }
+    }
 }
 
 /// Serialization happens exactly once per command failure — when Tauri sends
@@ -96,6 +115,9 @@ impl Serialize for CommandError {
             CommandError::MergeConflict { pr_number, stderr } => {
                 Mirror::MergeConflict { pr_number, stderr }
             }
+            // Expected is a backend-only distinction (reporting intent);
+            // the frontend renders it exactly like Other.
+            CommandError::Expected { message } => Mirror::Other { message },
             CommandError::Other { message } => Mirror::Other { message },
         };
         mirror.serialize(serializer)
@@ -170,6 +192,17 @@ mod tests {
         };
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("\"field\":\"path\""));
+    }
+
+    #[test]
+    fn expected_serializes_as_other() {
+        // Expected is a backend-only reporting distinction — the frontend
+        // contract must not change (no new "type" value to handle).
+        let err = CommandError::expected("Git isn't installed");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"type\":\"Other\""), "got: {json}");
+        assert!(json.contains("Git isn't installed"));
+        assert_eq!(err.to_string(), "Git isn't installed");
     }
 
     #[test]

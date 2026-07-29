@@ -386,11 +386,12 @@ pub fn git_command() -> Result<Command, crate::errors::CommandError> {
             let _ = GIT_PATH.set(path);
             Ok(cmd)
         }
-        None => Err(crate::errors::CommandError::Other {
-            message: "Git isn't installed or couldn't be located. Install Git \
-                      (https://git-scm.com) and restart Ship Studio, then try again."
-                .into(),
-        }),
+        // Expected: a missing git is an environment gap the onboarding
+        // wizard handles, not an app malfunction.
+        None => Err(crate::errors::CommandError::expected(
+            "Git isn't installed or couldn't be located. Install Git \
+             (https://git-scm.com) and restart Ship Studio, then try again",
+        )),
     }
 }
 
@@ -753,10 +754,17 @@ pub fn canonicalize_tagged(
 /// Validates that a project path is inside an allowed projects root (the
 /// configured root or the default `~/ShipStudio`) or is a registered external
 /// project. Prevents path traversal where the frontend could pass arbitrary paths.
-pub fn validate_project_path(project_path: &str) -> Result<std::path::PathBuf, String> {
+///
+/// Refusals are `CommandError::Expected`: the sandbox rejecting a path is the
+/// app working correctly, not a malfunction to report.
+pub fn validate_project_path(
+    project_path: &str,
+) -> Result<std::path::PathBuf, crate::errors::CommandError> {
     let path = std::path::Path::new(project_path);
     if !path.is_absolute() {
-        return Err("Security error: project path must be absolute".to_string());
+        return Err(crate::errors::CommandError::expected(
+            "Security error: project path must be absolute",
+        ));
     }
     let canonical = canonicalize_tagged(path, "validate_project_path")?;
 
@@ -773,9 +781,9 @@ pub fn validate_project_path(project_path: &str) -> Result<std::path::PathBuf, S
         return Ok(canonical);
     }
 
-    Err(format!(
+    Err(crate::errors::CommandError::expected(format!(
         "Security error: path '{project_path}' is outside the projects directory"
-    ))
+    )))
 }
 
 /// Validates a path to a *file* that lives inside ~/ShipStudio (or a registered
@@ -790,7 +798,10 @@ pub fn validate_project_path(project_path: &str) -> Result<std::path::PathBuf, S
 /// absolute path.
 ///
 /// Returns the safe, canonical absolute path the caller should operate on.
-pub fn validate_project_file_path(file_path: &str) -> Result<std::path::PathBuf, String> {
+/// Refusals are `CommandError::Expected` (see [`validate_project_path`]).
+pub fn validate_project_file_path(
+    file_path: &str,
+) -> Result<std::path::PathBuf, crate::errors::CommandError> {
     let path = std::path::Path::new(file_path);
 
     let file_name = path
@@ -811,9 +822,9 @@ pub fn validate_project_file_path(file_path: &str) -> Result<std::path::PathBuf,
         || crate::commands::external_projects::is_registered_external_path(&canonical_parent)?;
 
     if !allowed {
-        return Err(format!(
+        return Err(crate::errors::CommandError::expected(format!(
             "Security error: path '{file_path}' is outside the projects directory"
-        ));
+        )));
     }
 
     let resolved = canonical_parent.join(file_name);
@@ -825,9 +836,9 @@ pub fn validate_project_file_path(file_path: &str) -> Result<std::path::PathBuf,
     // in assets.rs::upload_asset.)
     if let Ok(meta) = std::fs::symlink_metadata(&resolved) {
         if meta.file_type().is_symlink() {
-            return Err(format!(
+            return Err(crate::errors::CommandError::expected(format!(
                 "Security error: '{file_path}' is a symlink; refusing to follow it"
-            ));
+            )));
         }
     }
 
@@ -1310,7 +1321,9 @@ mod tests {
             // Current working directory in test runner is src-tauri, which is
             // outside ~/ShipStudio. `.` canonicalizes to cwd, so this should
             // fail the security check.
-            let err = validate_project_path(".").expect_err("should reject");
+            let err = validate_project_path(".")
+                .expect_err("should reject")
+                .to_string();
             assert!(
                 err.contains("Security error") || err.contains("outside ShipStudio"),
                 "unexpected error: {err}"
@@ -1320,7 +1333,8 @@ mod tests {
         #[test]
         fn rejects_nonexistent_path() {
             let err = validate_project_path("/this/path/definitely/does/not/exist/shipstudio-test")
-                .expect_err("should reject nonexistent");
+                .expect_err("should reject nonexistent")
+                .to_string();
             // Either "Invalid path" (from canonicalize) or the security error —
             // both are acceptable rejection modes.
             assert!(!err.is_empty(), "empty error for nonexistent path");
@@ -1440,7 +1454,8 @@ mod tests {
             let home = dirs::home_dir().expect("home dir");
             let target = home.join(".zshenv-shipstudio-audit-test");
             let err = validate_project_file_path(&target.to_string_lossy())
-                .expect_err("file in $HOME (outside ShipStudio) must be rejected");
+                .expect_err("file in $HOME (outside ShipStudio) must be rejected")
+                .to_string();
             assert!(
                 err.contains("Security error") || err.contains("outside ShipStudio"),
                 "unexpected error: {err}"

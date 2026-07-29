@@ -362,48 +362,45 @@ fn command_error_fingerprint(err: &crate::errors::CommandError) -> Option<String
     match err {
         E::Timeout { cmd, .. } => Some(format!("cmderr-timeout-{cmd}")),
         E::Process { cmd, .. } => Some(format!("cmderr-process-{cmd}")),
-        E::Validation { field, .. } => Some(format!("cmderr-validation-{field}")),
         E::MergeConflict { .. } => Some("cmderr-merge-conflict".to_string()),
-        E::NotAuthenticated { .. } | E::Io { .. } | E::Other { .. } => None,
+        E::Validation { .. }
+        | E::NotAuthenticated { .. }
+        | E::Io { .. }
+        | E::Expected { .. }
+        | E::Other { .. } => None,
     }
 }
 
 /// Report a `CommandError` the moment it's serialized for the frontend —
-/// the one choke point that sees every backend failure a user experiences,
-/// including structured Validation errors rendered inline (no toast, no
-/// error log). Called from `CommandError`'s `Serialize` impl.
+/// the one choke point that sees every backend failure a user experiences.
+/// Called from `CommandError`'s `Serialize` impl.
 ///
-/// `NotAuthenticated` is skipped: a not-yet-connected integration is an
-/// expected state, not a malfunction. Same for "not a git repository" — a
-/// project that hasn't been `git init`ed is routine (the frontend already
-/// `.catch(() => null)`s it on a 10s poll), and reporting it spams telemetry
-/// with a non-bug on every poll tick (issue #254).
+/// Skipped variants are states where the app is working correctly:
+/// - `NotAuthenticated` — a not-yet-connected integration is expected.
+/// - `Validation` — user-input feedback rendered inline. These were
+///   deliberately reported at first (and did surface one real UX dead end,
+///   issue #287), but a cost audit showed the class is overwhelmingly
+///   "app refusing correctly" noise at investigation prices.
+/// - `Expected` — the typed marker for by-design refusals, environment gaps
+///   ("install X first"), and benign races, classified at the throw site.
+///   New skip cases belong THERE, not in message sniffing here.
+///
+/// One message-text exception remains: "not a git repository" arrives inside
+/// arbitrary git stderr passthrough (issue #254), so it can't be typed at a
+/// throw site.
 pub fn report_command_error(err: &crate::errors::CommandError) {
-    if matches!(err, crate::errors::CommandError::NotAuthenticated { .. }) {
+    use crate::errors::CommandError as E;
+    if matches!(
+        err,
+        E::NotAuthenticated { .. } | E::Validation { .. } | E::Expected { .. }
+    ) {
         return;
     }
-    if let crate::errors::CommandError::Other { message } = err {
-        let lower = message.to_ascii_lowercase();
-        if lower.contains("not a git repository") {
-            return;
-        }
-        // Repo-name collision on Create Repo — user input needing a different
-        // name, already surfaced as a friendly message (issue #279).
-        if lower.contains("already exists on this account") {
-            return;
-        }
-        // Stale plugin call racing an uninstall/project switch: an exec that
-        // was already in flight when its plugin was unloaded rejects with
-        // "Plugin 'x' not found" — an expected transient state, not a
-        // malfunction (issue #288). The "not found in registry" variants from
-        // update/check flows don't match this suffix and still report.
-        if lower.starts_with("plugin '") && lower.ends_with("' not found") {
-            return;
-        }
-        // Preview-bridge MCP registration racing a concurrent writer: the
-        // losing add fails "already exists" but the goal state (server
-        // registered) is reached; the frontend treats it as benign (#292).
-        if lower.contains("failed to add mcp server") && lower.contains("already exists") {
+    if let E::Other { message } = err {
+        if message
+            .to_ascii_lowercase()
+            .contains("not a git repository")
+        {
             return;
         }
     }
@@ -547,13 +544,14 @@ mod tests {
     #[test]
     fn command_error_fingerprints_are_stable_slugs() {
         use crate::errors::CommandError as E;
+        // Validation is no longer reported at all (user-input feedback, not
+        // a malfunction) — no fingerprint.
         assert_eq!(
             command_error_fingerprint(&E::Validation {
                 field: "branch".into(),
                 reason: "Invalid ref name".into()
-            })
-            .as_deref(),
-            Some("cmderr-validation-branch")
+            }),
+            None
         );
         assert_eq!(
             command_error_fingerprint(&E::Timeout {

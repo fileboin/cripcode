@@ -559,7 +559,9 @@ pub fn toggle_plugin(
         write_registry(&project_path, &registry)?;
         Ok(())
     } else {
-        Err((format!("Plugin '{plugin_id}' not found")).into())
+        Err(CommandError::expected(format!(
+            "Plugin '{plugin_id}' not found"
+        )))
     }
 }
 

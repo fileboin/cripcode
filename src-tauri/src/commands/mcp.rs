@@ -56,9 +56,12 @@ fn strip_ansi(s: &str) -> String {
 /// version flag so a broken install (e.g. an npm package whose platform
 /// vendor binary is missing on disk) is skipped instead of being invoked and
 /// surfacing its internal ENOENT stack trace (issue #286).
-fn find_agent_binary(agent: &crate::agent::AgentConfig) -> Result<std::path::PathBuf, String> {
+fn find_agent_binary(
+    agent: &crate::agent::AgentConfig,
+) -> Result<std::path::PathBuf, CommandError> {
     crate::commands::claude::find_validated_binary(agent.binary_name, agent.version_flag)
-        .ok_or_else(|| format!("{} binary not found", agent.display_name))
+        // Expected: "agent not installed" is an environment gap, not a bug.
+        .ok_or_else(|| CommandError::expected(format!("{} binary not found", agent.display_name)))
 }
 
 /// Parse the output of `claude mcp list` which has the format:
@@ -346,7 +349,13 @@ pub async fn add_mcp_server(
         } else {
             stderr
         };
-        return Err((format!("Failed to add MCP server: {details}")).into());
+        let message = format!("Failed to add MCP server: {details}");
+        // "Already exists" is a benign race with a concurrent registration —
+        // the goal state is reached; callers treat it accordingly (#292).
+        if details.to_ascii_lowercase().contains("already exists") {
+            return Err(CommandError::expected(message));
+        }
+        return Err(message.into());
     }
 
     Ok(())

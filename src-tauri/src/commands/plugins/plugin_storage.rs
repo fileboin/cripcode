@@ -111,7 +111,9 @@ pub async fn exec_plugin_shell(
         false
     };
     if !plugin_exists {
-        return Err((format!("Plugin '{plugin_id}' not found")).into());
+        return Err(CommandError::expected(format!(
+            "Plugin '{plugin_id}' not found"
+        )));
     }
 
     // Resolve the binary up front so a missing tool yields an actionable
@@ -119,10 +121,9 @@ pub async fn exec_plugin_shell(
     // directory (os error 2)" from Command::output() (issue #256). Mirrors
     // resolve_git() in plugin_lifecycle.rs / get_gh_command() in github.rs.
     if crate::utils::find_executable(&command).is_none() {
-        return Err((format!(
+        return Err(CommandError::expected(format!(
             "Plugin '{plugin_id}' tried to run '{command}', but it isn't installed or not on PATH."
-        ))
-        .into());
+        )));
     }
 
     // Build and execute command with timeout. The timeout is clamped: a
@@ -272,7 +273,9 @@ pub fn unlink_dev_plugin(project_path: String, plugin_id: String) -> Result<(), 
             return Err(("Plugin is not a dev plugin. Use uninstall instead.".to_string()).into());
         }
         None => {
-            return Err((format!("Plugin '{plugin_id}' not found")).into());
+            return Err(CommandError::expected(format!(
+                "Plugin '{plugin_id}' not found"
+            )));
         }
         _ => {}
     }

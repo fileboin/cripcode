@@ -50,9 +50,14 @@ pub async fn run_with_timeout(
             // Name the command: Windows renders a PATH miss as the bare
             // "program not found", which is useless without knowing WHICH
             // program (issue #296) — Timeout/Process already carry the label.
-            Err(CommandError::Io {
-                message: format!("`{label}`: {io_err}"),
-            })
+            let message = format!("`{label}`: {io_err}");
+            // A missing binary is an environment gap ("install X first"),
+            // not an app malfunction — Expected keeps it out of telemetry.
+            if io_err.kind() == std::io::ErrorKind::NotFound {
+                Err(CommandError::expected(message))
+            } else {
+                Err(CommandError::Io { message })
+            }
         }
         Err(_) => {
             warn!(cmd = %label, timeout_secs, "external command timed out");
@@ -98,14 +103,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_with_timeout_maps_missing_binary_to_io() {
+    async fn run_with_timeout_maps_missing_binary_to_expected_with_label() {
         let cmd = Command::new("definitely-not-a-real-binary-shipstudio");
         let err = run_with_timeout(cmd, "ghost", 5).await.unwrap_err();
+        // Missing binary = environment gap: labeled (#296) and typed
+        // Expected so it never reaches telemetry.
         match err {
-            CommandError::Io { message } => {
+            CommandError::Expected { message } => {
                 assert!(message.contains("`ghost`"), "got: {message}")
             }
-            other => panic!("expected Io, got {other:?}"),
+            other => panic!("expected Expected, got {other:?}"),
         }
     }
 

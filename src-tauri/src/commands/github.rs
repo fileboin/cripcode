@@ -500,14 +500,11 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
         // A name collision is user input needing a different name, not a
         // malfunction — surface it in plain language instead of GitHub's raw
         // "GraphQL: Name already exists on this account (createRepository)"
-        // (issue #279). error_reporting skips this message so routine
-        // collisions don't generate telemetry noise.
+        // (issue #279). Expected: routine collisions aren't telemetry.
         if stderr.contains("Name already exists on this account") {
-            return Err(CommandError::Other {
-                message: format!(
-                    "A repository named \"{repo_name}\" already exists on this account. Choose a different name."
-                ),
-            });
+            return Err(CommandError::expected(format!(
+                "A repository named \"{repo_name}\" already exists on this account. Choose a different name."
+            )));
         }
         return Err(CommandError::Process {
             cmd: "gh repo create".to_string(),
