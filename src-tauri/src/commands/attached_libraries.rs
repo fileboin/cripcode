@@ -184,7 +184,7 @@ pub async fn add_attached_library(app: AppHandle) -> Result<Option<String>, Comm
         None => return Ok(None), // User cancelled
     };
 
-    let canonical = dunce::canonicalize(&folder_path).map_err(|e| format!("Invalid path: {e}"))?;
+    let canonical = crate::utils::canonicalize_tagged(&folder_path, "attached_libraries")?;
     if !canonical.is_dir() {
         return Err("Selected path is not a folder.".to_string().into());
     }

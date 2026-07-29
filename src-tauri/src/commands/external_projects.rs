@@ -171,7 +171,7 @@ pub async fn register_external_project(app: AppHandle) -> Result<Option<String>,
     }
 
     // Canonicalize the path
-    let canonical = dunce::canonicalize(&folder_path).map_err(|e| format!("Invalid path: {e}"))?;
+    let canonical = crate::utils::canonicalize_tagged(&folder_path, "register_external_project")?;
     let canonical_str = canonical.to_string_lossy().to_string();
 
     // Reject folders that already live under a projects root (configured or
@@ -326,7 +326,7 @@ pub async fn ensure_external_project_registered(
     path: String,
 ) -> Result<bool, CommandError> {
     let canonical =
-        dunce::canonicalize(Path::new(&path)).map_err(|e| format!("Invalid path: {e}"))?;
+        crate::utils::canonicalize_tagged(Path::new(&path), "ensure_external_project_registered")?;
 
     // Skip if already inside a projects root (configured or default) — those are
     // already trusted by validate_project_path and listed automatically.
@@ -380,8 +380,7 @@ pub async fn ensure_external_project_registered(
 #[tauri::command]
 #[tracing::instrument]
 pub async fn is_project_external(path: String) -> Result<bool, CommandError> {
-    let canonical =
-        dunce::canonicalize(Path::new(&path)).map_err(|e| format!("Invalid path: {e}"))?;
+    let canonical = crate::utils::canonicalize_tagged(Path::new(&path), "is_project_external")?;
 
     let config = load_config()?;
     for project in &config.projects {

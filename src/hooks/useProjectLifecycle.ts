@@ -258,7 +258,9 @@ export function useProjectLifecycle({
       // and a log so we notice. Don't toast: this is internal.
       trackError('workspace_gate_subpath_check', err, 'Dashboard');
       logger.error('[OpenProject] getWorkspaceSubpath failed; opening as-is', {
-        error: err instanceof Error ? err.message : String(err),
+        // Tauri rejections are plain objects — String(err) renders them as
+        // "[object Object]" (issue #283); asCommandError handles both shapes.
+        error: formatCommandError(asCommandError(err)),
       });
       return false;
     }
@@ -270,7 +272,7 @@ export function useProjectLifecycle({
     } catch (err) {
       trackError('workspace_gate_detect', err, 'Dashboard');
       logger.error('[OpenProject] detectWorkspaces failed; opening as-is', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       return false;
     }
@@ -746,7 +748,7 @@ export function useProjectLifecycle({
     } catch (err) {
       trackError('monorepo_pick_save', err, 'Dashboard');
       logger.error('[OpenProject] Failed to save workspace subpath', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
       showToast(
         `Couldn't save workspace pick: ${formatCommandError(asCommandError(err))}`,
@@ -835,7 +837,7 @@ export function useProjectLifecycle({
       }
     } catch (err) {
       logger.warn('[OpenProject] Cancel rollback failed', {
-        error: err instanceof Error ? err.message : String(err),
+        error: formatCommandError(asCommandError(err)),
       });
     }
   };

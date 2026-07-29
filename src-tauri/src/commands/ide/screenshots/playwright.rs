@@ -269,8 +269,11 @@ const {{ chromium }} = require('playwright');
         screenshot_path_str.replace('\\', "\\\\")
     );
 
-    // Write script to the playwright env directory (where node_modules is)
-    let script_path = playwright_env.join("capture-script.js");
+    // Write script to the playwright env directory (where node_modules is).
+    // Unique name per invocation: a fixed filename let concurrent captures
+    // delete/overwrite each other's script mid-run — Node then died with
+    // MODULE_NOT_FOUND on the shared path (issue #282).
+    let script_path = playwright_env.join(format!("capture-script-{}.js", uuid::Uuid::new_v4()));
     std::fs::write(&script_path, &script)
         .map_err(|e| format!("Failed to write capture script: {e}"))?;
 
@@ -376,8 +379,12 @@ const {{ chromium }} = require('playwright');
         screenshot_path_str.replace('\\', "\\\\")
     );
 
-    // Write script to the playwright env directory
-    let script_path = playwright_env.join("capture-viewport-script.js");
+    // Write script to the playwright env directory. Unique per invocation —
+    // see the same fix in capture_fullpage_playwright (issue #282).
+    let script_path = playwright_env.join(format!(
+        "capture-viewport-script-{}.js",
+        uuid::Uuid::new_v4()
+    ));
     std::fs::write(&script_path, &script)
         .map_err(|e| format!("Failed to write capture script: {e}"))?;
 

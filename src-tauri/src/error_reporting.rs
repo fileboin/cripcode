@@ -383,10 +383,13 @@ pub fn report_command_error(err: &crate::errors::CommandError) {
         return;
     }
     if let crate::errors::CommandError::Other { message } = err {
-        if message
-            .to_ascii_lowercase()
-            .contains("not a git repository")
-        {
+        let lower = message.to_ascii_lowercase();
+        if lower.contains("not a git repository") {
+            return;
+        }
+        // Repo-name collision on Create Repo — user input needing a different
+        // name, already surfaced as a friendly message (issue #279).
+        if lower.contains("already exists on this account") {
             return;
         }
     }

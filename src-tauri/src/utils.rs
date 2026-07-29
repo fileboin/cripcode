@@ -706,6 +706,21 @@ pub fn normalize_separators(path: &str) -> String {
     path.to_string()
 }
 
+/// Canonicalize with a diagnosable error naming the call site and the path.
+///
+/// A bare "Invalid path: No such file or directory (os error 2)" is emitted
+/// from ~20 canonicalize sites and is untraceable from telemetry (issue #284).
+/// Including the path is safe: error reports scrub home directories before
+/// anything leaves the machine.
+pub fn canonicalize_tagged(
+    path: impl AsRef<std::path::Path>,
+    site: &str,
+) -> Result<std::path::PathBuf, String> {
+    let path = path.as_ref();
+    dunce::canonicalize(path)
+        .map_err(|e| format!("Invalid path in {site} ('{}'): {e}", path.display()))
+}
+
 /// Validates that a project path is inside an allowed projects root (the
 /// configured root or the default `~/ShipStudio`) or is a registered external
 /// project. Prevents path traversal where the frontend could pass arbitrary paths.
@@ -714,7 +729,7 @@ pub fn validate_project_path(project_path: &str) -> Result<std::path::PathBuf, S
     if !path.is_absolute() {
         return Err("Security error: project path must be absolute".to_string());
     }
-    let canonical = dunce::canonicalize(path).map_err(|e| format!("Invalid path: {e}"))?;
+    let canonical = canonicalize_tagged(path, "validate_project_path")?;
 
     // Allow paths inside any allowed projects root
     if allowed_project_roots()
@@ -759,7 +774,7 @@ pub fn validate_project_file_path(file_path: &str) -> Result<std::path::PathBuf,
 
     // Canonicalize the parent (must exist) — resolves symlinks and `..` so the
     // containment check below can't be defeated lexically.
-    let canonical_parent = dunce::canonicalize(parent).map_err(|e| format!("Invalid path: {e}"))?;
+    let canonical_parent = canonicalize_tagged(parent, "validate_project_file_path")?;
 
     let allowed = allowed_project_roots()
         .iter()
