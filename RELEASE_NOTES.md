@@ -6,6 +6,17 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.2
+
+- **11 more auto-reported bugs fixed** - The automatic error reporting pipeline caught and we fixed another 11 bugs within hours of detection
+- **Agent installs work on slow connections** - The setup terminal no longer kills a quiet-but-healthy download and loops forever; downloads now show live progress
+- **Git works reliably on Windows** - All git operations resolve the git binary up front, fixing bare "program not found" failures; missing tools are now named
+- **Edit repeated elements** - The markup editor offers edit-all/just-one for elements that appear in several identical places, matching the class editor
+- **MCP registration hardened** - Broken agent installs are skipped, registration no longer races itself, and remove is idempotent across CLI wording variants
+- **Plugin safety** - Shell timeouts are capped at 10 minutes and timed-out commands are actually killed; stale plugin calls after uninstall/project switch are silent
+- **Quieter error telemetry** - Routine states (missing tools, validation feedback, security guardrails) are no longer reported as bugs
+
+
 ## What's New in v0.18.1
 
 - **Bug bash** - 40+ auto-reported bugs fixed within two days of v0.18.0, thanks to the new automatic error reporting
