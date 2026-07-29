@@ -46,6 +46,9 @@ fn detection_signature(project_path: &std::path::Path) -> u128 {
         // Shopify theme signals (nested paths work — metadata() takes any path)
         "layout/theme.liquid",
         "config/settings_schema.json",
+        // Static-site signals (root or Vercel-style public/)
+        "index.html",
+        "public/index.html",
     ];
     let mut max_nanos: u128 = 0;
     for name in SENTINELS {
@@ -231,6 +234,22 @@ pub(crate) fn is_shopify_theme_project(project_path: &std::path::Path) -> bool {
             .exists()
 }
 
+/// Resolve the directory a packageless static site serves from: the project
+/// root itself, or — mirroring Vercel's static-deploy convention — a `public/`
+/// subdirectory when the root has no HTML of its own. Agents routinely
+/// restructure plain HTML projects into `public/index.html` because that's
+/// what Vercel serves, so the local preview must accept the same layout.
+pub fn static_site_dir(project_path: &std::path::Path) -> Option<std::path::PathBuf> {
+    if has_html_files(project_path) {
+        return Some(project_path.to_path_buf());
+    }
+    let public = project_path.join("public");
+    if has_html_files(&public) {
+        return Some(public);
+    }
+    None
+}
+
 /// Check if a directory contains HTML files in its root
 pub fn has_html_files(project_path: &std::path::Path) -> bool {
     if let Ok(entries) = std::fs::read_dir(project_path) {
@@ -325,8 +344,8 @@ fn detect_project_type_uncached(project_path: &std::path::Path) -> ProjectType {
         return ProjectType::Generic;
     }
 
-    // Check for HTML files in root (static HTML project)
-    if has_html_files(project_path) {
+    // Check for HTML files in root or public/ (static HTML project)
+    if static_site_dir(project_path).is_some() {
         return ProjectType::Statichtml;
     }
 
@@ -875,6 +894,46 @@ mod tests {
         assert_eq!(
             detect_project_type_uncached(tmp.path()),
             ProjectType::Statichtml
+        );
+    }
+
+    #[test]
+    fn detects_static_html_in_public_dir() {
+        // Agents restructure plain sites into public/ (Vercel's static-deploy
+        // layout); the preview must classify these as static, not Unknown.
+        let tmp = TempDir::new().unwrap();
+        let public = tmp.path().join("public");
+        std::fs::create_dir_all(&public).unwrap();
+        std::fs::write(public.join("index.html"), "<html></html>").unwrap();
+        assert_eq!(
+            detect_project_type_uncached(tmp.path()),
+            ProjectType::Statichtml
+        );
+        assert_eq!(static_site_dir(tmp.path()), Some(public));
+    }
+
+    #[test]
+    fn static_site_dir_prefers_root_html() {
+        let tmp = TempDir::new().unwrap();
+        let public = tmp.path().join("public");
+        std::fs::create_dir_all(&public).unwrap();
+        std::fs::write(public.join("index.html"), "").unwrap();
+        std::fs::write(tmp.path().join("index.html"), "").unwrap();
+        assert_eq!(static_site_dir(tmp.path()), Some(tmp.path().to_path_buf()));
+    }
+
+    #[test]
+    fn public_html_does_not_make_framework_projects_static() {
+        // A framework app's public/ assets (or a Generic tooling project) must
+        // not be reclassified: package.json is checked before the static rule.
+        let tmp = TempDir::new().unwrap();
+        let public = tmp.path().join("public");
+        std::fs::create_dir_all(&public).unwrap();
+        std::fs::write(public.join("index.html"), "<html></html>").unwrap();
+        std::fs::write(tmp.path().join("package.json"), r#"{"name":"x"}"#).unwrap();
+        assert_eq!(
+            detect_project_type_uncached(tmp.path()),
+            ProjectType::Generic
         );
     }
 

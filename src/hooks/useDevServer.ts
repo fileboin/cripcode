@@ -584,18 +584,20 @@ export function useDevServer(currentProjectPath: string | null) {
 
       // A plain static site that carries a root `package.json` only for build
       // tooling (PostCSS, autoprefixer, a CSS minifier) is detected as `generic`
-      // and would start no server. The user can opt into static serving via
+      // and would start no server; a site whose HTML lives somewhere detection
+      // doesn't look is `unknown`. The user can opt into static serving via
       // `.shipstudio/project.json` → `force_static_serve`; when set, treat it as
       // a static-HTML project so it serves over the static server and the
-      // Preview pane renders (it gates out `generic`). Scoped to `generic` —
-      // the override is specifically for the package.json-present case.
+      // Preview pane renders (it gates out `generic`/`unknown`). Never applied
+      // to detected web frameworks — the override exists only for the two
+      // "no server would start" outcomes.
       let forceStatic = false;
       try {
         forceStatic = await getForceStaticServe(projectPath);
       } catch {
         /* default: respect detection */
       }
-      if (forceStatic && detectedType === 'generic') {
+      if (forceStatic && (detectedType === 'generic' || detectedType === 'unknown')) {
         logger.info('[OpenProject] force_static_serve set; serving as static HTML', {
           projectPath,
           detectedType,

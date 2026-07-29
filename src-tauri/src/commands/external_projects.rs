@@ -307,9 +307,11 @@ fn looks_like_project_root(path: &Path) -> bool {
         "composer.json",
         "index.html",
     ];
-    // Mirror register_external_project's picker check: any .html file counts as a
-    // project, so static sites whose entry isn't index.html still auto-register.
-    MARKERS.iter().any(|m| path.join(m).exists()) || crate::commands::projects::has_html_files(path)
+    // Mirror register_external_project's picker check: any .html file (root or
+    // Vercel-style public/) counts as a project, so static sites whose entry
+    // isn't a root index.html still auto-register.
+    MARKERS.iter().any(|m| path.join(m).exists())
+        || crate::commands::projects::static_site_dir(path).is_some()
 }
 
 /// Register an external project by path (no folder picker dialog).

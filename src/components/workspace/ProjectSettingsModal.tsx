@@ -221,9 +221,10 @@ export function ProjectSettingsModal({
                       lineHeight: 1.4,
                     }}
                   >
-                    Serve files directly even though a <code>package.json</code> is present. Use
-                    this for plain HTML/CSS sites that keep a <code>package.json</code> only for
-                    build tooling. Reopen the project to apply.
+                    Serve this project's files directly with the built-in static server. Use this
+                    for plain HTML/CSS sites that weren't recognized automatically — e.g. ones that
+                    keep a <code>package.json</code> only for build tooling. Reopen the project to
+                    apply.
                   </span>
                 </span>
               </label>

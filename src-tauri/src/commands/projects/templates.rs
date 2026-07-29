@@ -3,7 +3,7 @@
 //! Handles creating new projects from zip templates and exporting
 //! existing projects as zip template files.
 
-use super::detection::has_html_files;
+use super::detection::static_site_dir;
 use crate::errors::CommandError;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
@@ -69,10 +69,10 @@ pub async fn extract_template_zip(
         return Err(e);
     }
 
-    // Verify it's a valid project (has package.json, HTML files, or a
-    // Shopify theme layout)
+    // Verify it's a valid project (has package.json, HTML files at the root
+    // or in public/, or a Shopify theme layout)
     if !project_path.join("package.json").exists()
-        && !has_html_files(&project_path)
+        && static_site_dir(&project_path).is_none()
         && !project_path.join("layout").join("theme.liquid").exists()
     {
         // Clean up invalid project

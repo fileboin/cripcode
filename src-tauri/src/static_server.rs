@@ -119,8 +119,15 @@ pub async fn start_static_server(
         ));
     }
 
+    // Serve from `public/` (Vercel's static-deploy convention) when the project
+    // root has no HTML of its own — the same rule `detect_project_type` uses to
+    // classify the project as static in the first place. Falls back to the root
+    // so force-static projects with unusual layouts still serve something.
+    let serve_root =
+        crate::commands::projects::static_site_dir(&project_root).unwrap_or(project_root.clone());
+
     // Canonicalize once at startup for path traversal checks
-    let canonical_root = dunce::canonicalize(&project_root)
+    let canonical_root = dunce::canonicalize(&serve_root)
         .map_err(|e| format!("Failed to canonicalize project path: {e}"))?;
 
     // Bind to a random available port on localhost
@@ -499,6 +506,24 @@ mod tests {
         let result = resolve_file_path(&canonical_root, "/");
         assert!(result.is_some());
         assert!(result.unwrap().ends_with("index.html"));
+    }
+
+    #[test]
+    fn test_serves_from_public_when_root_has_no_html() {
+        // Vercel-style layout: all site files under public/, nothing at root.
+        let dir = TempDir::new().unwrap();
+        let public = dir.path().join("public");
+        fs::create_dir_all(&public).unwrap();
+        fs::write(public.join("index.html"), "<html></html>").unwrap();
+        fs::write(public.join("styles.css"), "body {}").unwrap();
+
+        let serve_root = crate::commands::projects::static_site_dir(dir.path())
+            .expect("public/ html must yield a serve root");
+        let canonical = dunce::canonicalize(&serve_root).unwrap();
+        let index = resolve_file_path(&canonical, "/").unwrap();
+        assert!(index.ends_with("public/index.html"));
+        let css = resolve_file_path(&canonical, "/styles.css").unwrap();
+        assert!(css.ends_with("public/styles.css"));
     }
 
     #[test]

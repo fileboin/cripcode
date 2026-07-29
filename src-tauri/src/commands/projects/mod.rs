@@ -206,7 +206,7 @@ pub(crate) fn is_valid_project(path: &std::path::Path) -> bool {
     ];
     path.is_dir()
         && (path.join("package.json").exists()
-            || detection::has_html_files(path)
+            || detection::static_site_dir(path).is_some()
             || path.join(".gitignore").exists()
             || path.join(".shipstudio").exists()
             || path.join(".git").exists()
@@ -766,7 +766,10 @@ pub async fn list_pages(project_path: String) -> Result<Vec<PageInfo>, CommandEr
             Ok(Vec::new())
         }
         ProjectType::Statichtml => {
-            let mut pages = detection::scan_html_pages(&project, &project)?;
+            // Scan the directory the static server actually serves from (the
+            // root, or Vercel-style public/) so routes match served URLs.
+            let site_dir = detection::static_site_dir(&project).unwrap_or(project.clone());
+            let mut pages = detection::scan_html_pages(&site_dir, &site_dir)?;
             detection::sort_pages(&mut pages);
             Ok(pages)
         }
