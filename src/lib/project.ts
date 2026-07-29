@@ -13,8 +13,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { spawn, IPty } from 'tauri-pty';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { homeDir } from '@tauri-apps/api/path';
-import { readTextFile } from '@tauri-apps/plugin-fs';
 import { logger } from './logger';
+import { readProjectFile } from './code';
 import { trackError } from './analytics';
 import { isWindows } from './setup';
 
@@ -349,10 +349,14 @@ export async function startDevServer(
     // Try to read package.json to get the dev script and parse it to use correct port
     // We use npx to run the command so that local node_modules/.bin executables are found
     try {
-      const packageJsonPath = `${projectPath}/package.json`;
-      logger.info('[DevServer] Reading package.json', { path: packageJsonPath, desiredPort: port });
-      const packageJson = await readTextFile(packageJsonPath);
-      const pkg = JSON.parse(packageJson) as { scripts?: { dev?: string } };
+      logger.info('[DevServer] Reading package.json', { projectPath, desiredPort: port });
+      // Read through the backend rather than plugin-fs: validate_project_path
+      // accepts registered external projects anywhere on disk, while the
+      // static fs scope only covers $HOME and /Volumes — so projects in e.g.
+      // /Applications/XAMPP lost dev-script parsing (issue #264). It also
+      // sidesteps Windows mixed-separator concatenation (issue #257).
+      const file = await readProjectFile(projectPath, 'package.json');
+      const pkg = JSON.parse(file.content) as { scripts?: { dev?: string } };
       const devScript = pkg.scripts?.dev;
 
       if (devScript) {
@@ -381,7 +385,7 @@ export async function startDevServer(
       }
     } catch (e) {
       // Fall back to npm run dev with port forwarded via -- --port
-      // This handles external projects where readTextFile is blocked by Tauri scope
+      // (e.g. package.json genuinely missing, or not valid JSON)
       trackError('devserver_package_json', e, 'Workspace');
       const errorMessage = e instanceof Error ? e.message : String(e);
       logger.error('[DevServer] Failed to read/parse package.json, falling back to npm run dev', {

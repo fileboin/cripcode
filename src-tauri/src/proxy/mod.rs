@@ -591,11 +591,17 @@ async fn proxy_http_request(
     // Connect to target via hostname so both IPv4 and IPv6 are tried.
     // Vite-based dev servers (Astro, SvelteKit, Nuxt) bind to `localhost` which
     // resolves to `::1` (IPv6) on macOS -- hardcoding 127.0.0.1 fails for those.
+    // Each timeout site names its phase: all three produce the same bare
+    // "deadline has elapsed" otherwise, making a 5s connect stall
+    // indistinguishable from a 5-minute hung response (issue #271).
     let stream = tokio::time::timeout(
         UPSTREAM_CONNECT_TIMEOUT,
         TcpStream::connect(format!("localhost:{target_port}")),
     )
-    .await??;
+    .await
+    .map_err(|_| {
+        format!("connect to localhost:{target_port} timed out after {UPSTREAM_CONNECT_TIMEOUT:?}")
+    })??;
     let io = TokioIo::new(stream);
 
     let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
@@ -658,7 +664,12 @@ async fn proxy_http_request(
         UPSTREAM_RESPONSE_TIMEOUT,
         sender.send_request(forwarded_req),
     )
-    .await??;
+    .await
+    .map_err(|_| {
+        format!(
+            "dev server on localhost:{target_port} didn't answer within {UPSTREAM_RESPONSE_TIMEOUT:?}"
+        )
+    })??;
 
     // Intercept auth-handshake redirect loops before they leave the proxy.
     // Forwarding the redirect would bounce the iframe through a third-party
@@ -714,7 +725,12 @@ async fn proxy_http_request(
                 status.as_u16()
             );
             let body_bytes = tokio::time::timeout(HTML_BODY_TIMEOUT, resp.collect())
-                .await??
+                .await
+                .map_err(|_| {
+                    format!(
+                        "reading error page body from localhost:{target_port} timed out after {HTML_BODY_TIMEOUT:?}"
+                    )
+                })??
                 .to_bytes();
             if body_bytes.len() < MAX_BODY_SIZE {
                 full_body(Bytes::from(inject_error_into_html(
@@ -800,22 +816,36 @@ async fn handle_websocket_upgrade(
     req: Request<Incoming>,
     target_port: u16,
 ) -> Result<Response<ProxyBody>, hyper::Error> {
-    // Connect via hostname for IPv4/IPv6 compatibility (see proxy_http_request)
-    let target_stream = match tokio::time::timeout(
-        UPSTREAM_CONNECT_TIMEOUT,
-        TcpStream::connect(format!("localhost:{target_port}")),
-    )
-    .await
-    .map_err(std::io::Error::from)
-    .and_then(|r| r)
-    {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("[Proxy] WebSocket target connection failed: {}", e);
-            return Ok(Response::builder()
-                .status(StatusCode::BAD_GATEWAY)
-                .body(full_body(Bytes::from("WebSocket proxy error")))
-                .unwrap());
+    // Connect via hostname for IPv4/IPv6 compatibility (see proxy_http_request).
+    // Retry briefly on connection-refused: an HMR socket's upgrade often lands
+    // mid dev-server restart, and a single missed connect used to hard-fail the
+    // upgrade with BAD_GATEWAY instead of riding out the gap (issue #258). The
+    // retry loop stays bounded by UPSTREAM_CONNECT_TIMEOUT overall.
+    let connect_deadline = tokio::time::Instant::now() + UPSTREAM_CONNECT_TIMEOUT;
+    let target_stream = loop {
+        let attempt = tokio::time::timeout_at(
+            connect_deadline,
+            TcpStream::connect(format!("localhost:{target_port}")),
+        )
+        .await
+        .map_err(std::io::Error::from)
+        .and_then(|r| r);
+        match attempt {
+            Ok(s) => break s,
+            Err(e) => {
+                let retryable = e.kind() == std::io::ErrorKind::ConnectionRefused
+                    && tokio::time::Instant::now() + std::time::Duration::from_millis(250)
+                        < connect_deadline;
+                if retryable {
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                    continue;
+                }
+                tracing::error!("[Proxy] WebSocket target connection failed: {}", e);
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_GATEWAY)
+                    .body(full_body(Bytes::from("WebSocket proxy error")))
+                    .unwrap());
+            }
         }
     };
 

@@ -430,11 +430,23 @@ pub fn pty_session_write(session_id: String, data: Vec<u8>) -> Result<(), Comman
     let Some(session) = session else {
         return Err("unknown session".to_string().into());
     };
+    // A write racing the child's exit hits EIO on the closed PTY master —
+    // surface it as the expected "session ended" state, not a raw
+    // "Input/output error (os error 5)" (issue #260).
+    if !session.alive.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("terminal session has ended".to_string().into());
+    }
     let mut w = session
         .writer
         .lock()
         .map_err(|e| format!("writer lock poisoned: {e}"))?;
-    w.write_all(&data).map_err(|e| format!("write: {e}"))?;
+    w.write_all(&data).map_err(|e| {
+        if e.raw_os_error() == Some(5) {
+            "terminal session has ended".to_string()
+        } else {
+            format!("write: {e}")
+        }
+    })?;
     Ok(())
 }
 

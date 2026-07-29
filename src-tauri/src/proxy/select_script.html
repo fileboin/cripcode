@@ -575,6 +575,12 @@ document.addEventListener('beforeinput',function(e){if(txtEditing&&e.data&&/[<{]
 /* Paste as plain text, stripping the two chars that would break JSX/Astro markup
    (rather than dropping the whole paste). */
 document.addEventListener('paste',function(e){if(!txtEditing)return;e.preventDefault();var t=((e.clipboardData||window.clipboardData).getData('text/plain')||'').replace(/[<{]/g,'');if(t)document.execCommand('insertText',false,t);},true);
+/* Dropped text takes the browser's default rich-HTML insertion path, bypassing the
+   beforeinput/paste guards above — the illegal markup then survives until save, where
+   the backend rejects it and the whole edit is lost (issue #267). Mirror the paste
+   handler: plain text only, same char stripping. */
+document.addEventListener('drop',function(e){if(!txtEditing)return;e.preventDefault();var t=((e.dataTransfer&&e.dataTransfer.getData('text/plain'))||'').replace(/[<{]/g,'');if(t)document.execCommand('insertText',false,t);},true);
+document.addEventListener('dragover',function(e){if(txtEditing)e.preventDefault();},true);
 /* Keep the blue editing box sized to the element, and reposition the format bubble. */
 document.addEventListener('input',function(){if(txtEditing){place(hoverBox,txtEl);updateFmtBar();}},true);
 document.addEventListener('selectionchange',function(){if(txtEditing)updateFmtBar();});

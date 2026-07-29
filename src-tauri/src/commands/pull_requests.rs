@@ -48,7 +48,13 @@ pub async fn list_pull_requests(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("no pull requests") || stderr.contains("Could not") {
+        // "no git remotes found" is gh's message for a local-only repo that was
+        // never connected to GitHub — an expected state (github.rs models it as
+        // the "no-remote" status), not an error worth toasting (issue #268).
+        if stderr.contains("no pull requests")
+            || stderr.contains("Could not")
+            || stderr.contains("no git remotes found")
+        {
             return Ok(Vec::new());
         }
         return Err((stderr.to_string()).into());

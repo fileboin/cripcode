@@ -71,12 +71,25 @@ fn find_windows_browser(relative_path: &str) -> Option<PathBuf> {
 pub(crate) fn find_chromium_browser() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
+        // Brave and Arc are Chromium-based and drive the same --headless=new
+        // screenshot flags; the Windows list below already includes Brave. A
+        // user with only Brave/Arc installed had no working thumbnail fallback
+        // (issues #262/#263). Per-user ~/Applications installs count too.
         let mac_paths = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "Google Chrome.app/Contents/MacOS/Google Chrome",
+            "Chromium.app/Contents/MacOS/Chromium",
+            "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "Brave Browser.app/Contents/MacOS/Brave Browser",
+            "Arc.app/Contents/MacOS/Arc",
         ];
-        mac_paths.iter().map(PathBuf::from).find(|p| p.exists())
+        let mut roots = vec![PathBuf::from("/Applications")];
+        if let Some(home) = dirs::home_dir() {
+            roots.push(home.join("Applications"));
+        }
+        roots
+            .iter()
+            .flat_map(|root| mac_paths.iter().map(move |p| root.join(p)))
+            .find(|p| p.exists())
     }
 
     #[cfg(target_os = "windows")]

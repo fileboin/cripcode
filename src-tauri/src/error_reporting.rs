@@ -374,10 +374,21 @@ fn command_error_fingerprint(err: &crate::errors::CommandError) -> Option<String
 /// error log). Called from `CommandError`'s `Serialize` impl.
 ///
 /// `NotAuthenticated` is skipped: a not-yet-connected integration is an
-/// expected state, not a malfunction.
+/// expected state, not a malfunction. Same for "not a git repository" — a
+/// project that hasn't been `git init`ed is routine (the frontend already
+/// `.catch(() => null)`s it on a 10s poll), and reporting it spams telemetry
+/// with a non-bug on every poll tick (issue #254).
 pub fn report_command_error(err: &crate::errors::CommandError) {
     if matches!(err, crate::errors::CommandError::NotAuthenticated { .. }) {
         return;
+    }
+    if let crate::errors::CommandError::Other { message } = err {
+        if message
+            .to_ascii_lowercase()
+            .contains("not a git repository")
+        {
+            return;
+        }
     }
     let fingerprint = command_error_fingerprint(err);
     report_error(

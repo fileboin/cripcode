@@ -138,6 +138,10 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
 #[tracing::instrument(skip(project_path, message), fields(project = %project_path))]
 pub async fn commit_changes(project_path: String, message: String) -> Result<bool, CommandError> {
     let validated_path = validate_project_path(&project_path)?;
+    // Self-heal a missing user.name/user.email from the gh CLI identity before
+    // committing, mirroring push_to_github — without it, Submit for Review's
+    // auto-commit dies on git's "Please tell me who you are" (issue #276).
+    let _ = crate::commands::github::ensure_git_identity(&validated_path);
     let committed = git_stage_and_commit(&validated_path, &message)?;
     if committed {
         GIT_CACHE.invalidate_status(&project_path);

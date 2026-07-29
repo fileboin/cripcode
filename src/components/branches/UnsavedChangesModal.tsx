@@ -42,12 +42,25 @@ export function UnsavedChangesModal({
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
 
+  // The working tree can pick up new changes between this modal's action and
+  // the switch (dev-server config writes, background tooling), in which case
+  // the switch fails again with "Uncommitted changes" — a dead end inside the
+  // very modal meant to resolve it (issue #273). Retry once with auto-stash so
+  // stragglers can't strand the user.
+  const switchWithStashRetry = async () => {
+    const result = await switchBranch(projectPath, targetBranch, false);
+    if (!result.success && result.error?.includes('Uncommitted changes')) {
+      return switchBranch(projectPath, targetBranch, true);
+    }
+    return result;
+  };
+
   const handlePublishAndSwitch = async () => {
     setIsPublishing(true);
     try {
       await publishBranch(projectPath);
       onToast?.(`Published ${currentBranch}`, 'success');
-      const result = await switchBranch(projectPath, targetBranch, false);
+      const result = await switchWithStashRetry();
       if (result.success) {
         onSwitchComplete(targetBranch);
         onClose();
@@ -65,7 +78,7 @@ export function UnsavedChangesModal({
     setIsDiscarding(true);
     try {
       await discardChanges(projectPath);
-      const result = await switchBranch(projectPath, targetBranch, false);
+      const result = await switchWithStashRetry();
       if (result.success) {
         onToast?.(`Switched to ${targetBranch}`, 'success');
         onSwitchComplete(targetBranch);

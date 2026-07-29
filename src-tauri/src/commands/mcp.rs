@@ -9,7 +9,7 @@
 //! - Claude: `claude mcp list`, `claude mcp add`, `claude mcp remove`
 //! - Codex: `codex mcp list`, `codex mcp add`, `codex mcp remove`
 use crate::errors::CommandError;
-use crate::utils::{create_command, find_executable, get_extended_path, validate_project_path};
+use crate::utils::{create_command, get_extended_path, validate_project_path};
 use serde::Serialize;
 
 /// Represents an MCP server configured for an agent.
@@ -47,8 +47,14 @@ fn strip_ansi(s: &str) -> String {
 }
 
 /// Find the agent binary path.
+///
+/// Uses the same thorough resolver as the rest of the app
+/// (`claude::find_binary_by_name`: every NVM version's bin, `~/.<agent>/bin`,
+/// pnpm/volta/fnm dirs…) — the narrower `find_executable` missed installs like
+/// `~/.codex/bin/codex`, so the MCP modal said "Codex binary not found" while
+/// the Agents panel showed it installed (issue #250).
 fn find_agent_binary(agent: &crate::agent::AgentConfig) -> Result<std::path::PathBuf, String> {
-    find_executable(agent.binary_name)
+    crate::commands::claude::find_binary_by_name(agent.binary_name)
         .ok_or_else(|| format!("{} binary not found", agent.display_name))
 }
 

@@ -109,6 +109,17 @@ pub async fn exec_plugin_shell(
         return Err((format!("Plugin '{plugin_id}' not found")).into());
     }
 
+    // Resolve the binary up front so a missing tool yields an actionable
+    // message naming the plugin and command, not a raw "No such file or
+    // directory (os error 2)" from Command::output() (issue #256). Mirrors
+    // resolve_git() in plugin_lifecycle.rs / get_gh_command() in github.rs.
+    if crate::utils::find_executable(&command).is_none() {
+        return Err((format!(
+            "Plugin '{plugin_id}' tried to run '{command}', but it isn't installed or not on PATH."
+        ))
+        .into());
+    }
+
     // Build and execute command with timeout
     let timeout = timeout_secs.unwrap_or(120);
     let output = tokio::time::timeout(

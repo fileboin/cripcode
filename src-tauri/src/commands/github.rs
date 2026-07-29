@@ -58,6 +58,11 @@ pub fn get_gh_command() -> Command {
     };
     cmd.env("PATH", get_extended_path());
     cmd.envs(crate::commands::accounts::get_env_vars_for_active_account());
+    // No caller feeds gh stdin, and a GUI-spawned gh has no tty — if gh ever
+    // decides to prompt (stale credential, ambiguous host) it must fail fast
+    // instead of blocking on input that can never arrive until the 60s network
+    // timeout kills it with a bare "timed out" (issue #259).
+    cmd.stdin(std::process::Stdio::null());
     cmd
 }
 
@@ -76,6 +81,8 @@ pub fn get_gh_command_for_project(project_path: &std::path::Path) -> Command {
     cmd.envs(crate::commands::accounts::get_env_vars_for_project(
         project_path,
     ));
+    // Fail fast instead of blocking on a prompt — see get_gh_command().
+    cmd.stdin(std::process::Stdio::null());
     cmd
 }
 

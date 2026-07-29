@@ -6,6 +6,20 @@ use crate::errors::CommandError;
 
 const TEMPLATES_API_URL: &str = "https://www.ship.studio/api/v1/templates";
 
+/// Render a reqwest error with its full source chain. reqwest's `Display` only
+/// prints the top-level context ("error sending request for url (...)"), while
+/// the actionable detail — DNS failure, connection refused, timed out, TLS —
+/// lives in the `source()` chain (issue #255).
+fn describe_reqwest_error(e: &reqwest::Error) -> String {
+    let mut msg = e.to_string();
+    let mut source = std::error::Error::source(e);
+    while let Some(s) = source {
+        msg.push_str(&format!(": {s}"));
+        source = s.source();
+    }
+    msg
+}
+
 /// Fetch community templates from the Ship Studio API.
 /// Accepts optional query parameters that map to the API spec.
 /// Returns the raw JSON string so the frontend can parse it.
@@ -55,7 +69,7 @@ pub async fn fetch_community_templates(
         .get(url)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch templates: {e}"))?;
+        .map_err(|e| format!("Failed to fetch templates: {}", describe_reqwest_error(&e)))?;
 
     if !response.status().is_success() {
         return Err((format!("API returned status {}", response.status())).into());
@@ -76,11 +90,12 @@ pub async fn download_template_zip(url: String) -> Result<String, CommandError> 
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download template: {e}"))?;
+    let response = client.get(&url).send().await.map_err(|e| {
+        format!(
+            "Failed to download template: {}",
+            describe_reqwest_error(&e)
+        )
+    })?;
 
     if !response.status().is_success() {
         return Err((format!("Download failed with status {}", response.status())).into());

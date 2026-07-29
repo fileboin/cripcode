@@ -66,7 +66,10 @@ pub async fn list_branches(project_path: String) -> Result<Vec<BranchInfo>, Comm
         .map_err(|e| e.to_string())?;
 
     if !output.status.success() {
-        return Err(("Failed to list branches".to_string()).into());
+        // Include git's stderr — a bare "Failed to list branches" is
+        // undiagnosable from telemetry (issue #252).
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err((format!("Failed to list branches: {}", stderr.trim())).into());
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);

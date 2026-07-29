@@ -188,13 +188,29 @@ fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(),
 /// Check if a directory is a valid project.
 /// Accepts any directory inside ~/ShipStudio that has project files,
 /// a .gitignore (blank projects), or a .shipstudio metadata folder.
+///
+/// The language-ecosystem markers match `looks_like_project_root` in
+/// external_projects.rs — the manual "Select Project Folder" picker used to
+/// reject a Rust/Go/Python/Ruby/Java/PHP project that the automatic
+/// registration path would happily accept (issue #251).
 pub(crate) fn is_valid_project(path: &std::path::Path) -> bool {
+    const ECOSYSTEM_MARKERS: &[&str] = &[
+        "Cargo.toml",
+        "go.mod",
+        "pyproject.toml",
+        "requirements.txt",
+        "Gemfile",
+        "pom.xml",
+        "build.gradle",
+        "composer.json",
+    ];
     path.is_dir()
         && (path.join("package.json").exists()
             || detection::has_html_files(path)
             || path.join(".gitignore").exists()
             || path.join(".shipstudio").exists()
-            || path.join(".git").exists())
+            || path.join(".git").exists()
+            || ECOSYSTEM_MARKERS.iter().any(|m| path.join(m).exists()))
 }
 
 /// Counts app-managed git worktrees for a project: subdirectories of
@@ -982,13 +998,20 @@ fn remove_dir_all_robust(path: &Path) -> std::io::Result<()> {
         );
     }
 
+    // Backoff schedule totalling ~8s: field reports show antivirus / Search
+    // indexer locks routinely outlasting the previous flat ~1s budget (10 ×
+    // 100ms), still surfacing "os error 32" to the user (issue #253). Growing
+    // sleeps keep the common quick-release case fast while giving a slow
+    // scanner time to let go.
+    let mut delay = std::time::Duration::from_millis(100);
     let mut retries = 10;
     loop {
         match std::fs::remove_dir_all(path) {
             Ok(()) => return Ok(()),
             Err(e) if retries > 0 && is_retryable_delete_error(&e) => {
                 retries -= 1;
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(delay);
+                delay = (delay * 2).min(std::time::Duration::from_secs(1));
             }
             Err(e) => return Err(e),
         }
@@ -1519,6 +1542,22 @@ mod tests {
                 .lock()
                 .unwrap_or_else(|e| e.into_inner()) = None;
         }
+    }
+
+    /// Issue #251: the manual "Select Project Folder" picker must accept the
+    /// same language-ecosystem projects the automatic registration path does.
+    #[test]
+    fn is_valid_project_accepts_ecosystem_manifests() {
+        for marker in ["Cargo.toml", "go.mod", "pyproject.toml", "Gemfile"] {
+            let tmp = tempfile::tempdir().unwrap();
+            std::fs::write(tmp.path().join(marker), "").unwrap();
+            assert!(
+                is_valid_project(tmp.path()),
+                "{marker} alone should mark a valid project"
+            );
+        }
+        let empty = tempfile::tempdir().unwrap();
+        assert!(!is_valid_project(empty.path()));
     }
 
     #[test]

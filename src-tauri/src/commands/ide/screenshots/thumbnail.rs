@@ -163,7 +163,7 @@ pub async fn capture_project_thumbnail(
         Ok(thumbnail_path_str)
     } else {
         Err(
-            "No supported browser found for screenshots (Chrome, Chromium, or Edge required)"
+            "No supported browser found for screenshots (a Chromium-based browser is required: Chrome, Chromium, Edge, Brave, or Arc)"
                 .to_string()
                 .into(),
         )

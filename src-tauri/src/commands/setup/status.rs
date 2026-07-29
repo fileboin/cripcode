@@ -362,6 +362,44 @@ pub async fn get_full_setup_status() -> FullSetupStatus {
         (version, whoami)
     };
 
+    // Claude auth goes through the ONE shared truth (CLI-first, file
+    // fallback) — the same answer the wizard pre-checks and dashboard get.
+    // File indicators alone lied in both directions: they survive a sign-out
+    // (issue #159) and don't exist yet mid-first-login on a fresh machine,
+    // which deadlocked the Connect button against this checklist. Computed
+    // once here (not per item) because the guided phase polls this command
+    // every 3s and the CLI probe spawns a subprocess.
+    //
+    // Joined with the other probes rather than awaited after them: run
+    // sequentially, its up-to-10s CLI probe stacked on the ~8s probe phase
+    // and could blow past the frontend's boot-gate timeout, dumping a fully
+    // set-up user into onboarding (issue #272).
+    let claude_binary_ready = agent_paths
+        .get(
+            ALL_AGENTS
+                .iter()
+                .position(|a| a.id == "claude-code")
+                .unwrap_or(0),
+        )
+        .map(|p| p.is_some())
+        .unwrap_or(false);
+    let claude_auth_fut = async {
+        if !claude_binary_ready {
+            return (false, false);
+        }
+        if active_account_id == crate::commands::accounts::DEFAULT_ACCOUNT_ID {
+            let active = crate::commands::setup::auth::claude_auth_truth(&active_account_id).await;
+            (active, active)
+        } else {
+            tokio::join!(
+                crate::commands::setup::auth::claude_auth_truth(&active_account_id),
+                crate::commands::setup::auth::claude_auth_truth(
+                    crate::commands::accounts::DEFAULT_ACCOUNT_ID,
+                )
+            )
+        }
+    };
+
     let (
         pkg_mgr_version,
         node_version,
@@ -369,13 +407,15 @@ pub async fn get_full_setup_status() -> FullSetupStatus {
         (gh_version, gh_auth, gh_username),
         agent_probes,
         (vercel_version, vercel_whoami_result),
+        (claude_auth_active, claude_auth_global),
     ) = tokio::join!(
         pkg_mgr_fut,
         node_fut,
         git_fut,
         gh_fut,
         agents_fut,
-        vercel_fut
+        vercel_fut,
+        claude_auth_fut
     );
 
     let mut items = Vec::new();
@@ -492,40 +532,10 @@ pub async fn get_full_setup_status() -> FullSetupStatus {
         error_message: None,
     });
 
-    // 6-7. Agent CLIs and Auth — check ALL agents (probed above with timeouts)
+    // 6-7. Agent CLIs and Auth — check ALL agents (probed above with timeouts).
+    // claude_auth_active / claude_auth_global come from the joined
+    // claude_auth_fut above.
     let mut detected_agents = Vec::new();
-
-    // Claude auth goes through the ONE shared truth (CLI-first, file
-    // fallback) — the same answer the wizard pre-checks and dashboard get.
-    // File indicators alone lied in both directions: they survive a sign-out
-    // (issue #159) and don't exist yet mid-first-login on a fresh machine,
-    // which deadlocked the Connect button against this checklist. Computed
-    // once here (not per item) because the guided phase polls this command
-    // every 3s and the CLI probe spawns a subprocess.
-    let claude_binary_ready = agent_paths
-        .get(
-            ALL_AGENTS
-                .iter()
-                .position(|a| a.id == "claude-code")
-                .unwrap_or(0),
-        )
-        .map(|p| p.is_some())
-        .unwrap_or(false);
-    let claude_auth_active = if claude_binary_ready {
-        crate::commands::setup::auth::claude_auth_truth(&active_account_id).await
-    } else {
-        false
-    };
-    let claude_auth_global = if !claude_binary_ready {
-        false
-    } else if active_account_id == crate::commands::accounts::DEFAULT_ACCOUNT_ID {
-        claude_auth_active
-    } else {
-        crate::commands::setup::auth::claude_auth_truth(
-            crate::commands::accounts::DEFAULT_ACCOUNT_ID,
-        )
-        .await
-    };
 
     for ((agent, agent_path), (agent_version, command_auth)) in
         ALL_AGENTS.iter().zip(&agent_paths).zip(agent_probes)

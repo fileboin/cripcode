@@ -24,7 +24,7 @@ import { ModalFrame } from '../primitives/ModalFrame';
 import { Button } from '../primitives/Button';
 import { Spinner } from '../primitives/Spinner';
 import { useOptionalToast } from '../../contexts/ToastContext';
-import { asCommandError, formatCommandError } from '../../lib/errors';
+import { asCommandError, formatCommandError, isMergeConflictError } from '../../lib/errors';
 
 interface PullRequestsTabProps {
   /** Project path for PR operations */
@@ -127,7 +127,16 @@ export function PullRequestsTab({
       setPostMergeInfo({ branchName: headRef, baseBranch: baseRef });
     } catch (e) {
       trackError('pr_merge', e, 'Workspace');
-      onToast?.(`Failed to merge: ${formatCommandError(asCommandError(e))}`, 'error');
+      // A PR can turn unmergeable between list fetch and click (stale/UNKNOWN
+      // `mergeable`). Route to the conflict-resolution flow like the Resolve
+      // button does, instead of dumping gh's raw multi-line stderr into a
+      // toast (issue #278).
+      if (isMergeConflictError(e) && onResolveConflicts) {
+        onToast?.('This pull request has merge conflicts', 'error');
+        onResolveConflicts(headRef, baseRef);
+      } else {
+        onToast?.(`Failed to merge: ${formatCommandError(asCommandError(e))}`, 'error');
+      }
     } finally {
       setMergingPr(null);
     }

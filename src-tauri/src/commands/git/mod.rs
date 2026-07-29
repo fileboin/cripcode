@@ -65,8 +65,12 @@ pub(crate) async fn run_git_net(
     // precede the subcommand in `args`.
     if let Some(gh) = find_executable("gh") {
         cmd.arg("-c").arg("credential.helper=");
+        // Git hands a `!`-prefixed helper to `sh -c`, which word-splits on
+        // spaces — so the path must be quoted or a default Windows install
+        // (`C:\Program Files\GitHub CLI\gh.exe`) becomes the command `C:\Program`
+        // (issue #265). Single quotes keep backslashes literal under POSIX sh.
         cmd.arg("-c").arg(format!(
-            "credential.helper=!{} auth git-credential",
+            "credential.helper=!'{}' auth git-credential",
             gh.display()
         ));
     }
@@ -118,7 +122,24 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
         .map_err(|e| e.to_string())?;
 
     if !add_output.status.success() {
-        return Err(String::from_utf8_lossy(&add_output.stderr).to_string());
+        let add_stderr = String::from_utf8_lossy(&add_output.stderr).to_string();
+        // In a sparse-checkout repo, `git add -A` exits 1 when untracked files
+        // exist outside the sparse cone (e.g. a CMS sync writing into an
+        // excluded dir) — blocking every commit/publish even though the in-cone
+        // changes are fine (issue #275). Retry with --sparse, which stages
+        // out-of-cone paths instead of refusing.
+        if add_stderr.contains("outside of your sparse-checkout definition") {
+            let sparse_output = create_command("git")
+                .args(["add", "-A", "--sparse"])
+                .current_dir(path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !sparse_output.status.success() {
+                return Err(String::from_utf8_lossy(&sparse_output.stderr).to_string());
+            }
+        } else {
+            return Err(add_stderr);
+        }
     }
 
     // Check if there are staged changes to commit
@@ -136,7 +157,21 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
         .map_err(|e| e.to_string())?;
 
     if !commit_output.status.success() {
-        return Err(String::from_utf8_lossy(&commit_output.stderr).to_string());
+        // `status --porcelain` can report entries `add -A` couldn't stage (e.g.
+        // a nested git repo), so the commit can still come up empty. Git prints
+        // "nothing to commit" to *stdout* and leaves stderr blank — treat it as
+        // the no-op it is instead of surfacing an empty error (issue #274).
+        let stdout = String::from_utf8_lossy(&commit_output.stdout);
+        if stdout.contains("nothing to commit") || stdout.contains("working tree clean") {
+            return Ok(false);
+        }
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        let detail = if stderr.trim().is_empty() {
+            stdout.to_string()
+        } else {
+            stderr.to_string()
+        };
+        return Err(detail);
     }
 
     Ok(true)
@@ -297,13 +332,21 @@ pub async fn check_prerequisites() -> Vec<PrerequisiteCheck> {
 }
 
 /// Returns the configured projects root directory (custom or default `~/ShipStudio`).
+///
+/// Normalized to forward slashes: the frontend builds project paths by
+/// concatenating `/` onto this value, so a native Windows backslash path here
+/// produces mixed-separator paths (`C:\Users\x\ShipStudio/proj`) that break
+/// `@tauri-apps/plugin-fs` scope resolution (issue #257).
 #[tauri::command]
 #[tracing::instrument]
 pub async fn get_shipstudio_dir() -> Result<String, CommandError> {
-    Ok(crate::utils::projects_root()?.to_string_lossy().to_string())
+    Ok(crate::utils::normalize_separators(
+        &crate::utils::projects_root()?.to_string_lossy(),
+    ))
 }
 
 /// Creates the configured projects root directory if it doesn't exist.
+/// Forward-slash normalized for the same reason as [`get_shipstudio_dir`].
 #[tauri::command]
 #[tracing::instrument]
 pub async fn ensure_shipstudio_dir() -> Result<String, CommandError> {
@@ -318,7 +361,9 @@ pub async fn ensure_shipstudio_dir() -> Result<String, CommandError> {
         })?;
     }
 
-    Ok(projects_dir.to_string_lossy().to_string())
+    Ok(crate::utils::normalize_separators(
+        &projects_dir.to_string_lossy(),
+    ))
 }
 
 #[tauri::command]
@@ -467,6 +512,35 @@ mod tests {
         // No changes since last commit
         let committed = git_stage_and_commit(tmp.path(), "should be noop").unwrap();
         assert!(!committed, "no changes should return false");
+    }
+
+    /// Issue #275: with sparse-checkout enabled, untracked files outside the
+    /// cone make `git add -A` exit 1 — staging must retry with `--sparse`
+    /// instead of aborting every commit/publish for the whole repo.
+    #[test]
+    fn stage_and_commit_survives_files_outside_sparse_cone() {
+        let tmp = TempDir::new().unwrap();
+        init_repo(tmp.path());
+        std::fs::create_dir_all(tmp.path().join("src/app")).unwrap();
+        std::fs::write(tmp.path().join("src/app/a.txt"), "in cone").unwrap();
+        std::fs::create_dir_all(tmp.path().join("src/images")).unwrap();
+        std::fs::write(tmp.path().join("src/images/b.txt"), "out of cone").unwrap();
+        commit_all(tmp.path(), "initial");
+        assert!(Command::new("git")
+            .args(["sparse-checkout", "set", "src/app"])
+            .current_dir(tmp.path())
+            .status()
+            .expect("git sparse-checkout")
+            .success());
+        // A build/CMS step writes into the excluded directory.
+        std::fs::create_dir_all(tmp.path().join("src/images/airtable")).unwrap();
+        std::fs::write(tmp.path().join("src/images/airtable/x.webp"), "img").unwrap();
+
+        let result = git_stage_and_commit(tmp.path(), "sync assets");
+        assert!(
+            result.is_ok(),
+            "sparse-checkout stray files must not abort commit: {result:?}"
+        );
     }
 
     #[test]

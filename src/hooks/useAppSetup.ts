@@ -31,8 +31,13 @@ import type { AppView } from '../lib/types';
  * Tauri invoke (e.g. a CLI probe wedged on a broken PATH or network mount)
  * becomes a rejection that routes to onboarding instead of an eternal
  * spinner (#173). Timeouts are generous — these normally settle in <1s.
+ *
+ * Must comfortably exceed the backend's own worst case (~10s of internally
+ * bounded probes in get_full_setup_status, plus Windows' cmd.exe hop per
+ * subprocess) — a frontend gate tighter than the backend's own budget dumps
+ * fully-set-up users into onboarding (issue #272).
  */
-const BOOT_GATE_TIMEOUT_MS = 15_000;
+const BOOT_GATE_TIMEOUT_MS = 20_000;
 /** CLI status refresh spawns gh/agent subprocesses — give it a bit longer. */
 const CLI_REFRESH_TIMEOUT_MS = 20_000;
 

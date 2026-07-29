@@ -164,7 +164,7 @@ pub async fn register_external_project(app: AppHandle) -> Result<Option<String>,
         }
 
         return Err(
-            "Selected folder doesn't appear to be a project — no package.json or .html files found."
+            "Selected folder doesn't appear to be a project — no project files found (package.json, .html, .git, or a language manifest like Cargo.toml, go.mod, pyproject.toml…)."
                 .to_string()
                 .into(),
         );

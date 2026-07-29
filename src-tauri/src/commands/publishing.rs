@@ -73,46 +73,10 @@ pub async fn publish_to_github(
     // Ensure git identity matches GitHub account before committing
     let _ = ensure_git_identity(&validated_path);
 
-    // Stage all changes
-    let output = create_command("git")
-        .args(["add", "-A"])
-        .current_dir(&validated_path)
-        .output()
-        .map_err(CommandError::from)?;
-
-    if !output.status.success() {
-        return Err(CommandError::Process {
-            cmd: "git add -A".to_string(),
-            exit_code: output.status.code().unwrap_or(-1),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        });
-    }
-
-    // Check if there are changes to commit
-    let status = create_command("git")
-        .args(["status", "--porcelain"])
-        .current_dir(&validated_path)
-        .output()
-        .map_err(CommandError::from)?;
-
-    let has_changes = !String::from_utf8_lossy(&status.stdout).trim().is_empty();
-
-    if has_changes {
-        // Commit changes
-        let output = create_command("git")
-            .args(["commit", "-m", &message])
-            .current_dir(&validated_path)
-            .output()
-            .map_err(CommandError::from)?;
-
-        if !output.status.success() {
-            return Err(CommandError::Process {
-                cmd: "git commit".to_string(),
-                exit_code: output.status.code().unwrap_or(-1),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            });
-        }
-    }
+    // Stage and commit through the shared helper: it retries sparse-checkout
+    // refusals (issue #275) and treats an empty commit as a no-op instead of a
+    // hard failure (issue #274), unlike the hand-rolled sequence it replaces.
+    git_stage_and_commit(&validated_path, &message).map_err(CommandError::from)?;
 
     // Push to origin
     let output = run_git_net(&["push", "-u", "origin", &branch], &validated_path, "push").await?;
@@ -146,8 +110,10 @@ pub async fn publish_to_staging(
     // Ensure git identity matches GitHub account before committing
     let _ = ensure_git_identity(&validated_path);
 
-    // Stage and commit any changes
-    let _ = git_stage_and_commit(&validated_path, &message);
+    // Stage and commit any changes. A real staging/commit failure must not be
+    // swallowed — the push below would silently deploy stale code (benign cases
+    // like "nothing to commit" and sparse-checkout are handled in the helper).
+    git_stage_and_commit(&validated_path, &message).map_err(CommandError::from)?;
 
     // Push to staging branch - Vercel auto-deploys via GitHub integration
     // Note: Using regular push instead of force push to avoid overwriting others' work
@@ -198,8 +164,8 @@ pub async fn publish_to_production(
     // Ensure git identity matches GitHub account before committing
     let _ = ensure_git_identity(&validated_path);
 
-    // Stage and commit any changes
-    let _ = git_stage_and_commit(&validated_path, &message);
+    // Stage and commit any changes (real failures propagate — see staging).
+    git_stage_and_commit(&validated_path, &message).map_err(CommandError::from)?;
 
     // Push to main branch - Vercel auto-deploys to production via GitHub integration
     let push_output = run_git_net(
@@ -253,38 +219,11 @@ pub async fn publish_branch(
     // Ensure git identity matches GitHub account before committing
     let _ = ensure_git_identity(&validated_path);
 
-    // Stage all changes
-    let _ = create_command("git")
-        .args(["add", "-A"])
-        .current_dir(&validated_path)
-        .output();
-
-    // Check if there are changes to commit
-    let status = create_command("git")
-        .args(["status", "--porcelain"])
-        .current_dir(&validated_path)
-        .output()
-        .map_err(CommandError::from)?;
-
-    let has_changes = !String::from_utf8_lossy(&status.stdout).trim().is_empty();
-
-    if has_changes {
-        // Commit changes
-        let commit_output = create_command("git")
-            .args(["commit", "-m", &message])
-            .current_dir(&validated_path)
-            .output()
-            .map_err(CommandError::from)?;
-
-        if !commit_output.status.success() {
-            let stderr = String::from_utf8_lossy(&commit_output.stderr);
-            return Err(CommandError::Process {
-                cmd: "git commit".to_string(),
-                exit_code: commit_output.status.code().unwrap_or(-1),
-                stderr: stderr.to_string(),
-            });
-        }
-    }
+    // Stage and commit through the shared helper. The old hand-rolled sequence
+    // discarded `git add -A`'s result entirely, so a staging failure surfaced
+    // later as an inexplicable "Uncommitted changes" on switch (issue #273);
+    // the helper also handles sparse-checkout (#275) and empty commits (#274).
+    git_stage_and_commit(&validated_path, &message).map_err(CommandError::from)?;
 
     // Push to origin
     let push_output =

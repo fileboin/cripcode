@@ -143,8 +143,22 @@ async fn run_agent_headless(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("{} CLI failed: {}", agent.display_name, stderr);
-        return Err(format!("{} CLI failed: {}", agent.display_name, stderr).into());
+        // A silent non-zero exit (empty stderr) used to surface as the
+        // undiagnosable "Claude Code CLI failed: " — fall back to the exit code
+        // and a stdout snippet so there's something to act on (issue #269).
+        let detail = if stderr.trim().is_empty() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let snippet: String = stdout.trim().chars().take(300).collect();
+            if snippet.is_empty() {
+                format!("exit code {:?}, no output", output.status.code())
+            } else {
+                format!("exit code {:?}: {snippet}", output.status.code())
+            }
+        } else {
+            stderr.trim().to_string()
+        };
+        error!("{} CLI failed: {}", agent.display_name, detail);
+        return Err(format!("{} CLI failed: {}", agent.display_name, detail).into());
     }
 
     match final_message {
