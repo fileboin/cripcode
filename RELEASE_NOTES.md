@@ -6,6 +6,17 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.1
+
+- **Bug bash** - 40+ auto-reported bugs fixed within two days of v0.18.0, thanks to the new automatic error reporting
+- **Clean shutdown** - quitting Ship Studio now stops all dev servers and agent sessions; restarting a dev server reliably frees its port
+- **Preview resilience** - wedged dev servers (404 on every page) are detected with a one-click restart, and hot reload survives dev-server restarts
+- **Agent spawning** - terminals find your agent wherever it's installed (nvm, pnpm, volta, fnm), fixing "Unable to spawn claude" on valid installs
+- **Windows fixes** - GitHub CLI in its default install path works for fetch/pull/merge, project deletion waits out antivirus locks, consistent path handling
+- **Publishing hardening** - sparse-checkout repos commit again, failed saves can't silently slip past a publish, conflicted PR merges open the resolver
+- **Plugin docs** - new guide for building your own plugins (docs/plugins.md)
+
+
 ## What's New in v0.18.0
 
 - **Automatic bug reports** - When something goes wrong, Ship Studio now reports the error automatically (fully anonymized — never your code or file contents) so bugs get found and fixed faster. Opt out anytime in Settings → Usage analytics & error reports.
