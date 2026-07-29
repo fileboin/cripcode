@@ -2,13 +2,14 @@
  * Dismiss-on-outside-pointer for hand-rolled popovers (visual editor).
  *
  * Registers a CAPTURE-phase document listener while `open` is true, and calls
- * `onDismiss` when the event lands outside the popover. Registration is
- * deferred by one animation frame: on some engines (WKWebView on macOS
- * Sequoia, issue #172) the opening gesture's pointerdown can be dispatched
- * AFTER the effect that registers the listener runs, so a listener attached
- * synchronously sees the very gesture that opened the popover and closes it
- * instantly. Deferring one frame guarantees the opening gesture's events can
- * never reach the listener, regardless of engine event/effect ordering.
+ * `onDismiss` when the event lands outside the popover. On some engines
+ * (WKWebView on macOS Sequoia, issue #172; Ventura/Intel, issue #236) the
+ * opening gesture's pointerdown can be dispatched AFTER the effect that
+ * registers the listener runs, so a listener attached synchronously sees the
+ * very gesture that opened the popover and closes it instantly. Two guards
+ * prevent that: registration is deferred by one animation frame, and events
+ * whose timeStamp predates the open are ignored (timeStamps are creation-time,
+ * so a late-dispatched opening gesture is still recognizable).
  *
  * This deliberately does NOT replace `useClickOutside` (bubble-phase `click`
  * semantics) — it's the shared home for the capture-phase
@@ -56,7 +57,17 @@ export function useDismissOnOutsidePointer(
   useEffect(() => {
     if (!open) return;
 
+    // The rAF defer alone lost the race on slow machines (issue #236, Intel
+    // Ventura): the engine can dispatch the opening gesture's pointerdown even
+    // later than the next frame. Event timeStamps are creation-time (when the
+    // user acted), so any event minted before the popover opened is part of
+    // the opening gesture no matter how late it's dispatched — drop it.
+    // Engines with epoch-based timeStamps make this check always-false, which
+    // degrades to the previous behavior instead of breaking dismissal.
+    const openedAt = performance.now();
+
     const onDown = (e: Event) => {
+      if (e.timeStamp <= openedAt) return;
       const target = e.target as Node;
       const outside = isOutsideRef.current
         ? isOutsideRef.current(target)

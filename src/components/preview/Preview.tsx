@@ -1071,7 +1071,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         devServerOutput={devServerOutput}
         onStop={conn.stopConnecting}
         onRetry={conn.handleRetry}
-        processExited={serverProcessGone}
+        processExited={serverProcessGone || conn.serverStale}
         exitCode={devServerUnexpectedExit?.exitCode ?? null}
         onRestartServer={onRestartDevServer}
         onFixWithAgent={handleFixWithAgent && (() => handleFixWithAgent('server-down'))}

@@ -93,9 +93,16 @@ pub async fn start_claude_auth(
     let agent_path = find_binary_by_name(agent.binary_name)
         .ok_or(format!("{} not installed", agent.display_name))?;
 
+    // Strip any previously injected token before an interactive login: a
+    // revoked-but-not-expired vault token in the env shadows the fresh login
+    // and re-auth can never succeed (issue #159, same pattern as
+    // connect_claude_account).
+    let mut env = get_env_vars_for_active_account();
+    env.remove("CLAUDE_CODE_OAUTH_TOKEN");
+
     let child = create_command(&agent_path)
         .args(agent.auth_trigger_args)
-        .envs(get_env_vars_for_active_account())
+        .envs(env)
         .spawn()
         .map_err(|e| format!("Failed to start {} auth: {}", agent.display_name, e))?;
 

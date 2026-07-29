@@ -491,6 +491,43 @@ pub fn pty_session_kill(session_id: String) -> Result<(), CommandError> {
     Ok(())
 }
 
+/// Kill every live session's process (sync). App-exit-only sweep for the
+/// `RunEvent::Exit` hook (issue #229). Kills by PID (tree kill on Windows)
+/// instead of the stored `ChildKiller`, which terminates only the direct
+/// child — on Windows that leaves grandchildren (and their listening ports)
+/// alive. Immediate kills, no grace period: the app is quitting and a wait
+/// here would visibly lag it.
+pub fn kill_all_sessions_sync() -> u32 {
+    let sessions: Vec<Arc<Session>> = {
+        let Ok(mut map) = REGISTRY.lock() else {
+            return 0;
+        };
+        map.drain().map(|(_, s)| s).collect()
+    };
+
+    let mut count = 0;
+    for session in sessions {
+        if !session.alive.load(Ordering::Relaxed) {
+            continue;
+        }
+        let pid = session.pid.to_string();
+
+        #[cfg(unix)]
+        let _ = crate::utils::create_command("kill")
+            .args(["-9", &pid])
+            .output();
+
+        #[cfg(windows)]
+        let _ = crate::utils::create_command("taskkill")
+            .args(["/F", "/T", "/PID", &pid])
+            .output();
+
+        session.alive.store(false, Ordering::Relaxed);
+        count += 1;
+    }
+    count
+}
+
 #[tauri::command]
 #[tracing::instrument]
 pub fn pty_session_attach(session_id: String) -> Result<AttachResult, CommandError> {

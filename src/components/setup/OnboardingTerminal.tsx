@@ -113,6 +113,8 @@ export function OnboardingTerminal({ command, args, cwd, onExit }: OnboardingTer
       // a TUI agent's redraws, which makes the scrollbar jump around.
       scrollback: 5000,
       allowProposedApi: true,
+      // Keep agent TUI text readable on the dark background (#232).
+      minimumContrastRatio: 4.5,
       theme: {
         background: '#1e1e1e',
         foreground: '#cccccc',
@@ -477,10 +479,15 @@ export function OnboardingTerminal({ command, args, cwd, onExit }: OnboardingTer
             return;
           }
           logger.error('[OnboardingTerminal] Still no output after respawn', { command });
+          const failure = `${command} did not respond.`;
           terminalRef.current?.write(
-            `\r\n\x1b[31m${command} did not respond.\x1b[0m\r\n` +
+            `\r\n\x1b[31m${failure}\x1b[0m\r\n` +
               `\x1b[33mMake sure "${command}" is installed and on your PATH, then close this window and try again.\x1b[0m\r\n`
           );
+          // Tell the parent the flow failed so the checklist offers a retry —
+          // without this the terminal showed the message but the wizard sat
+          // in "connecting" forever (issue #245).
+          onExitRef.current(1, failure);
         }, 10_000);
 
         // Focus the terminal

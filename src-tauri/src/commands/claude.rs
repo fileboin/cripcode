@@ -171,8 +171,34 @@ fn candidate_paths_for(binary_name: &str) -> Vec<std::path::PathBuf> {
                     exe_name
                 )),
                 home.join(format!(r".local\bin\{}", exe_name)),
+                // Node version managers / alt package managers not on the GUI
+                // PATH (issue #242: "installed but shows as not installed").
+                home.join(format!(r".volta\bin\{}", exe_name)),
+                home.join(format!(r"scoop\shims\{}", exe_name)),
+                home.join(format!(r"scoop\shims\{}", cmd_name)),
             ] {
                 push_candidate(&mut paths, &mut seen, path);
+            }
+        }
+
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            for path in [
+                std::path::PathBuf::from(&local_app_data).join(format!("pnpm\\{}", cmd_name)),
+                std::path::PathBuf::from(&local_app_data).join(format!("pnpm\\{}", exe_name)),
+                std::path::PathBuf::from(&local_app_data).join(format!("Volta\\bin\\{}", exe_name)),
+            ] {
+                push_candidate(&mut paths, &mut seen, path);
+            }
+        }
+
+        // pnpm's global bin dir is configurable — trust $PNPM_HOME when set.
+        if let Ok(pnpm_home) = std::env::var("PNPM_HOME") {
+            for name in [&cmd_name, &exe_name] {
+                push_candidate(
+                    &mut paths,
+                    &mut seen,
+                    std::path::PathBuf::from(&pnpm_home).join(name),
+                );
             }
         }
 
@@ -218,10 +244,45 @@ fn candidate_paths_for(binary_name: &str) -> Vec<std::path::PathBuf> {
                 home.join(format!("n/bin/{binary_name}")),
                 home.join(format!(".{binary_name}/bin/{binary_name}")),
                 home.join(format!(".bun/bin/{binary_name}")),
+                // Node version managers / alt package managers not on the GUI
+                // PATH (issue #242: "installed but shows as not installed").
+                home.join(format!(".volta/bin/{binary_name}")),
+                home.join(format!(".yarn/bin/{binary_name}")),
+                home.join(format!(".asdf/shims/{binary_name}")),
+                home.join(format!(".nodenv/shims/{binary_name}")),
+                home.join(format!("Library/pnpm/{binary_name}")),
+                home.join(format!(".local/share/pnpm/{binary_name}")),
                 std::path::PathBuf::from(format!("/usr/local/bin/{binary_name}")),
                 std::path::PathBuf::from(format!("/opt/homebrew/bin/{binary_name}")),
             ] {
                 push_candidate(&mut paths, &mut seen, path);
+            }
+
+            // pnpm's global bin dir is configurable — trust $PNPM_HOME when set.
+            if let Ok(pnpm_home) = std::env::var("PNPM_HOME") {
+                push_candidate(
+                    &mut paths,
+                    &mut seen,
+                    std::path::PathBuf::from(pnpm_home).join(binary_name),
+                );
+            }
+
+            // fnm keeps each Node version's global installs under its own dir,
+            // like NVM below. Default FNM_DIR differs per platform.
+            for fnm_base in [
+                home.join(".local/share/fnm/node-versions"),
+                home.join("Library/Application Support/fnm/node-versions"),
+                home.join(".fnm/node-versions"),
+            ] {
+                if let Ok(entries) = std::fs::read_dir(&fnm_base) {
+                    for entry in entries.flatten().filter(|e| e.path().is_dir()) {
+                        push_candidate(
+                            &mut paths,
+                            &mut seen,
+                            entry.path().join("installation/bin").join(binary_name),
+                        );
+                    }
+                }
             }
 
             // Enumerate *every* installed Node version's bin dir (newest first),
@@ -452,6 +513,29 @@ mod tests {
         // Should include at least one entry — at minimum the built-in fallbacks
         // even on a machine without a `claude` install.
         assert!(!paths.is_empty());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn candidate_paths_for_covers_node_version_managers() {
+        // Issue #242: installs via volta / pnpm / asdf / nodenv were invisible
+        // to detection. Guard the fixed candidate list against regressing.
+        let home = dirs::home_dir().expect("home dir");
+        let paths = candidate_paths_for("codex");
+        for expected in [
+            home.join(".volta/bin/codex"),
+            home.join(".yarn/bin/codex"),
+            home.join(".asdf/shims/codex"),
+            home.join(".nodenv/shims/codex"),
+            home.join("Library/pnpm/codex"),
+            home.join(".local/share/pnpm/codex"),
+        ] {
+            assert!(
+                paths.contains(&expected),
+                "candidate list is missing {}",
+                expected.display()
+            );
+        }
     }
 
     #[cfg(not(windows))]

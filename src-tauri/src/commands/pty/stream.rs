@@ -205,6 +205,43 @@ pub async fn get_project_pty_pids(project_path: String) -> Result<Vec<u32>, Comm
     Ok(get_project_pty_pids_internal(&project_path))
 }
 
+/// Kill all tracked PTY processes (sync version, all windows).
+///
+/// App-exit-only: the `RunEvent::Exit` hook can't await, and the quit path
+/// (`exit(0)` after a prevented close request) never fires the per-window
+/// `Destroyed` cleanup — without this sweep dev servers survive the app and
+/// keep their ports (issue #229).
+pub fn kill_all_pty_sync() -> u32 {
+    let pids: Vec<(u32, u32)> = {
+        let Ok(registry) = PTY_REGISTRY.lock() else {
+            return 0;
+        };
+        registry.iter().map(|(&id, info)| (id, info.pid)).collect()
+    };
+
+    for (_id, pid) in &pids {
+        #[cfg(unix)]
+        {
+            let _ = create_command("kill")
+                .args(["-9", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            let _ = create_command("taskkill")
+                .args(["/F", "/T", "/PID", &pid.to_string()])
+                .output();
+        }
+    }
+
+    if let Ok(mut registry) = PTY_REGISTRY.lock() {
+        registry.clear();
+    }
+
+    pids.len() as u32
+}
+
 /// Kill all tracked PTY processes (all windows).
 ///
 /// WARNING: This kills PTYs across ALL windows. Use `kill_window_pty` instead
@@ -316,10 +353,7 @@ pub async fn kill_port(port: u32) -> Result<(), CommandError> {
                 let pids = String::from_utf8_lossy(&output.stdout);
                 for pid in pids.lines() {
                     if let Ok(pid_num) = pid.trim().parse::<i32>() {
-                        // Kill the process and its children
-                        let _ = create_command("kill")
-                            .args(["-9", &pid_num.to_string()])
-                            .output();
+                        kill_listener_and_group(pid_num);
                     }
                 }
             }
@@ -329,14 +363,71 @@ pub async fn kill_port(port: u32) -> Result<(), CommandError> {
 
     #[cfg(not(unix))]
     {
-        // Windows: use netstat and taskkill
+        // Windows: use netstat and taskkill. /T kills the listener's whole
+        // process tree — dev servers fork workers that would otherwise survive
+        // and hold state (issues #229, #243).
         let _ = create_command("cmd")
-            .args(["/C", &format!("for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{} ^| findstr LISTENING') do taskkill /F /PID %a", port)])
+            .args(["/C", &format!("for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{} ^| findstr LISTENING') do taskkill /F /T /PID %a", port)])
             .output();
     }
 
-    // Give processes time to die
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Wait until the port is actually free (bounded) instead of hoping 100ms
+    // is enough. A dev server's worker tree can take longer to tear down, and
+    // respawning against a half-dead predecessor corrupts its on-disk state —
+    // the "every route 404s until manual restart" failure (issue #243).
+    for _ in 0..20 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        if !port_is_listening(port) {
+            break;
+        }
+    }
 
     Ok(())
+}
+
+/// True while something still accepts TCP connections on `port`. Resolves
+/// `localhost` (not a hardcoded 127.0.0.1) so dev servers bound to either
+/// stack are seen — same lesson as the preview proxy's upstream connect.
+fn port_is_listening(port: u32) -> bool {
+    use std::net::{TcpStream, ToSocketAddrs};
+    let Ok(addrs) = format!("localhost:{port}").to_socket_addrs() else {
+        return false;
+    };
+    addrs.into_iter().any(|addr| {
+        TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(250)).is_ok()
+    })
+}
+
+/// Kill the process listening on a port — and its whole process group.
+///
+/// `kill -9 <pid>` alone leaves the dev server's forked workers (Turbopack
+/// compilers, npm→node wrappers) alive; a survivor can hold or re-bind the
+/// port and serve a stale route table where every request 404s (issue #243).
+/// Escalates TERM→KILL on the group, guarded so we can never signal our own
+/// process group or the init group. Falls back to the old single-PID SIGKILL
+/// when the group can't be resolved or is shared with us.
+#[cfg(unix)]
+fn kill_listener_and_group(pid: i32) {
+    let pgid_of = |p: i32| -> Option<i32> {
+        let out = create_command("ps")
+            .args(["-o", "pgid=", "-p", &p.to_string()])
+            .output()
+            .ok()?;
+        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+    };
+
+    let own_pgid = pgid_of(std::process::id() as i32);
+    match pgid_of(pid) {
+        Some(pgid) if pgid > 1 && own_pgid.is_some_and(|own| own != pgid) => {
+            let group = format!("-{pgid}");
+            let _ = create_command("kill").args(["-TERM", &group]).output();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = create_command("kill").args(["-9", &group]).output();
+        }
+        _ => {
+            let _ = create_command("kill")
+                .args(["-9", &pid.to_string()])
+                .output();
+        }
+    }
 }

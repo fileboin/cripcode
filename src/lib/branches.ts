@@ -147,7 +147,7 @@ export async function discardChanges(projectPath: string): Promise<void> {
  * - strips characters invalid in git refs (`~ ^ : ? * [ ] \` and `@{`)
  * - collapses `..` runs into a single `.`
  * - collapses repeated `-` / `/`
- * - strips leading/trailing `/` and `.`, and a trailing `.lock`
+ * - strips leading `-`, `/` and `.`, trailing `/` and `.`, and a trailing `.lock`
  *
  * An input with nothing salvageable returns an empty string — callers must
  * treat that the same as an empty input.
@@ -170,7 +170,7 @@ export function sanitizeBranchName(name: string): string {
   // → "name"), so repeat until stable.
   for (;;) {
     const next = sanitized
-      .replace(/^[/.]+/, '') // leading slashes/dots
+      .replace(/^[-/.]+/, '') // leading dashes/slashes/dots (git rejects leading "-")
       .replace(/[/.]+$/, '') // trailing slashes/dots
       .replace(/\.lock$/, ''); // git refuses refs ending in ".lock"
     if (next === sanitized) break;

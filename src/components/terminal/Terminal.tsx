@@ -406,6 +406,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       cursorStyle: 'block',
       scrollback: 5000,
       allowProposedApi: true,
+      // Lift low-contrast text (e.g. ANSI black / dim greys on our dark
+      // background) to WCAG AA against the actual cell background, so black
+      // text on colored chips stays dark. Same default as VS Code (#232).
+      minimumContrastRatio: 4.5,
       theme: {
         background: '#1e1e1e',
         foreground: '#cccccc',

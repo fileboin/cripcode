@@ -137,6 +137,8 @@ export function DevServerLogs({
       // Stdin stays enabled so interactive CLI prompts (Shopify password,
       // y/n confirms) can be answered here; keys flow to the PTY via onInput.
       disableStdin: false,
+      // Keep CLI text readable on the dark background (#232).
+      minimumContrastRatio: 4.5,
       theme: {
         background: '#1a1a1a',
         foreground: '#cccccc',

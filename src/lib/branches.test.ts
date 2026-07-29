@@ -47,6 +47,13 @@ describe('sanitizeBranchName', () => {
     expect(sanitizeBranchName('//a/b//')).toBe('a/b');
   });
 
+  it('strips leading dashes (issue #247 repro — git rejects refs starting with "-")', () => {
+    expect(sanitizeBranchName('-test')).toBe('test');
+    expect(sanitizeBranchName('--force')).toBe('force');
+    expect(sanitizeBranchName('-./fix')).toBe('fix');
+    expect(sanitizeBranchName('---')).toBe('');
+  });
+
   it('strips a trailing ".lock"', () => {
     expect(sanitizeBranchName('mybranch.lock')).toBe('mybranch');
     // exposed after collapsing ".." → "."

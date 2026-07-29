@@ -709,6 +709,20 @@ export interface TerminalCommand {
   args: string[];
 }
 
+/**
+ * Network flags for every `npm install -g` we spawn during setup. npm's
+ * defaults let a stalled registry connection idle indefinitely with no output,
+ * which the onboarding terminal can't distinguish from a slow install — the
+ * flow just hangs (issue #245, Codex install stuck after one warn line).
+ * Bounding fetches makes a dead connection exit non-zero, which surfaces the
+ * error and the retry UI.
+ */
+const NPM_NETWORK_FLAGS = [
+  '--fetch-timeout=120000',
+  '--fetch-retries=3',
+  '--fetch-retry-maxtimeout=30000',
+];
+
 /** Get terminal commands based on current platform */
 export function getTerminalCommands(): Record<string, TerminalCommand> {
   const isWin = isWindows();
@@ -757,9 +771,11 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
       },
       codex: {
         // --force clears EEXIST failures from stale/partial global installs,
-        // which npm otherwise reports opaquely (issue #164).
+        // which npm otherwise reports opaquely (issue #164). The fetch flags
+        // bound registry stalls so a hung download fails (and offers retry)
+        // instead of sitting silent forever (issue #245).
         command: 'npm',
-        args: ['install', '-g', '@openai/codex', '--force'],
+        args: ['install', '-g', '@openai/codex', '--force', ...NPM_NETWORK_FLAGS],
       },
       codex_auth: {
         // Dedicated login subcommand (`codex login` — "Manage login") instead
@@ -773,7 +789,7 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
         // via npm (Node is set up in step 1, same as Codex below).
         // --force clears EEXIST failures from stale/partial global installs.
         command: 'npm',
-        args: ['install', '-g', 'opencode-ai', '--force'],
+        args: ['install', '-g', 'opencode-ai', '--force', ...NPM_NETWORK_FLAGS],
       },
       opencode_auth: {
         command: 'opencode',
@@ -792,7 +808,7 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
       vercel: {
         // --force clears EEXIST failures from stale/partial global installs.
         command: 'npm',
-        args: ['install', '-g', 'vercel', '--force'],
+        args: ['install', '-g', 'vercel', '--force', ...NPM_NETWORK_FLAGS],
       },
       vercel_auth: {
         command: 'vercel',
@@ -856,9 +872,11 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
       },
       codex: {
         // --force clears EEXIST failures from stale/partial global installs,
-        // which npm otherwise reports opaquely (issue #164).
+        // which npm otherwise reports opaquely (issue #164). The fetch flags
+        // bound registry stalls so a hung download fails (and offers retry)
+        // instead of sitting silent forever (issue #245).
         command: '/bin/bash',
-        args: ['-c', 'npm install -g @openai/codex --force'],
+        args: ['-c', `npm install -g @openai/codex --force ${NPM_NETWORK_FLAGS.join(' ')}`],
       },
       codex_auth: {
         // Dedicated login subcommand (`codex login`) — see the Windows entry
@@ -885,7 +903,7 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
       vercel: {
         // --force clears EEXIST failures from stale/partial global installs.
         command: '/bin/bash',
-        args: ['-c', 'npm install -g vercel --force'],
+        args: ['-c', `npm install -g vercel --force ${NPM_NETWORK_FLAGS.join(' ')}`],
       },
       vercel_auth: {
         command: 'vercel',

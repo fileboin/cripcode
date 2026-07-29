@@ -135,9 +135,14 @@ export function McpModal({
       void trackEvent('mcp_server_removed', { scope: server.scope, $screen_name: 'MCP Modal' });
       await fetchServers();
     } catch (err) {
-      logger.error('Failed to remove MCP server', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const message = err instanceof Error ? err.message : String(err);
+      if (/no mcp server named|not found/i.test(message)) {
+        // Already gone (e.g. the preview bridge's remove-then-re-add cycle
+        // raced this click) — that's the outcome the user wanted, not an error.
+        await fetchServers();
+      } else {
+        logger.error('Failed to remove MCP server', { error: message });
+      }
     } finally {
       setRemovingServer(null);
     }

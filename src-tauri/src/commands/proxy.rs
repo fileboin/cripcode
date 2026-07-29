@@ -26,3 +26,29 @@ pub fn stop_preview_proxy(window_label: String) -> Result<(), CommandError> {
     crate::proxy::stop_preview_proxy(&window_label);
     Ok(())
 }
+
+/// Probe the dev server's root and return its real HTTP status code.
+///
+/// The webview can't do this itself: a cross-origin fetch to localhost needs
+/// `mode: 'no-cors'`, whose opaque response hides the status — so a wedged
+/// server that answers 404 for every route still looks "ready" (issue #243).
+/// Returns `None` when the server is unreachable or times out, `Some(status)`
+/// otherwise. Uses `localhost` (not 127.0.0.1) so servers bound to either
+/// stack are reached, and GET (not HEAD, which dev servers often reject).
+#[tauri::command]
+#[tracing::instrument]
+pub async fn probe_preview_status(port: u16, timeout_ms: u64) -> Result<Option<u16>, CommandError> {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_millis(timeout_ms))
+        .build()
+        .map_err(|e| CommandError::Other {
+            message: format!("probe client: {e}"),
+        })?;
+
+    match client.get(format!("http://localhost:{port}/")).send().await {
+        Ok(resp) => Ok(Some(resp.status().as_u16())),
+        Err(_) => Ok(None),
+    }
+}

@@ -101,6 +101,8 @@ export function BuildTerminal({
       cursorStyle: 'bar',
       scrollback: 5000,
       allowProposedApi: true,
+      // Keep CLI text readable on the dark background (#232).
+      minimumContrastRatio: 4.5,
       theme: {
         background: '#1e1e1e',
         foreground: '#cccccc',

@@ -304,6 +304,16 @@ mod tests {
     }
 
     #[test]
+    fn opencode_auth_indicator_matches_cli_credentials_path() {
+        // Verified against the CLI itself (issue #47): `opencode auth list`
+        // prints "Credentials ~/.local/share/opencode/auth.json". If detection
+        // ever shows "Not signed in" after a successful login, re-verify with
+        // that command before touching these values.
+        assert_eq!(OPENCODE.auth_config_dir, ".local/share/opencode");
+        assert_eq!(OPENCODE.auth_indicators, &["auth.json"]);
+    }
+
+    #[test]
     fn claude_code_setup_item_ids() {
         assert_eq!(CLAUDE_CODE.setup_item_ids, ("claude", "claude_auth"));
     }

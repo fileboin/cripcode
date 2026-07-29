@@ -83,6 +83,8 @@ export function ClaudeConnectTerminal({
         cursorStyle: 'block',
         scrollback: 1000,
         allowProposedApi: true,
+        // Keep agent TUI text readable on the dark background (#232).
+        minimumContrastRatio: 4.5,
         theme: {
           background: '#1e1e1e',
           foreground: '#cccccc',

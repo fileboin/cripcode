@@ -76,6 +76,11 @@
   padding: 8px 10px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  /* Stack the header above the preview pane so popovers opened from it
+     (including toolbar plugin popovers, which get no z-index scaffolding)
+     aren't painted under the preview's error/status overlays (issue 246). */
+  position: relative;
+  z-index: var(--z-workspace-header);
 }
 
 /* Collapse the header's text labels to icon-only so every control stays

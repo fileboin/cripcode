@@ -613,6 +613,7 @@ pub fn run() {
             // Preview Proxy
             commands::proxy::start_preview_proxy,
             commands::proxy::stop_preview_proxy,
+            commands::proxy::probe_preview_status,
             // Static File Server
             commands::static_server::start_static_server,
             commands::static_server::stop_static_server,
@@ -767,6 +768,18 @@ pub fn run() {
             commands::clipboard::read_clipboard_text,
             commands::clipboard::stage_clipboard_image,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // The quit path calls exit(0) after preventDefault() on the
+                // close request, so WindowEvent::Destroyed cleanup never runs.
+                // This is the only hook that fires for every shutdown — dev
+                // servers and agent PTYs must die here or they outlive the app
+                // and keep their ports (issue #229: EADDRINUSE on relaunch).
+                let ptys = commands::pty::kill_all_pty_sync();
+                let sessions = commands::pty_session::kill_all_sessions_sync();
+                tracing::info!(ptys, sessions, "App exit: killed tracked PTY processes");
+            }
+        });
 }

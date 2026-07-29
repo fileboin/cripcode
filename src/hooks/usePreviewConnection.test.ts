@@ -307,3 +307,115 @@ describe('usePreviewConnection blank-iframe watchdog', () => {
     await teardown(unmount);
   });
 });
+
+describe('usePreviewConnection stale-404 detection (issue #243)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  /** Route probe_preview_status through a status script; other commands keep
+   *  their defaults. `statuses` is consumed one per health check; the last
+   *  value repeats once exhausted. */
+  async function installProbeStatuses(statuses: Array<number | null>) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'start_preview_proxy') return Promise.resolve(8080);
+      if (cmd === 'list_pages') return Promise.resolve([]);
+      if (cmd === 'probe_preview_status') {
+        const next = statuses.length > 1 ? statuses.shift() : statuses[0];
+        return Promise.resolve(next);
+      }
+      return Promise.resolve(undefined);
+    });
+  }
+
+  /** Drive the hook to serverReady via the readiness probe. */
+  async function reachReady(server: ReturnType<typeof installSlowServerFetch>) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await act(async () => {
+      server.finishCompile();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+
+  it('flags the server stale after three consecutive 404s on a previously-healthy root', async () => {
+    const server = installSlowServerFetch();
+    await installProbeStatuses([200, 404, 404, 404]);
+    const { result, unmount } = renderHook(() => usePreviewConnection(baseParams));
+    await reachReady(server);
+    expect(result.current.serverReady).toBe(true);
+
+    // Check 1 (200): records the healthy root. Checks 2–3 (404): strikes, not
+    // yet a verdict.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(result.current.serverStale).toBe(false);
+    expect(result.current.serverReady).toBe(true);
+
+    // Check 4: third consecutive 404 — wedged, surface the error + restart.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(result.current.serverStale).toBe(true);
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.serverReady).toBe(false);
+
+    await act(async () => {
+      unmount();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  });
+
+  it('never flags a root that was never healthy (projects with no "/" route)', async () => {
+    const server = installSlowServerFetch();
+    await installProbeStatuses([404]);
+    const { result, unmount } = renderHook(() => usePreviewConnection(baseParams));
+    await reachReady(server);
+    expect(result.current.serverReady).toBe(true);
+
+    // Many 404 checks in a row — without a prior healthy root this is the
+    // project's normal shape, not a wedged server.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(result.current.serverStale).toBe(false);
+    expect(result.current.serverReady).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    await act(async () => {
+      unmount();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  });
+
+  it('treats an unreachable server as crashed after three failed checks', async () => {
+    const server = installSlowServerFetch();
+    await installProbeStatuses([200, null, null, null]);
+    const { result, unmount } = renderHook(() => usePreviewConnection(baseParams));
+    await reachReady(server);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40000);
+    });
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.serverReady).toBe(false);
+    // Crashed, not stale — the restart affordance for stale is separate.
+    expect(result.current.serverStale).toBe(false);
+
+    await act(async () => {
+      unmount();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  });
+});
