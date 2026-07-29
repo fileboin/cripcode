@@ -352,6 +352,21 @@ pub async fn add_mcp_server(
     Ok(())
 }
 
+/// Does this CLI error text mean "no server with that name exists"?
+///
+/// Wording varies by agent CLI and version: "No MCP server named x",
+/// "No project-local MCP server found with name: x", "x not found",
+/// "no such server". An allowlist of exact phrases kept missing variants
+/// (issue #295), so match on the shape instead.
+fn mcp_server_not_found(details: &str) -> bool {
+    let lower = details.to_ascii_lowercase();
+    lower.contains("not found")
+        || lower.contains("no such")
+        || (lower.contains("no ")
+            && lower.contains("server")
+            && (lower.contains("found") || lower.contains("named")))
+}
+
 /// Remove an MCP server by name using the agent's CLI.
 #[tauri::command]
 #[tracing::instrument(skip_all, fields(agent = ?agent_id))]
@@ -401,6 +416,16 @@ pub async fn remove_mcp_server(
         } else {
             stderr
         };
+        // Removing a server that's already gone is the goal state, not an
+        // error — the preview bridge's remove-then-add cycle races manual
+        // removes and re-registrations, and CLI wording for "not found"
+        // varies by agent/version ("No MCP server named …", "No
+        // project-local MCP server found with name: …"), so match broadly
+        // (issues #248, #295).
+        if mcp_server_not_found(&details) {
+            tracing::info!(server = %name, "mcp remove: server already absent — treating as success");
+            return Ok(());
+        }
         return Err((format!("Failed to remove MCP server: {details}")).into());
     }
 
@@ -572,5 +597,28 @@ mod tests {
     fn test_shell_split_extra_whitespace() {
         let args = shell_split("  my-server   --   npx  ");
         assert_eq!(args, vec!["my-server", "--", "npx"]);
+    }
+
+    #[test]
+    fn not_found_matches_known_cli_wordings() {
+        // Claude Code
+        assert!(mcp_server_not_found(
+            "No MCP server named \"shipstudio-preview\" in local scope"
+        ));
+        // The #295 variant that slipped past the old exact-phrase check
+        assert!(mcp_server_not_found(
+            "No project-local MCP server found with name: shipstudio-preview"
+        ));
+        assert!(mcp_server_not_found("server 'x' not found"));
+        assert!(mcp_server_not_found("no such server: x"));
+    }
+
+    #[test]
+    fn not_found_rejects_real_failures() {
+        assert!(!mcp_server_not_found(
+            "MCP server shipstudio-preview already exists in local config"
+        ));
+        assert!(!mcp_server_not_found("permission denied writing config"));
+        assert!(!mcp_server_not_found(""));
     }
 }

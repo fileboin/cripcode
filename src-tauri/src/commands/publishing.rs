@@ -11,7 +11,7 @@ use crate::commands::git::run_git_net;
 use crate::commands::github::ensure_git_identity;
 use crate::errors::CommandError;
 use crate::types::PublishResult;
-use crate::utils::{create_command, validate_project_path};
+use crate::utils::validate_project_path;
 use tracing::{debug, error, info, instrument, warn};
 
 #[tauri::command]
@@ -25,7 +25,7 @@ pub async fn publish_to_github(
     info!(message = %message, "Publishing to GitHub");
 
     // Get current branch name
-    let branch_output = create_command("git")
+    let branch_output = crate::utils::git_command()?
         .args(["branch", "--show-current"])
         .current_dir(&validated_path)
         .output()
@@ -205,7 +205,7 @@ pub async fn publish_branch(
     let message = resolve_commit_message(&validated_path, commit_message).await;
 
     // Get current branch name
-    let branch_output = create_command("git")
+    let branch_output = crate::utils::git_command()?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(&validated_path)
         .output()

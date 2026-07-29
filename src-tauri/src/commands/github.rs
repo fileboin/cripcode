@@ -250,7 +250,9 @@ pub async fn get_project_github_status(project_path: String) -> ProjectGitHubSta
 
     // Get remote URL (with timeout)
     let step_start = std::time::Instant::now();
-    let mut remote_cmd = create_command("git");
+    let Ok(mut remote_cmd) = crate::utils::git_command() else {
+        return not_a_repo;
+    };
     remote_cmd
         .args(["remote", "get-url", "origin"])
         .current_dir(&project)
@@ -351,14 +353,14 @@ pub async fn get_project_github_status(project_path: String) -> ProjectGitHubSta
 /// Ensures git user.name and user.email are configured for the repo.
 /// If not set, fetches the user's identity from GitHub CLI and sets it locally.
 pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandError> {
-    let has_name = create_command("git")
+    let has_name = crate::utils::git_command()?
         .args(["config", "user.name"])
         .current_dir(repo_path)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    let has_email = create_command("git")
+    let has_email = crate::utils::git_command()?
         .args(["config", "user.email"])
         .current_dir(repo_path)
         .output()
@@ -389,7 +391,7 @@ pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandErr
 
     if !has_name {
         let display_name = name.unwrap_or(login);
-        create_command("git")
+        crate::utils::git_command()?
             .args(["config", "user.name", display_name])
             .current_dir(repo_path)
             .output()
@@ -406,7 +408,7 @@ pub fn ensure_git_identity(repo_path: &std::path::Path) -> Result<(), CommandErr
         } else {
             user_email.to_string()
         };
-        create_command("git")
+        crate::utils::git_command()?
             .args(["config", "user.email", &final_email])
             .current_dir(repo_path)
             .output()
@@ -431,7 +433,7 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
     // Check if it's already a git repo, if not initialize
     let git_dir = validated_path.join(".git");
     if !git_dir.exists() {
-        create_command("git")
+        crate::utils::git_command()?
             .args(["init"])
             .current_dir(&validated_path)
             .output()
@@ -452,7 +454,7 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
     );
 
     // Ensure at least one commit exists (gh repo create --push requires it)
-    let has_commits = create_command("git")
+    let has_commits = crate::utils::git_command()?
         .args(["rev-parse", "HEAD"])
         .current_dir(&validated_path)
         .output()
@@ -460,7 +462,7 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
         .unwrap_or(false);
 
     if !has_commits {
-        let output = create_command("git")
+        let output = crate::utils::git_command()?
             .args([
                 "commit",
                 "--allow-empty",

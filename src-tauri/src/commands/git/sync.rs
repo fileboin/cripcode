@@ -2,7 +2,7 @@
 
 use crate::cache::GIT_CACHE;
 use crate::errors::CommandError;
-use crate::utils::{create_command, validate_project_path};
+use crate::utils::validate_project_path;
 
 use super::git_stage_and_commit;
 // Network git ops (fetch, pull, merge) go through the workspace-scoped helper in
@@ -103,7 +103,7 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
     let validated_path = validate_project_path(&project_path)?;
 
     // Discard changes to tracked files
-    let checkout_output = create_command("git")
+    let checkout_output = crate::utils::git_command()?
         .args(["checkout", "."])
         .current_dir(&validated_path)
         .output()
@@ -115,7 +115,7 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
     }
 
     // Remove untracked files
-    let clean_output = create_command("git")
+    let clean_output = crate::utils::git_command()?
         .args(["clean", "-fd"])
         .current_dir(&validated_path)
         .output()

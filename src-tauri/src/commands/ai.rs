@@ -237,7 +237,7 @@ pub async fn generate_pr_description(
 }
 
 async fn get_branch_name(path: &std::path::Path) -> Result<String, CommandError> {
-    let mut cmd = create_command("git");
+    let mut cmd = crate::utils::git_command()?;
     cmd.args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(path);
     let output = run_with_timeout(
@@ -255,7 +255,7 @@ async fn get_branch_name(path: &std::path::Path) -> Result<String, CommandError>
 }
 
 async fn get_commit_messages(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = create_command("git");
+    let mut cmd = crate::utils::git_command()?;
     cmd.args([
         "--no-pager",
         "log",
@@ -276,7 +276,7 @@ async fn get_commit_messages(path: &std::path::Path, base: &str) -> Result<Strin
 }
 
 async fn get_diff_stat(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = create_command("git");
+    let mut cmd = crate::utils::git_command()?;
     cmd.args(["--no-pager", "diff", &format!("{base}...HEAD"), "--stat"])
         .current_dir(path);
     let output = run_with_timeout(
@@ -290,7 +290,7 @@ async fn get_diff_stat(path: &std::path::Path, base: &str) -> Result<String, Com
 }
 
 async fn get_diff(path: &std::path::Path, base: &str) -> Result<String, CommandError> {
-    let mut cmd = create_command("git");
+    let mut cmd = crate::utils::git_command()?;
     cmd.args(["--no-pager", "diff", &format!("{base}...HEAD")])
         .current_dir(path);
     let output = run_with_timeout(
@@ -497,7 +497,7 @@ pub async fn generate_commit_message_for_path(
 }
 
 fn git_status_porcelain(path: &std::path::Path) -> Result<String, CommandError> {
-    let output = create_command("git")
+    let output = crate::utils::git_command()?
         .args(["status", "--porcelain"])
         .current_dir(path)
         .output()
@@ -512,8 +512,10 @@ fn git_status_porcelain(path: &std::path::Path) -> Result<String, CommandError> 
 /// unborn branch (no commits) `git diff HEAD` fails; we return whatever stdout
 /// it produced (empty) and let the porcelain file list carry the context.
 fn git_working_diff(path: &std::path::Path) -> String {
-    create_command("git")
-        .args(["--no-pager", "diff", "HEAD"])
+    let Ok(mut cmd) = crate::utils::git_command() else {
+        return String::new();
+    };
+    cmd.args(["--no-pager", "diff", "HEAD"])
         .current_dir(path)
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -748,7 +750,8 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
         let git = |args: &[&str]| {
-            create_command("git")
+            crate::utils::git_command()
+                .unwrap()
                 .args(args)
                 .current_dir(dir)
                 .output()
@@ -778,7 +781,8 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
         let git = |args: &[&str]| {
-            create_command("git")
+            crate::utils::git_command()
+                .unwrap()
                 .args(args)
                 .current_dir(dir)
                 .output()

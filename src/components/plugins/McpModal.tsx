@@ -136,7 +136,11 @@ export function McpModal({
       await fetchServers();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (/no mcp server named|not found/i.test(message)) {
+      // CLI wording varies ("No MCP server named …", "No project-local MCP
+      // server found with name: …") — match the shape, not exact phrases
+      // (#295). The backend now also treats these as success (mcp.rs), so
+      // this is defense for wordings that slip through.
+      if (/no .*mcp server|not found|no such/i.test(message)) {
         // Already gone (e.g. the preview bridge's remove-then-re-add cycle
         // raced this click) — that's the outcome the user wanted, not an error.
         await fetchServers();

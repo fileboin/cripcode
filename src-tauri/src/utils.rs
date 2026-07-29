@@ -365,6 +365,35 @@ fn build_extended_path() -> String {
     paths.join(get_path_separator())
 }
 
+/// Build a `Command` for git, resolving the full binary path first.
+///
+/// Spawning bare `"git"` can fail to resolve on Windows even when git is
+/// installed — and the resulting `io::Error` renders as the context-free
+/// "program not found" (issue #297). Resolving via [`find_executable`] fixes
+/// resolution and yields a clear, actionable error when git truly is missing.
+///
+/// The resolved path is cached after the first success; a miss is re-probed
+/// on every call, so installing git mid-session (the onboarding wizard does
+/// exactly this) starts working without an app restart.
+pub fn git_command() -> Result<Command, crate::errors::CommandError> {
+    static GIT_PATH: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    if let Some(path) = GIT_PATH.get() {
+        return Ok(create_command(path));
+    }
+    match find_executable("git") {
+        Some(path) => {
+            let cmd = create_command(&path);
+            let _ = GIT_PATH.set(path);
+            Ok(cmd)
+        }
+        None => Err(crate::errors::CommandError::Other {
+            message: "Git isn't installed or couldn't be located. Install Git \
+                      (https://git-scm.com) and restart Ship Studio, then try again."
+                .into(),
+        }),
+    }
+}
+
 /// Finds an executable by checking common installation paths.
 /// This is needed because bundled macOS apps don't inherit the user's shell PATH.
 /// On Windows, checks standard Program Files and AppData locations.

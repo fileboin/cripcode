@@ -6,7 +6,7 @@ use crate::commands::github::get_gh_command_for_project;
 use crate::errors::CommandError;
 use crate::external_command::run_with_timeout;
 use crate::types::PullRequestInfo;
-use crate::utils::{create_command, validate_project_path};
+use crate::utils::validate_project_path;
 
 /// Timeout for network-facing CLI ops (gh/git) so a hung remote can't freeze a
 /// PR command. Matches git/branches.rs.
@@ -100,7 +100,7 @@ pub async fn create_pull_request(
     let validated_path = validate_project_path(&project_path)?;
 
     // Push the branch to the remote first (gh pr create requires this)
-    let mut push_cmd = create_command("git");
+    let mut push_cmd = crate::utils::git_command()?;
     push_cmd
         .args(["push", "-u", "origin", "HEAD"])
         .envs(crate::commands::accounts::get_env_vars_for_project(
@@ -189,7 +189,7 @@ pub async fn checkout_pull_request(
     }
 
     // Return the branch name that was checked out
-    let branch_output = create_command("git")
+    let branch_output = crate::utils::git_command()?
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(&validated_path)
         .output()
@@ -229,7 +229,7 @@ mod tests {
     /// commands). `git --version` is deterministic and needs no repo or remote.
     #[tokio::test]
     async fn run_net_executes_command_through_timeout() {
-        let mut cmd = create_command("git");
+        let mut cmd = crate::utils::git_command().unwrap();
         cmd.args(["--version"]);
         let out = run_net(cmd, "git --version")
             .await

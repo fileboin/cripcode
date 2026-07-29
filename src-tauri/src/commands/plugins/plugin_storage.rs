@@ -18,6 +18,11 @@ use super::{
     PluginInfo, RegistryEntry, ShellResult,
 };
 
+/// Hard ceiling on a plugin's requested shell timeout. Plugins pass
+/// `timeout_secs` straight through, so an accidental millisecond value
+/// (15000 as "15s") used to become a ~4-hour hang (issue #294).
+const MAX_PLUGIN_SHELL_TIMEOUT_SECS: u64 = 600;
+
 /// Read plugin storage data
 ///
 /// Storage is at {project}/.shipstudio/plugins/{plugin-id}/storage.json
@@ -120,28 +125,32 @@ pub async fn exec_plugin_shell(
         .into());
     }
 
-    // Build and execute command with timeout
-    let timeout = timeout_secs.unwrap_or(120);
-    let output = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout),
-        tokio::task::spawn_blocking(move || {
-            create_command(&command)
-                .args(&args)
-                .current_dir(&validated_path)
-                .env("PATH", get_extended_path())
-                .env(
-                    "HOME",
-                    dirs::home_dir()
-                        .map(|h| h.to_string_lossy().to_string())
-                        .unwrap_or_default(),
-                )
-                .output()
-        }),
-    )
-    .await
-    .map_err(|_| format!("Plugin shell command timed out ({timeout}s)"))?
-    .map_err(|e| format!("Failed to spawn command: {e}"))?
-    .map_err(|e| format!("Failed to execute command: {e}"))?;
+    // Build and execute command with timeout. The timeout is clamped: a
+    // plugin passing e.g. a millisecond value as seconds (15000 → ~4 hours)
+    // must not hang the user for hours (issue #294).
+    let timeout = timeout_secs
+        .unwrap_or(120)
+        .min(MAX_PLUGIN_SHELL_TIMEOUT_SECS);
+    let mut std_cmd = create_command(&command);
+    std_cmd
+        .args(&args)
+        .current_dir(&validated_path)
+        .env("PATH", get_extended_path())
+        .env(
+            "HOME",
+            dirs::home_dir()
+                .map(|h| h.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        );
+    // tokio Command with kill_on_drop: when the timeout fires, dropping the
+    // output future kills the child instead of leaking it to run invisibly
+    // to completion in the background (issue #294).
+    let mut cmd = tokio::process::Command::from(std_cmd);
+    cmd.kill_on_drop(true);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(timeout), cmd.output())
+        .await
+        .map_err(|_| format!("Plugin shell command timed out ({timeout}s)"))?
+        .map_err(|e| format!("Failed to execute command: {e}"))?;
 
     Ok(ShellResult {
         stdout: String::from_utf8_lossy(&output.stdout).to_string(),

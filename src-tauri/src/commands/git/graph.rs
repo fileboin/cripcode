@@ -8,7 +8,7 @@
 
 use crate::errors::CommandError;
 use crate::types::{BranchGraphNode, BranchGraphResult};
-use crate::utils::{create_command, validate_project_path};
+use crate::utils::validate_project_path;
 use std::collections::HashSet;
 use tracing::debug;
 
@@ -41,7 +41,10 @@ impl RawBranch {
 /// Mirrors `list_branches` but does no background fetch — the graph reflects
 /// whatever refs are already present.
 fn list_raw_branches(path: &std::path::Path) -> Vec<RawBranch> {
-    let output = create_command("git")
+    let Ok(mut cmd) = crate::utils::git_command() else {
+        return Vec::new();
+    };
+    let output = cmd
         .args([
             "branch",
             "-a",
@@ -121,7 +124,8 @@ fn detect_default_branch(names: &HashSet<String>) -> Option<String> {
 
 /// Commit hash a ref points at.
 fn rev_parse(path: &std::path::Path, git_ref: &str) -> Option<String> {
-    let out = create_command("git")
+    let out = crate::utils::git_command()
+        .ok()?
         .args([
             "rev-parse",
             "--verify",
@@ -145,7 +149,8 @@ fn rev_parse(path: &std::path::Path, git_ref: &str) -> Option<String> {
 
 /// The merge-base commit of two refs, plus its committer timestamp.
 fn merge_base(path: &std::path::Path, a: &str, b: &str) -> Option<(String, i64)> {
-    let out = create_command("git")
+    let out = crate::utils::git_command()
+        .ok()?
         .args(["merge-base", a, b])
         .current_dir(path)
         .output()
@@ -157,7 +162,8 @@ fn merge_base(path: &std::path::Path, a: &str, b: &str) -> Option<(String, i64)>
     if hash.is_empty() {
         return None;
     }
-    let date_out = create_command("git")
+    let date_out = crate::utils::git_command()
+        .ok()?
         .args(["show", "-s", "--format=%ct", &hash])
         .current_dir(path)
         .output()

@@ -14,7 +14,7 @@
 
 use crate::cache::GIT_CACHE;
 use crate::errors::CommandError;
-use crate::utils::{create_command, projects_root, validate_project_path};
+use crate::utils::{projects_root, validate_project_path};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tracing::{info, instrument, warn};
@@ -174,7 +174,7 @@ fn pick_free_port(start: u16) -> Option<u16> {
 }
 
 fn run_worktree_git(cwd: &Path, args: &[&str]) -> Result<std::process::Output, CommandError> {
-    create_command("git")
+    crate::utils::git_command()?
         .args(args)
         .current_dir(cwd)
         .output()

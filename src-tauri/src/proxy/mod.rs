@@ -921,7 +921,15 @@ async fn handle_websocket_upgrade(
     let target_resp = match sender.send_request(forwarded_req).await {
         Ok(r) => r,
         Err(e) => {
-            tracing::error!("[Proxy] WebSocket forward failed: {}", e);
+            // Include the upstream port: "invalid HTTP version parsed" here
+            // means the socket connected but returned non-HTTP bytes (wrong
+            // process on the port, dev server mid-restart, AV interference) —
+            // without the port the report is uncorrelatable (issue #293).
+            tracing::error!(
+                "[Proxy] WebSocket forward to 127.0.0.1:{} failed: {}",
+                target_port,
+                e
+            );
             return Ok(Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
                 .body(full_body(Bytes::from("WebSocket proxy error")))

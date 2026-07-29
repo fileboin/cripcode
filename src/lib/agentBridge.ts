@@ -133,7 +133,23 @@ function writeRegistrationCache(key: string, url: string): void {
  * Local scope: the config stays in the user's own agent settings and never
  * lands in the repo (the URL embeds a secret and must not be committed).
  */
-export async function registerPreviewMcpServer(url: string, projectPath: string): Promise<void> {
+export function registerPreviewMcpServer(url: string, projectPath: string): Promise<void> {
+  // Serialize per project: the remove-then-add cycle is not atomic, so two
+  // concurrent registrations (e.g. a re-attach racing the first attach) could
+  // interleave and fail with "already exists" on the losing add (issue #292).
+  const existing = inFlightRegistrations.get(projectPath);
+  if (existing) return existing;
+  const run = doRegisterPreviewMcpServer(url, projectPath).finally(() => {
+    inFlightRegistrations.delete(projectPath);
+  });
+  inFlightRegistrations.set(projectPath, run);
+  return run;
+}
+
+/** In-flight preview registrations keyed by project path (see above). */
+const inFlightRegistrations = new Map<string, Promise<void>>();
+
+async function doRegisterPreviewMcpServer(url: string, projectPath: string): Promise<void> {
   const agentId = 'claude-code';
   const cache = readRegistrationCache();
   if (cache[projectPath] === url) return;
@@ -143,12 +159,20 @@ export async function registerPreviewMcpServer(url: string, projectPath: string)
   } catch {
     // Not registered yet — the normal case on first registration.
   }
-  await addMcpServer(
-    `--transport http ${PREVIEW_MCP_SERVER_NAME} ${url}`,
-    'local',
-    projectPath,
-    agentId
-  );
+  try {
+    await addMcpServer(
+      `--transport http ${PREVIEW_MCP_SERVER_NAME} ${url}`,
+      'local',
+      projectPath,
+      agentId
+    );
+  } catch (err) {
+    // "Already exists" means a concurrent writer (another window, a manual
+    // add) recreated the entry between our remove and add — the goal state
+    // (server registered, same stable URL) is reached, so don't fail (#292).
+    if (!/already exists/i.test(formatCommandError(asCommandError(err)))) throw err;
+    logger.info('[AgentBridge] MCP entry already present — treating as registered');
+  }
   writeRegistrationCache(projectPath, url);
 }
 

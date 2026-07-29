@@ -124,6 +124,16 @@ impl From<&str> for CommandError {
     }
 }
 
+/// Lets `?` propagate a `CommandError` (e.g. from `utils::git_command`)
+/// inside the legacy helpers that still return `Result<_, String>`. New
+/// commands should return `CommandError` directly — this exists so shared
+/// fallible helpers work in both worlds without per-site `.map_err`.
+impl From<CommandError> for String {
+    fn from(err: CommandError) -> Self {
+        err.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -400,6 +400,12 @@ pub fn report_command_error(err: &crate::errors::CommandError) {
         if lower.starts_with("plugin '") && lower.ends_with("' not found") {
             return;
         }
+        // Preview-bridge MCP registration racing a concurrent writer: the
+        // losing add fails "already exists" but the goal state (server
+        // registered) is reached; the frontend treats it as benign (#292).
+        if lower.contains("failed to add mcp server") && lower.contains("already exists") {
+            return;
+        }
     }
     let fingerprint = command_error_fingerprint(err);
     report_error(

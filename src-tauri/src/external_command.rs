@@ -47,8 +47,11 @@ pub async fn run_with_timeout(
         }
         Ok(Err(io_err)) => {
             warn!(cmd = %label, error = %io_err, "external command spawn failed");
+            // Name the command: Windows renders a PATH miss as the bare
+            // "program not found", which is useless without knowing WHICH
+            // program (issue #296) — Timeout/Process already carry the label.
             Err(CommandError::Io {
-                message: io_err.to_string(),
+                message: format!("`{label}`: {io_err}"),
             })
         }
         Err(_) => {
@@ -99,7 +102,9 @@ mod tests {
         let cmd = Command::new("definitely-not-a-real-binary-shipstudio");
         let err = run_with_timeout(cmd, "ghost", 5).await.unwrap_err();
         match err {
-            CommandError::Io { .. } => {}
+            CommandError::Io { message } => {
+                assert!(message.contains("`ghost`"), "got: {message}")
+            }
             other => panic!("expected Io, got {other:?}"),
         }
     }

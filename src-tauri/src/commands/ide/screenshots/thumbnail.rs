@@ -134,7 +134,28 @@ pub async fn capture_project_thumbnail(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err((format!("Browser screenshot failed: {stderr}")).into());
+            let stderr = stderr.trim();
+            // Headless Chromium can die with EMPTY stderr (crash, killed by
+            // AV/security software) — fall back to the exit code plus a
+            // stdout snippet so the report says something (issue #291).
+            let detail = if stderr.is_empty() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stdout = stdout.trim();
+                let code = output
+                    .status
+                    .code()
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "killed by signal".to_string());
+                if stdout.is_empty() {
+                    format!("exit code {code}, no output")
+                } else {
+                    let snippet: String = stdout.chars().take(300).collect();
+                    format!("exit code {code}: {snippet}")
+                }
+            } else {
+                stderr.to_string()
+            };
+            return Err((format!("Browser screenshot failed: {detail}")).into());
         }
 
         // Read the captured image and resize using the image crate (cross-platform)
