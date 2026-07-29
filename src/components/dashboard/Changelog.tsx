@@ -26,6 +26,19 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.1', // v0.18.1
+    items: [
+      'The new automatic error reporting paid off immediately: 40+ bugs found, diagnosed, and fixed within two days of v0.18.0. Highlights below — plus dozens of errors across the app that now explain what actually went wrong instead of showing raw error codes',
+      'Quitting Ship Studio now really stops everything — dev servers and agent sessions no longer linger in the background after the app closes, and restarting a dev server reliably frees its port',
+      'The preview notices when a dev server comes back wedged (every page a 404) and lights up the Restart button; hot reload now rides out dev-server restarts instead of dying',
+      'Agent terminals find your agent wherever it\'s installed — fixes "Unable to spawn claude" appearing even though the app said it was installed (nvm, pnpm, volta, fnm, and friends)',
+      'Agent follow-up questions in the terminal are readable again — dark-on-dark text is automatically lifted to readable contrast',
+      'Windows round-up: GitHub operations work with the GitHub CLI in its default install location, project deletion waits out antivirus file locks, and path handling is consistent end to end',
+      'Publishing hardened: sparse-checkout repos can commit again, a failed save can no longer slip past a publish silently, and merging a conflicted PR opens the conflict resolver instead of dumping raw git output',
+      "Also fixed: creating a repo with a name you already used, importing Rust/Go/Python projects, visual-editor dropdowns closing instantly on some Macs, thumbnails with only Brave or Arc installed — and there's a new guide for building your own plugins (docs/plugins.md)",
+    ],
+  },
+  {
     version: '0.18.0', // v0.18.0
     items: [
       'Bugs now fix themselves faster: when something goes wrong, Ship Studio automatically reports the error (anonymized — never your code or files) so it can be investigated and patched. Opt out anytime in Settings → Usage analytics & error reports',
