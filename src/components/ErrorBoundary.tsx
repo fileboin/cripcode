@@ -1,6 +1,7 @@
 import { Component, ReactNode } from 'react';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { logger } from '../lib/logger';
+import { getAnalyticsEnabled } from '../lib/analytics';
 import { lookupBlobOwner, markPluginCrashed } from '../lib/plugin-loader';
 import { uninstallPlugin } from '../lib/plugins';
 
@@ -11,24 +12,42 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  /** True when the crash was actually reported (production build, user has
+   *  analytics & error reports enabled, not a plugin crash). */
+  reportedAutomatically: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, reportedAutomatically: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     logger.logError(error, { componentStack: errorInfo.componentStack ?? undefined });
 
+    // The logError above also reports the crash to the admin agent
+    // (logger forwards error-level logs — see docs/error-reporting.md).
+
     // Auto-remove crashing plugins so they don't crash again on Continue
     const stack = error.stack ?? '';
     const blobMatch = /blob:[^\s:)]+/.exec(stack);
+
+    // Show the "reported automatically" disclosure only when a report really
+    // went out: production build, analytics & error reports enabled, and not
+    // a plugin crash (those are excluded from reporting).
+    if (import.meta.env.PROD && !blobMatch) {
+      getAnalyticsEnabled()
+        .then((enabled) => {
+          if (enabled) this.setState({ reportedAutomatically: true });
+        })
+        .catch(() => {});
+    }
+
     if (blobMatch) {
       const owner = lookupBlobOwner(blobMatch[0]);
       if (owner) {
@@ -53,7 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleContinue = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, reportedAutomatically: false });
   };
 
   handleRestart = async () => {
@@ -109,6 +128,11 @@ export class ErrorBoundary extends Component<Props, State> {
               ? 'A plugin crashed. You can continue without it or restart the app.'
               : this.state.error?.message || 'An unexpected error occurred'}
           </p>
+          {this.state.reportedAutomatically && (
+            <p style={{ fontSize: '12px', color: '#666', margin: '-12px 0 24px 0' }}>
+              This crash was reported automatically so it can be fixed.
+            </p>
+          )}
           <div style={{ display: 'flex', gap: '12px' }}>
             {this.isPluginError() && (
               <button

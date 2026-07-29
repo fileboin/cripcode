@@ -60,7 +60,7 @@ pub fn init_sentry() {
     let _ = SENTRY_GUARD.set(guard);
 }
 
-fn scrub_string(s: &str) -> String {
+pub(crate) fn scrub_string(s: &str) -> String {
     // Strip local paths so Sentry doesn't see usernames or project folder names.
     let re_unix = regex_lite_replace(s, "/Users/", "/Users/<redacted>");
     let re_home = regex_lite_replace(&re_unix, "/home/", "/home/<redacted>");
@@ -175,6 +175,10 @@ pub fn init_logging() -> Result<(), String> {
     // initialized (e.g. debug builds without SENTRY_FORCE=1), so it's safe to
     // attach unconditionally.
     let subscriber = subscriber.with(sentry_tracing::layer());
+
+    // Forward error-level events to the admin agent (docs/error-reporting.md).
+    // Also a no-op outside production builds and gated/throttled internally.
+    let subscriber = subscriber.with(crate::error_reporting::AdminAgentLayer);
 
     subscriber.init();
 
