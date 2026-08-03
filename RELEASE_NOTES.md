@@ -6,6 +6,17 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.4
+
+- **App freeze fixed** - Running multiple projects could freeze the whole app until force-quit: background thumbnail captures piled up silently and starved it. Captures are now strictly time-limited and never overlap.
+- **Thumbnails reliable again** - An interrupted capture no longer leaves a lock file that broke every future capture (the most-reported bug of v0.18.3), and captures survive your browser being open.
+- **Commits no longer blocked by .shipstudio** - Ship Studio's metadata folder is always excluded from your commits, so a background process holding a file there can't fail a commit or publish (frequent on Windows).
+- **Real errors when a command can't start** - A missing package manager or tool is now named with install guidance, instead of a bare "exited with code -1".
+- **Draft PRs handled** - A Draft badge with merging disabled, instead of a raw GraphQL error.
+- **Steadier hot reload** - The preview retries a dropped WebSocket connection to your dev server instead of giving up on the first hiccup.
+- **60+ more auto-reported fixes** - Across four bug-bash rounds: clearer errors for expired GitHub sign-ins, network blips, Homebrew permissions, abandoned merges, and Windows tool resolution for IDEs, health checks, and plugins.
+
+
 ## What's New in v0.18.3
 
 - **Safety fix: your home folder can never be treated as a project** - A stray .git or .gitignore in your home directory could let "Discard Changes" run git cleanup across personal files. Now refused at every layer, including for already-registered entries.
