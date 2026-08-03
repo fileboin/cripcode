@@ -26,6 +26,20 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.4', // v0.18.4
+    items: [
+      'Major fix: the app no longer freezes when running multiple projects. Background thumbnail captures could silently pile up and starve the app until nothing responded and a force-quit was the only way out — captures are now strictly time-limited and never overlap',
+      'Project thumbnails are far more reliable: an interrupted capture no longer leaves a lock file that broke every future capture (the single most-reported bug of the last release), and captures no longer fail just because your browser is open',
+      "Committing and publishing no longer fail when a background process is holding a file in .shipstudio (a frequent Windows failure) — Ship Studio's own metadata folder is now always excluded from your commits",
+      'When a command fails to start (like a package manager that isn\'t installed), you now see the actual reason — and the missing tool by name with install guidance — instead of a bare "exited with code -1"',
+      'Draft pull requests now show a Draft badge with merging disabled, instead of failing with a raw GraphQL error when you tried',
+      'Undo/rewind on Windows now rides out files still being written (like dev-server logs) instead of failing, and log files are excluded from snapshots',
+      'Hot reload is steadier: the preview retries a dropped WebSocket connection to your dev server instead of giving up on the first hiccup',
+      'Opening in VS Code/Cursor, health checks, and plugin commands now find their tools reliably on Windows',
+      'Another 60+ auto-reported issues fixed across four bug-bash rounds: clearer errors for expired GitHub sign-ins, network blips, Homebrew permission problems, abandoned merges, branch conflicts, and much quieter error reporting for routine states',
+    ],
+  },
+  {
     version: '0.18.3', // v0.18.3
     items: [
       'Important safety fix: your home folder can no longer be mistaken for a project. A stray .git or .gitignore in your home directory could previously let "Discard Changes" run git cleanup across your personal files — that door is now closed at every layer, including for anyone who already had their home folder registered',
