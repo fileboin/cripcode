@@ -28,11 +28,19 @@ fn is_missing_upstream(stderr: &str) -> bool {
 /// malfunction (issue #521, same class as #312/#502). The raw stderr is
 /// preserved verbatim in the returned message because the frontend
 /// regex-matches its wording (`/would be overwritten by (merge|checkout)/i`).
-fn is_overwrite_refusal(stderr: &str) -> bool {
+pub(crate) fn is_overwrite_refusal(stderr: &str) -> bool {
     let lower = stderr.to_lowercase();
     lower.contains("would be overwritten by merge")
         || lower.contains("would be overwritten by checkout")
         || lower.contains("commit your changes or stash")
+}
+
+/// Git reporting that a merge/pull produced conflicts. Matched on the combined
+/// stdout+stderr because git splits the "CONFLICT (content): …" lines and the
+/// final "Automatic merge failed; fix conflicts and then commit the result."
+/// across the two streams depending on version.
+fn is_merge_conflict_output(combined: &str) -> bool {
+    combined.contains("CONFLICT") || combined.contains("Automatic merge failed")
 }
 
 /// Classify a failed `git clean -fd` whose *only* failures are files another
@@ -152,9 +160,14 @@ pub async fn pull_and_merge(
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined = format!("{stdout}{stderr}");
 
-    // Check for merge conflicts
-    if combined.contains("CONFLICT") || combined.contains("Automatic merge failed") {
-        return Err((format!("MERGE_CONFLICT:{combined}")).into());
+    // Check for merge conflicts. A conflict is a fully anticipated state with
+    // dedicated resolution UI (the frontend even calls pull_and_merge on
+    // purpose to reproduce one) — Expected keeps it out of telemetry (issue
+    // #609). The `MERGE_CONFLICT:` prefix and the raw git output are the
+    // frontend contract: useBranchManagement string-matches the prefix.
+    if is_merge_conflict_output(&combined) {
+        warn!("Merge produced conflicts; handing off to the resolution flow");
+        return Err(CommandError::expected(format!("MERGE_CONFLICT:{combined}")));
     }
 
     if !output.status.success() {
@@ -224,22 +237,33 @@ pub async fn discard_changes(project_path: String) -> Result<(), CommandError> {
     // (issue #346).
     ensure_repo_rooted_at(&validated_path)?;
 
-    // Discard changes to tracked files
-    let checkout_output = crate::utils::git_command_in(&validated_path)?
-        .args(["checkout", "."])
-        .output()
-        .map_err(|e| e.to_string())?;
+    // Discard changes to tracked files. `checkout .` writes to the index, so
+    // it can lose the .git lock race against the background snapshot watcher
+    // or a concurrent commit exactly like add/commit — retry on contention the
+    // same way git_stage_and_commit does (issues #377/#597).
+    let checkout_output = crate::utils::output_retrying_index_lock(|| {
+        crate::utils::git_command_in(&validated_path)?
+            .args(["checkout", "."])
+            .output()
+            .map_err(|e| crate::errors::CommandError::Io {
+                message: e.to_string(),
+            })
+    })?;
 
     if !checkout_output.status.success() {
         let stderr = String::from_utf8_lossy(&checkout_output.stderr);
         return Err((format!("Failed to discard changes: {stderr}")).into());
     }
 
-    // Remove untracked files
-    let clean_output = crate::utils::git_command_in(&validated_path)?
-        .args(["clean", "-fd"])
-        .output()
-        .map_err(|e| e.to_string())?;
+    // Remove untracked files — same lock-retry as above (#597).
+    let clean_output = crate::utils::output_retrying_index_lock(|| {
+        crate::utils::git_command_in(&validated_path)?
+            .args(["clean", "-fd"])
+            .output()
+            .map_err(|e| crate::errors::CommandError::Io {
+                message: e.to_string(),
+            })
+    })?;
 
     if !clean_output.status.success() {
         let stderr = String::from_utf8_lossy(&clean_output.stderr);
@@ -291,7 +315,9 @@ pub async fn commit_changes(project_path: String, message: String) -> Result<boo
 
 #[cfg(test)]
 mod tests {
-    use super::{clean_locked_paths, ensure_repo_rooted_at, is_overwrite_refusal};
+    use super::{
+        clean_locked_paths, ensure_repo_rooted_at, is_merge_conflict_output, is_overwrite_refusal,
+    };
     use std::process::Command;
 
     // The #521 shape: git refusing to merge over uncommitted local edits.
@@ -306,6 +332,31 @@ mod tests {
             "fatal: refusing to merge unrelated histories"
         ));
         assert!(!is_overwrite_refusal(""));
+    }
+
+    // The #601 shape: `gh pr checkout` refusing over uncommitted local edits —
+    // same underlying git message, surfaced through gh's stderr.
+    #[test]
+    fn overwrite_refusal_matches_pr_checkout_refusal() {
+        let stderr = "error: Your local changes to the following files would be overwritten by checkout:\n\thome/home-v1.html\nPlease commit your changes or stash them before you switch branches.\nAborting\n";
+        assert!(is_overwrite_refusal(stderr));
+    }
+
+    // The #609 shape: a real merge conflict is an anticipated state with
+    // dedicated resolution UI, classified Expected upstream.
+    #[test]
+    fn merge_conflict_output_matches_gits_conflict_report() {
+        let combined = "Auto-merging pnpm-lock.yaml\nCONFLICT (content): Merge conflict in pnpm-lock.yaml\nAutomatic merge failed; fix conflicts and then commit the result.\n";
+        assert!(is_merge_conflict_output(combined));
+        // Either half alone must still match (git splits across streams).
+        assert!(is_merge_conflict_output(
+            "CONFLICT (content): Merge conflict in a.txt"
+        ));
+        assert!(is_merge_conflict_output(
+            "Automatic merge failed; fix conflicts and then commit the result."
+        ));
+        assert!(!is_merge_conflict_output("Already up to date.\n"));
+        assert!(!is_merge_conflict_output(""));
     }
 
     // The #520 shape: a running dev server (wrangler) holding untracked files
