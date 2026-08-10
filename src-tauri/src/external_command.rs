@@ -35,9 +35,10 @@ pub async fn run_with_timeout(
     debug!(cmd = %label, timeout_secs, "spawning external command");
 
     // When the timeout fires, the output() future is dropped — without
-    // kill_on_drop the child would keep running (and e.g. a timed-out
-    // `git diff` keeps grinding a big repo in the background, issue #608;
-    // same class as run_git_net's #556).
+    // kill_on_drop the child would keep running (a timed-out headless-browser
+    // capture lingered forever, issue #510; a timed-out `git diff` keeps
+    // grinding a big repo in the background, issue #608; same class as
+    // run_git_net's #556).
     cmd.kill_on_drop(true);
 
     // Retry transient EAGAIN spawn failures in place (issue #616): the
