@@ -6,6 +6,16 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.5
+
+- **Native macOS thumbnails** - Project thumbnails are captured instantly from the app's own preview instead of a background Chrome — eliminating the thumbnail failure family (profile locks, crashes, leftover processes) behind most error reports.
+- **Visual editor edits can't be silently lost** - If the source file changed mid-edit (formatter, hot reload), your text is re-applied to the right place — or you're told plainly.
+- **Timed-out commands are truly stopped** - git, gh, deploys and screenshots no longer linger invisibly after a timeout, holding locks and wasting resources.
+- **PR descriptions work on big diffs** - Prompt via stdin (no more "argument list too long") and a real time budget for large diffs.
+- **Windows fixes** - npm/npx launch correctly from health checks and dev tooling; JPEG custom thumbnails accepted.
+- **80+ auto-reported issues fixed** - Clearer, calmer errors across git, GitHub, plugins, onboarding, and the visual editor — the largest cleanup release yet.
+
+
 ## What's New in v0.18.4
 
 - **App freeze fixed** - Running multiple projects could freeze the whole app until force-quit: background thumbnail captures piled up silently and starved it. Captures are now strictly time-limited and never overlap.
