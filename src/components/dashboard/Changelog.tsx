@@ -26,6 +26,20 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.5', // v0.18.5
+    items: [
+      'Project thumbnails on macOS are now captured instantly from the app itself — no more background Chrome. This eliminates the whole family of thumbnail failures (profile locks, browser crashes, leftover processes) that produced most error reports',
+      "Your text edits in the visual editor can no longer be silently lost: if the source file changed while you were typing (a formatter or hot reload touching it), Ship Studio now re-finds your element and saves your text there — and tells you plainly in the rare case it can't",
+      'Commands that time out (git, GitHub CLI, deploys, screenshots) are now actually stopped instead of running on invisibly in the background, where they could hold locks and slow everything down',
+      'Generating a PR description no longer fails on big changes: the AI prompt is fed via stdin (no more "argument list too long") and large diffs get triple the time budget',
+      "The Vercel plugin's status checks now respond in seconds instead of hanging for minutes when the CLI stalls (several timeout values were off by 1000×)",
+      'Windows: npm and npx now launch correctly from health checks and dev tooling ("not a valid Win32 application" fixed), and custom thumbnails accept JPEG images',
+      'When your system is briefly too busy to start a new process (the macOS "Resource temporarily unavailable" error), Ship Studio now quietly retries instead of surfacing a scary one-off failure',
+      'Friendlier messages all around: pull/merge conflicts, push races, unaccepted Xcode license, macOS folder-permission blocks, branches checked out in another worktree, and out-of-date agent CLIs now explain themselves and how to fix it',
+      '80+ auto-reported issues fixed in total across three bug-bash rounds — the largest cleanup in Ship Studio history',
+    ],
+  },
+  {
     version: '0.18.4', // v0.18.4
     items: [
       'Major fix: the app no longer freezes when running multiple projects. Background thumbnail captures could silently pile up and starve the app until nothing responded and a force-quit was the only way out — captures are now strictly time-limited and never overlap',
