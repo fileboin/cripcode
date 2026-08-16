@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   asCommandError,
+  describeAccountsLoadError,
   describeProcessError,
   formatCommandError,
   friendlyProcessError,
@@ -191,6 +192,46 @@ describe('friendlyProcessError', () => {
     ).toBe(true);
   });
 
+  it('maps corrupted pnpm store ENOENT failures to `pnpm store prune` guidance (issue #681)', () => {
+    // Exact shape from issue #681: dangling links in the content-addressable
+    // store make installs die with an ENOENT inside pnpm/store.
+    const raw =
+      "Process exited with code 1\n\n[ERROR] ENOENT: no such file or directory, open '~/Library/pnpm/store/v11/links/@pnpm/some-pkg'";
+    const info = describeProcessError(raw);
+    expect(info.expected).toBe(true);
+    expect(info.message).toContain('pnpm store prune');
+    expect(info.message).not.toContain('ENOENT');
+    // Windows store paths use backslashes.
+    expect(
+      describeProcessError(
+        "ENOENT: no such file or directory, open 'C:\\Users\\me\\AppData\\Local\\pnpm\\store\\v11\\links\\esbuild'"
+      ).expected
+    ).toBe(true);
+    // An ENOENT outside the pnpm store is NOT the corrupted-cache state.
+    expect(
+      describeProcessError("ENOENT: no such file or directory, open '/tmp/whatever.json'").expected
+    ).toBe(false);
+  });
+
+  it('maps Windows path-length checkout failures to core.longpaths guidance (issue #701)', () => {
+    // git downloads the repo fine, then fails writing long paths on Windows.
+    const raw =
+      "Process exited with code 1\n\nCloning into 'deep-repo'...\nerror: unable to create file src/some/extremely/deeply/nested/component/file.tsx: Filename too long\nfatal: unable to checkout working tree\nwarning: Clone succeeded, but checkout failed.\nYou can inspect what was checked out with 'git status'";
+    const info = describeProcessError(raw);
+    expect(info.expected).toBe(true);
+    expect(info.message).toContain('git config --global core.longpaths true');
+    expect(info.message).toMatch(/LongPathsEnabled/);
+    expect(info.message).not.toContain('Cloning into');
+    // Each phrase alone classifies too — output can be truncated.
+    expect(describeProcessError('error: unable to create file x: Filename too long').expected).toBe(
+      true
+    );
+    expect(describeProcessError('fatal: unable to checkout working tree').expected).toBe(true);
+    expect(describeProcessError('warning: Clone succeeded, but checkout failed.').expected).toBe(
+      true
+    );
+  });
+
   it('classifies recognized shapes as expected and unknown ones as not', () => {
     expect(describeProcessError('sh: pnpm: command not found').expected).toBe(true);
     expect(describeProcessError('Process exited with code 128').expected).toBe(true);
@@ -337,6 +378,18 @@ describe('humanizeGitError', () => {
       raw: 'Failed to merge: merge: origin/chore/remove-footer-logomark-block - not something we can merge',
       expect: /couldn't be found.*deleted or renamed/i,
     },
+    {
+      // `git checkout -b X origin/Y` when the base's remote ref is gone —
+      // must name the missing base, not surface a raw fatal (issue #692).
+      raw: "fatal: 'origin/feat/base' is not a commit and a branch 'feat/new' cannot be created from it",
+      expect: /\(origin\/feat\/base\) no longer exists on GitHub.*refresh your branches/i,
+    },
+    {
+      // gh's own top-level DNS-failure output — it swallows the Go error and
+      // prints only this guidance (issue #473).
+      raw: 'error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com',
+      expect: /couldn't reach GitHub/i,
+    },
   ];
 
   it.each(cases)('humanizes: $raw', ({ raw, expect: pattern }) => {
@@ -382,6 +435,40 @@ describe('humanizeGitError', () => {
     // Unrecognized failures fall through — those stay on the error channels.
     expect(isRecognizedGitFailure('some completely novel git failure')).toBe(false);
     expect(isRecognizedGitFailure(new Error('segfault in gh'))).toBe(false);
+  });
+
+  // The backend's own Expected friendly strings (github.rs / branches.rs)
+  // arrive tagged as Other over IPC and pass through humanizeGitError
+  // unchanged (they're already the friendly form) — they must still count as
+  // recognized so they never re-enter the error/telemetry channels
+  // (issue #687). Keep these literals byte-identical to the Rust strings.
+  it('recognizes backend-authored friendly Expected messages (issue #687)', () => {
+    const backendMessages = [
+      // gh_network_error
+      "Couldn't reach GitHub. Check your internet connection and try again.",
+      // the gh timeout mapping (issue #686)
+      'GitHub took too long to respond. Check your internet connection and try again.',
+      // gh_tls_error
+      "GitHub's secure connection couldn't be verified. This usually means a corporate proxy, VPN, or antivirus is inspecting HTTPS traffic on this computer (its certificate isn't trusted yet), or the system's certificate store is out of date. Install your proxy's certificate or update your system, then try again.",
+      // gh_server_error
+      "GitHub's API is temporarily unavailable (a GitHub server error). Try again in a moment.",
+      // gh_malformed_request_error
+      "GitHub couldn't process the request (a temporary GitHub API error). Try again in a moment.",
+      // gh_config_error
+      "The GitHub CLI (gh) can't read its own settings because of a file-permissions problem on this computer — this isn't a GitHub sign-in issue. Open a terminal and run `sudo chown -R $(whoami) ~/.config/gh`, then try again.",
+      // gh_crash_error (both variants)
+      'The GitHub CLI (gh) crashed unexpectedly. Try again — if it keeps happening, reinstalling the GitHub CLI may help.',
+      "The GitHub CLI (gh) couldn't start because the system is low on memory. Close some other apps (on Windows, increasing the paging file size can also help) and try again.",
+      // create_branch's vanished base ref (issue #692)
+      'The branch this was based on no longer exists on GitHub. Refresh your branches and try again.',
+    ];
+    for (const message of backendMessages) {
+      expect(isRecognizedGitFailure(message), message).toBe(true);
+      // The humanized form must stay friendly — either the backend's own
+      // wording passed through or an equivalent frontend humanization, never
+      // a regression to raw stderr.
+      expect(humanizeGitError(message)).not.toBe('');
+    }
   });
 
   it('accepts CommandError objects, not just strings', () => {
@@ -459,5 +546,25 @@ describe('isProjectFolderGoneError', () => {
       isProjectFolderGoneError('feature/x no longer exists. It may have been deleted or renamed.')
     ).toBe(false);
     expect(isProjectFolderGoneError(new Error('connection refused'))).toBe(false);
+  });
+});
+
+describe('describeAccountsLoadError (issue #686)', () => {
+  it('uses retry wording for timeouts instead of sign-out advice', () => {
+    const raw = { type: 'Timeout', message: '`gh api user/orgs` timed out after 15s' };
+    const backendMapped = {
+      type: 'Other',
+      message: 'GitHub took too long to respond. Check your internet connection and try again.',
+    };
+    for (const err of [raw, backendMapped]) {
+      const msg = describeAccountsLoadError(err);
+      expect(msg).toContain('Check your internet connection');
+      expect(msg).not.toContain('signing out');
+    }
+  });
+
+  it('keeps sign-out advice for non-timeout failures', () => {
+    const msg = describeAccountsLoadError({ type: 'Other', message: 'HTTP 401 bad credentials' });
+    expect(msg).toContain('Try signing out and back into GitHub.');
   });
 });

@@ -42,6 +42,7 @@ import {
 import { logger } from '../../lib/logger';
 import {
   asCommandError,
+  describeAccountsLoadError,
   describeProcessError,
   formatCommandError,
   friendlyProcessError,
@@ -93,10 +94,7 @@ export function ImportProject({ onComplete, onCancel }: ImportProjectProps) {
       setSelectedOwner(user);
     } catch (err) {
       trackError('github_accounts_load', err, 'Dashboard');
-      setError(
-        `Couldn't load your GitHub accounts: ${formatCommandError(asCommandError(err))}. ` +
-          'Try signing out and back into GitHub.'
-      );
+      setError(describeAccountsLoadError(err));
     } finally {
       setLoadingAccounts(false);
     }
