@@ -281,8 +281,8 @@ jobs:
             || echo "::warning::Could not download Windows assets from $WIN_TAG; skipping carry-forward"
           ls -la carry-forward/ || true
 
-      # Upload to the PRIVATE main repo (for reference/backup)
-      - name: Upload updater tarballs to main repo release
+      # Add the updater tarballs and manifest to the draft release.
+      - name: Upload updater tarballs to draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -292,10 +292,10 @@ jobs:
             latest.json
           draft: true
 
-      # Upload to public repo for auto-updater. Includes carry-forward
-      # Windows manifest + installer so "latest" alias flip doesn't drop
-      # Windows auto-update or the site's Windows download link.
-      - name: Create release in public releases repo
+      # Upload to the draft created by tauri-action, then publish that same
+      # release. In the single-repo layout, creating another release with the
+      # same tag would fail because the draft already exists.
+      - name: Publish existing draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -323,9 +323,15 @@ jobs:
             echo "::warning::Windows installer missing; the site's /latest/download Windows link will 404 until the next -win release or a manual upload."
           fi
 
-          # Create the release in the public repo (auto-published, no draft)
-          gh release create "$TAG" \
+          # Add the remaining assets to the existing draft release.
+          gh release upload "$TAG" \
+            --repo ${{ github.repository }} \
+            --clobber \
+            "${ASSETS[@]}"
+
+          # Publish the existing draft release (do not create a second one).
+          gh release edit "$TAG" \
             --repo ${{ github.repository }} \
             --title "Cripcode v${VERSION}" \
             --notes "Auto-updater release for Cripcode v${VERSION}. See the main repository for full release notes." \
-            "${ASSETS[@]}"
+            --draft=false

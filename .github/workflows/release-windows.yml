@@ -199,29 +199,34 @@ jobs:
             latest-windows.json
           draft: true
 
-      # Auto-publish in the public repo, matching the macOS pipeline
-      # (release.yml's "Create release in public releases repo" step, which
-      # has no --draft). The old --draft "manual publish gate" meant every
+      # Publish in the same repo as the draft created by tauri-action.
+      # The old --draft "manual publish gate" meant every
       # Windows build silently stopped at a draft and no download ever went
       # live — the CI windows-check job now provides the verification that
       # gate stood in for. Includes the carry-forward macOS manifest and DMG
       # installers so this release flipping the "latest" alias doesn't drop
       # macOS auto-update or the site's Mac download links.
-      - name: Create release in public ${{ github.repository }} repo
+      - name: Publish existing draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Auto-published (no --draft) so the download is live immediately.
-          gh release create "$TAG" \
+          # Add the remaining assets to the existing draft release.
+          gh release upload "$TAG" \
             --repo ${{ github.repository }} \
-            --title "Cripcode v${VERSION} (Windows)" \
-            --notes "Auto-updater release for Cripcode v${VERSION} Windows. See the main repository for full release notes." \
+            --clobber \
             artifacts/cripcode_windows-x86_64-setup.exe \
             artifacts/cripcode_windows-x86_64-setup.exe.sig \
             latest-windows.json \
             carry-forward/latest.json \
             carry-forward/cripcode_darwin-aarch64.dmg \
             carry-forward/cripcode_darwin-x86_64.dmg
+
+          # Publish the existing draft release (do not create a second one).
+          gh release edit "$TAG" \
+            --repo ${{ github.repository }} \
+            --title "Cripcode v${VERSION} (Windows)" \
+            --notes "Auto-updater release for Cripcode v${VERSION} Windows. See the main repository for full release notes." \
+            --draft=false
