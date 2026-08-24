@@ -12,8 +12,11 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use tracing::{debug, info, warn};
 
-const POSTHOG_API_KEY: &str = "phc_i1C5azXcz9MsnM8mQBni7qq5shiNS8JVFkcyXBjuBkr";
-const POSTHOG_HOST: &str = "https://us.i.posthog.com";
+// Telemetry is disabled by default in this fork (see the Master Plan privacy
+// defaults). Empty key + host make every PostHog send a no-op — no data ever
+// leaves the machine.
+const POSTHOG_API_KEY: &str = "";
+const POSTHOG_HOST: &str = "";
 
 /// Cached analytics state to avoid reading disk on every event
 struct AnalyticsCache {
@@ -45,7 +48,7 @@ pub fn init_analytics() {
         }
     };
 
-    let enabled = app_state.analytics_enabled.unwrap_or(true);
+    let enabled = app_state.analytics_enabled.unwrap_or(false);
 
     let http_client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -276,7 +279,7 @@ pub fn get_analytics_enabled() -> Result<bool, CommandError> {
         .lock()
         .ok()
         .and_then(|g| g.as_ref().map(|c| c.enabled))
-        .unwrap_or(true);
+        .unwrap_or(false);
     Ok(enabled)
 }
 

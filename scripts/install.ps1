@@ -13,7 +13,7 @@
 $ErrorActionPreference = 'Stop'
 
 $asset = 'ShipStudio_windows-x86_64-setup.exe'
-$url   = "https://github.com/ship-studio/releases/releases/latest/download/$asset"
+$url   = "https://github.com/fileboin/ship-studio/releases/latest/download/$asset"
 $out   = Join-Path $env:TEMP $asset
 
 function Say($m) { Write-Host "==> $m" -ForegroundColor Green }

@@ -19,13 +19,18 @@ static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 // Hold the Sentry guard for the lifetime of the process so events get flushed on exit.
 static SENTRY_GUARD: OnceLock<sentry::ClientInitGuard> = OnceLock::new();
 
-const SENTRY_DSN: &str =
-    "https://ca46a435b1b22d7b60f2a83817395fb6@o4511226863353856.ingest.us.sentry.io/4511226875412480";
+// Telemetry/crash-reporting is disabled by default in this fork (see the
+// Master Plan privacy defaults). An empty DSN makes Sentry a no-op — nothing
+// is ever sent to any third-party ingest endpoint.
+const SENTRY_DSN: &str = "";
 
 /// Initialize Sentry. Must be called before `init_logging()` so the
 /// `sentry_tracing` layer can forward events. Skipped in debug builds unless
 /// the `SENTRY_FORCE=1` env var is set.
 pub fn init_sentry() {
+    if SENTRY_DSN.is_empty() {
+        return;
+    }
     let force = std::env::var("SENTRY_FORCE").ok().as_deref() == Some("1");
     let enabled = !cfg!(debug_assertions) || force;
     if !enabled {

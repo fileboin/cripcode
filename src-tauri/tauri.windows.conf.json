@@ -3,7 +3,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/ship-studio/releases/releases/latest/download/latest-windows.json"
+        "https://github.com/fileboin/ship-studio/releases/latest/download/latest-windows.json"
       ]
     }
   }

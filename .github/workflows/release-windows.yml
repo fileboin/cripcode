@@ -133,7 +133,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ github.ref_name }}"
-          RELEASES_REPO="ship-studio/releases"
+          RELEASES_REPO="${{ github.repository }}"
 
           SIG=$(cat artifacts/signature.txt)
           echo "windows-x86_64 signature: $SIG"
@@ -172,10 +172,10 @@ jobs:
       # users, so failing the Windows release is the lesser evil.
       - name: Carry forward macOS manifest and installers
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p carry-forward
-          MAC_TAG=$(gh release list --repo ship-studio/releases --limit 50 \
+          MAC_TAG=$(gh release list --repo ${{ github.repository }} --limit 50 \
             --json tagName --jq '[.[] | select(.tagName | endswith("-win") | not)][0].tagName // empty')
           if [ -z "$MAC_TAG" ]; then
             echo "No macOS release found to carry forward" >&2
@@ -183,7 +183,7 @@ jobs:
           fi
           echo "Carrying forward macOS assets from $MAC_TAG"
           gh release download "$MAC_TAG" \
-            --repo ship-studio/releases \
+            --repo ${{ github.repository }} \
             --pattern "latest.json" \
             --pattern "ShipStudio_darwin-*.dmg" \
             --dir carry-forward
@@ -207,16 +207,16 @@ jobs:
       # gate stood in for. Includes the carry-forward macOS manifest and DMG
       # installers so this release flipping the "latest" alias doesn't drop
       # macOS auto-update or the site's Mac download links.
-      - name: Create release in public ship-studio/releases repo
+      - name: Create release in public ${{ github.repository }} repo
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${{ steps.version.outputs.version }}"
 
           # Auto-published (no --draft) so the download is live immediately.
           gh release create "$TAG" \
-            --repo ship-studio/releases \
+            --repo ${{ github.repository }} \
             --title "Ship Studio v${VERSION} (Windows)" \
             --notes "Auto-updater release for Ship Studio v${VERSION} Windows. See the main repository for full release notes." \
             artifacts/ShipStudio_windows-x86_64-setup.exe \

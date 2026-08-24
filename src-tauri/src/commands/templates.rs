@@ -4,7 +4,10 @@
 
 use crate::errors::CommandError;
 
-const TEMPLATES_API_URL: &str = "https://www.ship.studio/api/v1/templates";
+// Neutralized in this fork (see the Master Plan independence defaults): no
+// community-template gallery server exists yet, so the endpoint is empty and
+// the command returns a clean error instead of calling a third-party API.
+const TEMPLATES_API_URL: &str = "";
 
 /// Render a reqwest error with its full source chain. reqwest's `Display` only
 /// prints the top-level context ("error sending request for url (...)"), while

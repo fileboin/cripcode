@@ -204,7 +204,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ github.ref_name }}"
           # Use the public releases repo for download URLs
-          RELEASES_REPO="ship-studio/releases"
+          RELEASES_REPO="${{ github.repository }}"
 
           # Read signatures
           AARCH64_SIG=$(cat artifacts/updater-darwin-aarch64/signature.txt)
@@ -256,7 +256,7 @@ jobs:
       - name: Carry forward Windows manifest and installer
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p carry-forward
           # Pick the newest PUBLISHED -win release. `gh release list` returns
@@ -264,7 +264,7 @@ jobs:
           # which is why every macOS release shipped a stale 0.6.0 Windows
           # manifest and broke Windows auto-update. Exclude drafts and take the
           # most recently published -win tag.
-          WIN_TAG=$(gh release list --repo ship-studio/releases --limit 100 \
+          WIN_TAG=$(gh release list --repo ${{ github.repository }} --limit 100 \
             --json tagName,isDraft,publishedAt \
             --jq '[.[] | select(.isDraft == false) | select(.tagName | endswith("-win"))]
                   | sort_by(.publishedAt) | last | .tagName // empty')
@@ -274,7 +274,7 @@ jobs:
           fi
           echo "Carrying forward Windows assets from $WIN_TAG"
           gh release download "$WIN_TAG" \
-            --repo ship-studio/releases \
+            --repo ${{ github.repository }} \
             --pattern "latest-windows.json" \
             --pattern "ShipStudio_windows-x86_64-setup.exe" \
             --dir carry-forward \
@@ -297,7 +297,7 @@ jobs:
       # Windows auto-update or the site's Windows download link.
       - name: Create release in public releases repo
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${{ steps.version.outputs.version }}"
@@ -325,7 +325,7 @@ jobs:
 
           # Create the release in the public repo (auto-published, no draft)
           gh release create "$TAG" \
-            --repo ship-studio/releases \
+            --repo ${{ github.repository }} \
             --title "Ship Studio v${VERSION}" \
             --notes "Auto-updater release for Ship Studio v${VERSION}. See the main repository for full release notes." \
             "${ASSETS[@]}"

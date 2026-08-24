@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-const ENDPOINT: &str = "https://shipstudio-admin-agent.vercel.app/report";
+const ENDPOINT: &str = "";
 const SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Hard cap on reports per app session — a pathological error loop with
@@ -51,7 +51,7 @@ fn enabled() -> bool {
     // (frontend or backend) funnels through here.
     crate::commands::setup::read_app_state()
         .analytics_enabled
-        .unwrap_or(true)
+        .unwrap_or(false)
 }
 
 fn secret() -> Option<&'static str> {

@@ -330,7 +330,7 @@ async fn install_version_platform(
     };
 
     let url = format!(
-        "https://github.com/ship-studio/releases/releases/download/v{version}/ShipStudio_darwin-{arch_suffix}.app.tar.gz"
+        "https://github.com/fileboin/ship-studio/releases/download/v{version}/ShipStudio_darwin-{arch_suffix}.app.tar.gz"
     );
 
     // Find current app bundle path (e.g., /Applications/Ship Studio.app)
@@ -414,7 +414,7 @@ async fn install_version_platform(
     temp_dir: &std::path::Path,
 ) -> Result<(), CommandError> {
     let url = format!(
-        "https://github.com/ship-studio/releases/releases/download/v{}/ShipStudio_windows-x86_64.nsis.zip",
+        "https://github.com/fileboin/ship-studio/releases/download/v{}/ShipStudio_windows-x86_64.nsis.zip",
         version
     );
 

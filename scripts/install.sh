@@ -18,7 +18,7 @@
 #   SHIPSTUDIO_NO_LAUNCH=1       install but don't open the app afterwards
 set -euo pipefail
 
-REPO="ship-studio/releases"
+REPO="fileboin/ship-studio"
 APP_NAME="Ship Studio.app"
 DEST="${SHIPSTUDIO_DEST:-/Applications}"
 MANIFEST="https://github.com/${REPO}/releases/latest/download/latest.json"
