@@ -76,8 +76,7 @@ export function usePreviewCapture({
 
     const windows = await getScreenshotableWindows();
     const ourWindow = windows.find(
-      (w) =>
-        w.title?.toLowerCase().includes('cripcode') || w.title?.toLowerCase().includes('tauri')
+      (w) => w.title?.toLowerCase().includes('cripcode') || w.title?.toLowerCase().includes('tauri')
     );
 
     if (!ourWindow) {
