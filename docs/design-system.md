@@ -1,11 +1,11 @@
-# Ship Studio Design System
+# Cripcode Design System
 
 The reference for tokens and UI primitives. Audience: you're about to build a feature and need
 the right token or component in under a minute. Canonical sources (always trust these over docs):
 
 - Tokens: the `:root` block at the top of [src/styles/global/base.css](../src/styles/global/base.css)
 - Primitives: [src/components/primitives/](../src/components/primitives/)
-- The rules and rationale: [CLAUDE.md → How to Do Things in Ship Studio](../CLAUDE.md#how-to-do-things-in-ship-studio)
+- The rules and rationale: [CLAUDE.md → How to Do Things in Cripcode](../CLAUDE.md#how-to-do-things-in-ship-studio)
   and [docs/CONTRIBUTING_PATTERNS.md](CONTRIBUTING_PATTERNS.md)
 
 ## Design tokens

@@ -503,7 +503,7 @@ describe('useDevServer', () => {
       expect(result.current.isServerRunning('/path/to/project')).toBe(true);
     });
 
-    it('does not record an exit for a stop Ship Studio initiated', async () => {
+    it('does not record an exit for a stop Cripcode initiated', async () => {
       const captured = await mockDevServerWithExit();
       const { result } = renderHook(() => useDevServer('/path/to/project'));
 

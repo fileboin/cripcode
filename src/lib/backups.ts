@@ -1,5 +1,5 @@
 /**
- * Backup management functions for Ship Studio.
+ * Backup management functions for Cripcode.
  *
  * Provides a user-friendly interface over git commits as "backups".
  *

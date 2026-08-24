@@ -23,7 +23,7 @@ const AGENT_CLI_TIMEOUT_SECS: u64 = 60;
 const COMMIT_MSG_CLI_TIMEOUT_SECS: u64 = 30;
 
 /// Fallback commit message used when AI generation is unavailable or fails.
-pub const DEFAULT_COMMIT_MESSAGE: &str = "Update from Ship Studio";
+pub const DEFAULT_COMMIT_MESSAGE: &str = "Update from Cripcode";
 
 /// Timeout for the fast local git context-gathering ops (branch name, commit
 /// log) — always cheap regardless of repo size.
@@ -122,7 +122,7 @@ fn headless_invocation(agent: &AgentConfig, prompt: &str) -> Option<HeadlessInvo
 /// Known "environment, not our bug" failure states from the agent CLI itself,
 /// matched against the failure detail (stderr, or the exit-code + stdout
 /// snippet when stderr is empty — the session-limit refusal arrives on
-/// stdout). These are conditions Ship Studio can't fix and shouldn't
+/// stdout). These are conditions Cripcode can't fix and shouldn't
 /// telemetry-report as bugs; `Expected` keeps them out (same precedent as the
 /// missing-binary case above, issue #548).
 ///

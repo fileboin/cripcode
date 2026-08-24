@@ -85,7 +85,7 @@ try {
   logger.init();
   void trackEvent('app_launched', { $screen_name: 'Dashboard' });
 } catch (err) {
-  console.error('[Ship Studio] Module-scope init failed', err);
+  console.error('[Cripcode] Module-scope init failed', err);
 }
 
 /** Props for the App component */
@@ -1060,7 +1060,7 @@ function AppContents({ initialProjectPath }: AppProps) {
           if (e.key === 'Enter') void quitAppWithTracking();
         }}
       >
-        <p>Are you sure you want to quit Ship Studio?</p>
+        <p>Are you sure you want to quit Cripcode?</p>
         <div className="quit-confirm-actions">
           <Button variant="secondary" onClick={() => setShowQuitConfirm(false)}>
             Cancel

@@ -8,7 +8,7 @@
  * - Controlling window expansion state
  * - Multi-window port management
  *
- * Compact mode transforms Ship Studio into a minimal floating input bar
+ * Compact mode transforms Cripcode into a minimal floating input bar
  * that can stay on top of other windows for easy access.
  *
  * @module lib/window

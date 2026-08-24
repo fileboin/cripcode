@@ -1,6 +1,6 @@
-# Building Ship Studio Plugins
+# Building Cripcode Plugins
 
-Ship Studio plugins are small ES modules that render React components into
+Cripcode plugins are small ES modules that render React components into
 well-defined slots of the app (workspace toolbar, preview, terminal dropdown,
 dashboard sidebar) and talk to the app through a sandboxed context: toasts,
 project info, plugin-scoped storage, shell commands in the project directory,
@@ -27,9 +27,9 @@ manifest + bundle with no build step at all.
   "id": "hello-world",
   "name": "Hello World",
   "version": "1.0.0",
-  "description": "A test plugin that validates the Ship Studio plugin pipeline.",
+  "description": "A test plugin that validates the Cripcode plugin pipeline.",
   "slots": ["toolbar"],
-  "author": "Ship Studio",
+  "author": "Cripcode",
   "repository": "",
   "setup": [],
   "min_app_version": "0.1.0",
@@ -214,7 +214,7 @@ API** (defined in `src/styles/global/base.css`, see
 ## Developing a plugin locally
 
 1. Create a folder with `plugin.json` and a built `dist/index.js`.
-2. In Ship Studio: **Plugins → Link Dev Plugin** and pick the folder. Linking
+2. In Cripcode: **Plugins → Link Dev Plugin** and pick the folder. Linking
    validates the manifest and requires `dist/index.js` to exist ("Did you run
    the build?").
 3. Iterate: rebuild your bundle, then hit **Reload** on the plugin row — the
@@ -286,7 +286,7 @@ Plugins dropdown; clicking it fires a toast through the plugin context.
 | `No plugin.json found` on install | Manifest isn't at the repo root |
 | `Plugin bundle not found at …/dist/index.js` | You didn't commit/build the bundle |
 | `Requires plugin API v…` at load | `api_version` outside the app's supported set (`0`, `1`) |
-| `Plugin '{name}' requires Ship Studio v…` | `min_app_version` newer than the running app |
+| `Plugin '{name}' requires Cripcode v…` | `min_app_version` newer than the running app |
 | `…requests commands that are not available to plugins` | `required_commands` includes something outside the allow-list |
 | Plugin crashes instantly / hooks error | You bundled your own React — externalize it |
 | `"…" crashed — disabled for this session` chip | Your component threw; fix and re-enable from Plugins |

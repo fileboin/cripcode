@@ -113,7 +113,7 @@ jobs:
           # re-enable, restore the APPLE_API_* env vars + the API-key step above.
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Ship Studio v__VERSION__'
+          releaseName: 'Cripcode v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
@@ -137,8 +137,8 @@ jobs:
 
             # Create artifacts directory with target-specific names
             mkdir -p artifacts
-            cp "$TAR_FILE" "artifacts/ShipStudio_${{ matrix.updater_target }}.app.tar.gz"
-            cp "$SIG_FILE" "artifacts/ShipStudio_${{ matrix.updater_target }}.app.tar.gz.sig"
+            cp "$TAR_FILE" "artifacts/cripcode_${{ matrix.updater_target }}.app.tar.gz"
+            cp "$SIG_FILE" "artifacts/cripcode_${{ matrix.updater_target }}.app.tar.gz.sig"
 
             # Also save just the signature content
             cat "$SIG_FILE" > "artifacts/signature.txt"
@@ -147,7 +147,7 @@ jobs:
             DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
             DMG_FILE=$(find "$DMG_DIR" -name "*.dmg" -type f | head -1)
             if [ -n "$DMG_FILE" ]; then
-              cp "$DMG_FILE" "artifacts/ShipStudio_${{ matrix.updater_target }}.dmg"
+              cp "$DMG_FILE" "artifacts/cripcode_${{ matrix.updater_target }}.dmg"
               echo "Found dmg: $DMG_FILE"
             fi
 
@@ -218,9 +218,9 @@ jobs:
             --arg notes "$NOTES" \
             --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg aarch64_sig "$AARCH64_SIG" \
-            --arg aarch64_url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/ShipStudio_darwin-aarch64.app.tar.gz" \
+            --arg aarch64_url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/cripcode_darwin-aarch64.app.tar.gz" \
             --arg x86_64_sig "$X86_64_SIG" \
-            --arg x86_64_url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/ShipStudio_darwin-x86_64.app.tar.gz" \
+            --arg x86_64_url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/cripcode_darwin-x86_64.app.tar.gz" \
             '{
               version: $version,
               notes: $notes,
@@ -276,7 +276,7 @@ jobs:
           gh release download "$WIN_TAG" \
             --repo ${{ github.repository }} \
             --pattern "latest-windows.json" \
-            --pattern "ShipStudio_windows-x86_64-setup.exe" \
+            --pattern "cripcode_windows-x86_64-setup.exe" \
             --dir carry-forward \
             || echo "::warning::Could not download Windows assets from $WIN_TAG; skipping carry-forward"
           ls -la carry-forward/ || true
@@ -287,8 +287,8 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            artifacts/updater-darwin-aarch64/ShipStudio_darwin-aarch64.app.tar.gz
-            artifacts/updater-darwin-x86_64/ShipStudio_darwin-x86_64.app.tar.gz
+            artifacts/updater-darwin-aarch64/cripcode_darwin-aarch64.app.tar.gz
+            artifacts/updater-darwin-x86_64/cripcode_darwin-x86_64.app.tar.gz
             latest.json
           draft: true
 
@@ -306,10 +306,10 @@ jobs:
           # only if the carry-forward step actually produced them, so missing
           # Windows assets can never block the macOS auto-update release.
           ASSETS=(
-            artifacts/updater-darwin-aarch64/ShipStudio_darwin-aarch64.app.tar.gz
-            artifacts/updater-darwin-x86_64/ShipStudio_darwin-x86_64.app.tar.gz
-            artifacts/updater-darwin-aarch64/ShipStudio_darwin-aarch64.dmg
-            artifacts/updater-darwin-x86_64/ShipStudio_darwin-x86_64.dmg
+            artifacts/updater-darwin-aarch64/cripcode_darwin-aarch64.app.tar.gz
+            artifacts/updater-darwin-x86_64/cripcode_darwin-x86_64.app.tar.gz
+            artifacts/updater-darwin-aarch64/cripcode_darwin-aarch64.dmg
+            artifacts/updater-darwin-x86_64/cripcode_darwin-x86_64.dmg
             latest.json
           )
           if [ -f carry-forward/latest-windows.json ]; then
@@ -317,8 +317,8 @@ jobs:
           else
             echo "::warning::latest-windows.json missing; publishing macOS release without it. Windows auto-update may need a manual re-publish of the latest -win manifest."
           fi
-          if [ -f carry-forward/ShipStudio_windows-x86_64-setup.exe ]; then
-            ASSETS+=(carry-forward/ShipStudio_windows-x86_64-setup.exe)
+          if [ -f carry-forward/cripcode_windows-x86_64-setup.exe ]; then
+            ASSETS+=(carry-forward/cripcode_windows-x86_64-setup.exe)
           else
             echo "::warning::Windows installer missing; the site's /latest/download Windows link will 404 until the next -win release or a manual upload."
           fi
@@ -326,6 +326,6 @@ jobs:
           # Create the release in the public repo (auto-published, no draft)
           gh release create "$TAG" \
             --repo ${{ github.repository }} \
-            --title "Ship Studio v${VERSION}" \
-            --notes "Auto-updater release for Ship Studio v${VERSION}. See the main repository for full release notes." \
+            --title "Cripcode v${VERSION}" \
+            --notes "Auto-updater release for Cripcode v${VERSION}. See the main repository for full release notes." \
             "${ASSETS[@]}"

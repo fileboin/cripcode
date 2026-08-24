@@ -528,7 +528,7 @@ describe('isProjectFolderGoneError', () => {
       isProjectFolderGoneError({
         type: 'Other',
         message:
-          "The folder '/Users/me/ShipStudio/demo' no longer exists — it may have been moved, renamed, or deleted outside Ship Studio",
+          "The folder '/Users/me/ShipStudio/demo' no longer exists — it may have been moved, renamed, or deleted outside Cripcode",
       })
     ).toBe(true);
   });

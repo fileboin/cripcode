@@ -157,7 +157,7 @@ describe('handleImportLocalFolder — expected-refusal routing (#518/#535)', () 
 
     const [message, type] = vi.mocked(params.showToast).mock.calls[0];
     expect(type).toBe('info');
-    expect(message).toContain('already in Ship Studio');
+    expect(message).toContain('already in Cripcode');
   });
 
   it('still surfaces genuine failures as error toasts and error logs', async () => {
@@ -195,7 +195,7 @@ describe('handleSelectProject — folder-gone toast routing (#640)', () => {
 
   it('shows the Expected "folder no longer exists" case as an info toast', async () => {
     rejectRegistration(
-      "The folder '/x/legal-invoice' no longer exists — it may have been moved, renamed, or deleted outside Ship Studio"
+      "The folder '/x/legal-invoice' no longer exists — it may have been moved, renamed, or deleted outside Cripcode"
     );
     const params = createParams();
     const { result } = renderHook(() => useProjectLifecycle(params));

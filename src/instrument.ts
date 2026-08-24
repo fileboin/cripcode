@@ -54,5 +54,5 @@ try {
     });
   }
 } catch (err) {
-  console.error('[Ship Studio] Sentry init failed', err);
+  console.error('[Cripcode] Sentry init failed', err);
 }

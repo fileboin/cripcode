@@ -49,7 +49,7 @@ window.addEventListener('error', (event) => {
   }
 
   event.preventDefault();
-  console.error('[Ship Studio] Plugin error caught by global handler:', msg);
+  console.error('[Cripcode] Plugin error caught by global handler:', msg);
 
   // Identify and auto-remove the crashing plugin
   const blobUrl = event.filename?.startsWith('blob:') ? event.filename : null;
@@ -81,7 +81,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
   if (stack.includes('blob:')) {
     event.preventDefault();
-    console.error('[Ship Studio] Plugin unhandled rejection caught by global handler:', reason);
+    console.error('[Cripcode] Plugin unhandled rejection caught by global handler:', reason);
     return;
   }
 

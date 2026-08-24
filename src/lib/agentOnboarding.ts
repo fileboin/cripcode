@@ -50,7 +50,7 @@ export async function setExternalAgentOptIn(enabled: boolean): Promise<void> {
  * Directory the guided agent session runs in — the projects root
  * (~/ShipStudio), created if missing. Never the user's home: an agent
  * scanning $HOME trips macOS permission prompts (Photos, Desktop, Documents)
- * attributed to Ship Studio, and the pending dialog freezes the agent
+ * attributed to Cripcode, and the pending dialog freezes the agent
  * mid-scan.
  */
 export async function ensureAgentWorkdir(): Promise<string> {
@@ -236,16 +236,16 @@ export function buildGuidedSetupPrompt(
   const readyNames = alreadyReady.map((i) => PROMPT_ITEM_NAMES[i.id] ?? i.id).join(', ');
   const detectionHint =
     missingNames && readyNames
-      ? `For reference, Ship Studio's own detection currently reports installed: ${readyNames}; missing: ${missingNames} — but trust what your checks find over this list. `
+      ? `For reference, Cripcode's own detection currently reports installed: ${readyNames}; missing: ${missingNames} — but trust what your checks find over this list. `
       : missingNames
-        ? `For reference, Ship Studio's own detection currently reports everything missing: ${missingNames} — but trust what your checks find over this list. `
-        : "For reference, Ship Studio's own detection reports everything already installed — but trust what your checks find over this list. ";
+        ? `For reference, Cripcode's own detection currently reports everything missing: ${missingNames} — but trust what your checks find over this list. `
+        : "For reference, Cripcode's own detection reports everything already installed — but trust what your checks find over this list. ";
 
   const steps = instructions.map((s, idx) => `${String(idx + 1)}) ${s}`).join('; ');
 
   return (
-    'You are helping a brand-new Ship Studio user get their computer ready. ' +
-    'Ship Studio is a desktop app for building websites with AI agents, and you are that agent — this is their first impression of you, so be warm, brief, and clear. ' +
+    'You are helping a brand-new Cripcode user get their computer ready. ' +
+    'Cripcode is a desktop app for building websites with AI agents, and you are that agent — this is their first impression of you, so be warm, brief, and clear. ' +
     'Assume the user is not technical: before each step, say what you are about to do in one short sentence. ' +
     `Start by checking what is already installed yourself: run ${checkCommands.join(', ')}, then give the user one short summary of what's already good and what's missing. ` +
     detectionHint +
@@ -256,7 +256,7 @@ export function buildGuidedSetupPrompt(
     'Your job is to get every listed tool working no matter what this machine throws at you: if a standard command fails, read the error, explain it in plain words, and fix the underlying problem — installing prerequisites (like Xcode Command Line Tools), repairing PATH or npm permissions, or retrying another official install method are all fair game. ' +
     'If the user has to do something themselves (type a password, click through a browser), tell them exactly what to expect. ' +
     'Do not set up anything unrelated to the tools listed above. ' +
-    'When everything is verified, tell the user they are all set and to look at the checklist beside this window — Ship Studio runs its own checks and will turn every item green, then show a Continue button.'
+    'When everything is verified, tell the user they are all set and to look at the checklist beside this window — Cripcode runs its own checks and will turn every item green, then show a Continue button.'
   );
 }
 

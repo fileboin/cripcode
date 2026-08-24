@@ -56,7 +56,7 @@ pub async fn open_project_in_new_window(
 
     // Create the window
     let mut builder = WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::App(url.into()))
-        .title(format!("{project_name} - Ship Studio"))
+        .title(format!("{project_name} - Cripcode"))
         .inner_size(1400.0, 900.0)
         .min_inner_size(400.0, 300.0)
         .resizable(true)
@@ -157,7 +157,7 @@ pub async fn focus_window_by_label(
     }
 }
 
-/// Spawn a new blank Ship Studio window pointed at the dashboard
+/// Spawn a new blank Cripcode window pointed at the dashboard
 /// (no `?project=` query param). Used by the "Window → New Window" menu
 /// item; not a Tauri command, since it's invoked from a menu handler that
 /// already has an `AppHandle`. Returns the new window's label.
@@ -171,7 +171,7 @@ pub fn spawn_blank_window(app: &AppHandle) -> Result<String, String> {
 
     let mut builder =
         WebviewWindowBuilder::new(app, &window_label, WebviewUrl::App("index.html".into()))
-            .title("Ship Studio")
+            .title("Cripcode")
             .inner_size(1400.0, 900.0)
             .min_inner_size(400.0, 300.0)
             .resizable(true)

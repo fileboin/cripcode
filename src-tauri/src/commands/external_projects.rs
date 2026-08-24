@@ -140,7 +140,7 @@ pub async fn register_external_project(app: AppHandle) -> Result<Option<String>,
     }
 
     // Use the same predicate as dashboard discovery so removed projects can be
-    // restored even when they were blank, git-only, or Ship Studio metadata-only.
+    // restored even when they were blank, git-only, or Cripcode metadata-only.
     let is_valid_project = crate::commands::projects::is_valid_project(&folder_path);
 
     if !is_valid_project {

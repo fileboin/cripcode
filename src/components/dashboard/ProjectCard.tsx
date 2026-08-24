@@ -37,7 +37,7 @@ interface ProjectCardProps {
   onUploadThumbnail?: () => void;
   /** Whether this is an external project */
   isExternal?: boolean;
-  /** Callback when remove from Ship Studio is clicked */
+  /** Callback when remove from Cripcode is clicked */
   onRemove?: () => void;
   /** Whether the project is currently pinned to the rail. */
   isPinned?: boolean;

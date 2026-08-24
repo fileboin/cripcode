@@ -138,7 +138,7 @@ export function SubmitReviewModal({
       //    the UI reports success — the worst failure mode for this audience.
       setProgressLabel('Saving your changes...');
       try {
-        await commitChanges(projectPath, 'Updates from Ship Studio');
+        await commitChanges(projectPath, 'Updates from Cripcode');
       } catch (e) {
         trackError('submit_review_autocommit', e, 'Submit Review');
         setError(humanizeGitError(e, { branch: branchName, base: baseBranch }));
@@ -444,9 +444,9 @@ export function SubmitReviewModal({
             <div className="submit-review-error">{error}</div>
           ) : (
             <p className="submit-review-explainer">
-              When you create this, Ship Studio saves your changes, writes a short summary of them,
-              and opens a pull request into <strong>{baseBranch}</strong> for your team to review
-              and merge.
+              When you create this, Cripcode saves your changes, writes a short summary of them, and
+              opens a pull request into <strong>{baseBranch}</strong> for your team to review and
+              merge.
             </p>
           )}
         </div>

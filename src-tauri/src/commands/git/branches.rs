@@ -260,7 +260,7 @@ pub async fn switch_branch(
             "stash",
             "push",
             "-m",
-            &format!("Auto-stash by Ship Studio (from {current_branch})"),
+            &format!("Auto-stash by Cripcode (from {current_branch})"),
         ]);
         let stash_output =
             crate::external_command::spawn_with_pressure_retry("git stash push", || {
@@ -339,7 +339,7 @@ pub async fn switch_branch(
                 "update the Xcode Command Line Tools or run `brew install git`"
             };
             format!(
-                "Your installed Git is too old for Ship Studio (Git 2.24 from 2019 or newer \
+                "Your installed Git is too old for Cripcode (Git 2.24 from 2019 or newer \
                  is required). Update Git — {remediation} — then try again."
             )
         } else if stderr.contains("resolve your current index first")

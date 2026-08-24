@@ -1,4 +1,4 @@
-//! JavaScript snippets injected into Ship Studio webviews at load time.
+//! JavaScript snippets injected into Cripcode webviews at load time.
 //!
 //! Registered on `WebviewWindowBuilder::initialization_script_for_all_frames`,
 //! which on macOS (WKWebView) runs the script in every frame — including the

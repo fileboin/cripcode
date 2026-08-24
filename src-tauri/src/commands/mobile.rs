@@ -1,6 +1,6 @@
 //! # Native Mobile Preview (iOS Simulator)
 //!
-//! Mirrors a booted iOS Simulator into Ship Studio's preview pane by managing
+//! Mirrors a booted iOS Simulator into Cripcode's preview pane by managing
 //! a `serve-sim` daemon (Evan Bacon / Expo, Apache-2.0). serve-sim exposes an
 //! MJPEG stream + a WebSocket control channel for the booted simulator; the
 //! frontend embeds the stream and drives input over the WebSocket directly.
@@ -312,7 +312,7 @@ pub async fn list_booted_simulators() -> Result<Vec<MobileSimulator>, CommandErr
 /// Whether a user-facing app is currently running on the booted simulator.
 ///
 /// This is the ground-truth "did the app launch" signal, and crucially it is
-/// independent of *which* process built it. Ship Studio's embedded BuildTerminal
+/// independent of *which* process built it. Cripcode's embedded BuildTerminal
 /// only sees its own build; when the user hands a failed build to the agent, the
 /// agent rebuilds in its OWN terminal, invisible to the build-log classifier. The
 /// preview panel polls this so it can resolve from "failed" to "launched" after an
@@ -378,7 +378,7 @@ pub async fn simulator_app_running(
 /// We boot the simulator headlessly (`simctl boot`) and mirror it via serve-sim's
 /// framebuffer capture, so Simulator.app's window is never needed — but the build
 /// tool (`expo run:ios` / `react-native run-ios`) opens and foregrounds it, where it
-/// lands on top of Ship Studio. Hiding the app (AppleScript, like Cmd+H) keeps the
+/// lands on top of Cripcode. Hiding the app (AppleScript, like Cmd+H) keeps the
 /// simulator booted and the mirror live while getting the window out of the way.
 ///
 /// Best-effort: if Simulator isn't running, or the user hasn't granted automation

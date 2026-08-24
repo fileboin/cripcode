@@ -1,6 +1,6 @@
 //! # Shared Utilities
 //!
-//! This module contains shared utility functions used across the Ship Studio backend.
+//! This module contains shared utility functions used across the Cripcode backend.
 
 use std::process::Command;
 use std::sync::{LazyLock, Mutex, RwLock};
@@ -439,7 +439,7 @@ pub fn git_command() -> Result<Command, crate::errors::CommandError> {
         // wizard handles, not an app malfunction.
         None => Err(crate::errors::CommandError::expected(
             "Git isn't installed or couldn't be located. Install Git \
-             (https://git-scm.com) and restart Ship Studio, then try again",
+             (https://git-scm.com) and restart Cripcode, then try again",
         )),
     }
 }
@@ -447,7 +447,7 @@ pub fn git_command() -> Result<Command, crate::errors::CommandError> {
 /// Like [`git_command`], but scoped to a repository directory: sets the
 /// working directory and passes `-c safe.directory=<dir>` so git's
 /// dubious-ownership safeguard (CVE-2022-24765) doesn't hard-fail when the
-/// repo is owned by a different OS user than the one running Ship Studio —
+/// repo is owned by a different OS user than the one running Cripcode —
 /// e.g. a project restored or synced from another Windows profile (issue
 /// #305). Trust is scoped per-invocation to this exact directory (which
 /// callers have already passed through `validate_project_path`); nothing is
@@ -547,9 +547,9 @@ pub fn git_environment_gap(stderr: &str) -> Option<crate::errors::CommandError> 
         && stderr.contains("Operation not permitted")
     {
         return Some(crate::errors::CommandError::expected(
-            "Ship Studio isn't allowed to read this project's folder — macOS blocked access. \
+            "Cripcode isn't allowed to read this project's folder — macOS blocked access. \
              Grant access in System Settings → Privacy & Security → Files & Folders (or give \
-             Ship Studio Full Disk Access), then try again.",
+             Cripcode Full Disk Access), then try again.",
         ));
     }
     // git's allocator giving up ("fatal: Out of memory, malloc failed (tried
@@ -597,13 +597,13 @@ pub fn classify_fs_error(
 ) -> crate::errors::CommandError {
     if cfg!(target_os = "macos") && e.raw_os_error() == Some(1) {
         crate::errors::CommandError::expected(format!(
-            "Ship Studio isn't allowed to {action} ({}). Grant access in System Settings → \
+            "Cripcode isn't allowed to {action} ({}). Grant access in System Settings → \
              Privacy & Security → Files & Folders (or Full Disk Access), then try again.",
             path.display()
         ))
     } else if cfg!(windows) && e.raw_os_error() == Some(5) {
         crate::errors::CommandError::expected(format!(
-            "Ship Studio couldn't {action} ({}) — Windows denied access. The file may be \
+            "Cripcode couldn't {action} ({}) — Windows denied access. The file may be \
              briefly locked by antivirus, another program, or cloud sync (e.g. OneDrive). \
              Try again in a moment.",
             path.display()
@@ -612,7 +612,7 @@ pub fn classify_fs_error(
         || (cfg!(windows) && e.raw_os_error() == Some(19))
     {
         crate::errors::CommandError::expected(format!(
-            "Ship Studio couldn't {action} ({}) — the disk or volume is read-only. Move \
+            "Cripcode couldn't {action} ({}) — the disk or volume is read-only. Move \
              the project to a writable location, then try again.",
             path.display()
         ))
@@ -836,7 +836,7 @@ pub fn default_projects_root() -> Result<std::path::PathBuf, String> {
     Ok(home.join("ShipStudio"))
 }
 
-/// The directory Ship Studio uses to list and create projects.
+/// The directory Cripcode uses to list and create projects.
 ///
 /// Resolves the user-configured root from persisted app state (cached), falling
 /// back to `~/ShipStudio`. A configured path that no longer exists on disk falls
@@ -998,7 +998,7 @@ pub fn canonicalize_tagged(
             // malfunction: say so plainly and keep it out of telemetry
             // (issues #365/#372, same family as #300/#342).
             crate::errors::CommandError::expected(format!(
-                "The folder '{}' no longer exists — it may have been moved, renamed, or deleted outside Ship Studio",
+                "The folder '{}' no longer exists — it may have been moved, renamed, or deleted outside Cripcode",
                 path.display()
             ))
         } else {

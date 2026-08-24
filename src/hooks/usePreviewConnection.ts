@@ -430,7 +430,7 @@ export function usePreviewConnection({
             // itself may lack the user-activation the clipboard API wants
             // (issue #357).
             onToast?.(
-              'Failed to copy to clipboard — click the Ship Studio window, then try again',
+              'Failed to copy to clipboard — click the Cripcode window, then try again',
               'error'
             );
           }

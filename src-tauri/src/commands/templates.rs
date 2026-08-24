@@ -1,6 +1,6 @@
 //! # Template Gallery Commands
 //!
-//! Fetches community templates from the Ship Studio API and downloads template zips.
+//! Fetches community templates from the Cripcode API and downloads template zips.
 
 use crate::errors::CommandError;
 
@@ -23,7 +23,7 @@ fn describe_reqwest_error(e: &reqwest::Error) -> String {
     msg
 }
 
-/// Fetch community templates from the Ship Studio API.
+/// Fetch community templates from the Cripcode API.
 /// Accepts optional query parameters that map to the API spec.
 /// Returns the raw JSON string so the frontend can parse it.
 #[tauri::command]

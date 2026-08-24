@@ -483,9 +483,9 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
     let _ = git_stage_and_commit(
         &validated_path,
         if git_dir.exists() {
-            "Update from Ship Studio"
+            "Update from Cripcode"
         } else {
-            "Initial commit from Ship Studio"
+            "Initial commit from Cripcode"
         },
     );
 
@@ -502,7 +502,7 @@ pub async fn push_to_github(options: PushToGitHubOptions) -> Result<String, Comm
                 "commit",
                 "--allow-empty",
                 "-m",
-                "Initial commit from Ship Studio",
+                "Initial commit from Cripcode",
             ])
             .output()
             .map_err(CommandError::from)?;
@@ -702,7 +702,7 @@ pub(crate) fn gh_server_error(stderr: &str) -> Option<CommandError> {
 /// config file — "failed to load config: open …/.config/gh/config.yml:
 /// permission denied" / "failed to create root command: failed to read
 /// configuration: …". A local file-permissions problem (typically a prior
-/// sudo run left the directory root-owned), not a Ship Studio bug and not a
+/// sudo run left the directory root-owned), not a Cripcode bug and not a
 /// GitHub sign-in failure — reconnecting can't fix a file the OS won't let gh
 /// read (issue #631). Recurs on every gh call for the affected user, so
 /// `Expected` keeps it from flooding telemetry, and the message names the

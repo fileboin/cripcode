@@ -74,7 +74,7 @@ const RESELECT_WINDOW_MS = 8000;
  */
 export function structuralEditMessage(message: string): string {
   if (message.includes('no class in source to anchor')) {
-    return 'This element has no class for Ship Studio to find it in your code. Add a class to it first (the Add class action), then try again.';
+    return 'This element has no class for Cripcode to find it in your code. Add a class to it first (the Add class action), then try again.';
   }
   if (
     message.includes('several places whose markup differs') ||

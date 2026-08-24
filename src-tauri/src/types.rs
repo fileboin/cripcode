@@ -1,6 +1,6 @@
 //! # Shared Types
 //!
-//! This module contains all shared structs and types used across the Ship Studio backend.
+//! This module contains all shared structs and types used across the Cripcode backend.
 
 use serde::{Deserialize, Serialize};
 
@@ -247,7 +247,7 @@ pub struct ProjectMetadata {
     pub default_base_branch: Option<String>,
     /// Records where each branch was cut from (branch name → base branch), set at
     /// creation time. Powers the branch-graph visual's fork lineage; branches
-    /// created outside Ship Studio fall back to a `git merge-base` heuristic.
+    /// created outside Cripcode fall back to a `git merge-base` heuristic.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch_lineage: Option<std::collections::HashMap<String, String>>,
     /// Keys this app version doesn't know about, preserved verbatim across
@@ -264,7 +264,7 @@ fn default_schema_version() -> u32 {
 impl Default for ProjectMetadata {
     fn default() -> Self {
         ProjectMetadata {
-            description: "Ship Studio project metadata. Auto-generated - safe to delete if needed, will be recreated.".to_string(),
+            description: "Cripcode project metadata. Auto-generated - safe to delete if needed, will be recreated.".to_string(),
             schema_version: PROJECT_METADATA_SCHEMA_VERSION,
             publish: PublishMetadata::default(),
             last_opened: None,

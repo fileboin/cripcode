@@ -1093,7 +1093,7 @@ const TOKEN_PREFIX: &[u8] = b"sk-ant-";
 /// Real tokens are ~108 chars; guard against redacting a stray `sk-ant-` word.
 const TOKEN_MIN_LEN: usize = 20;
 /// What the user sees in the terminal where the token would have printed.
-const TOKEN_PLACEHOLDER: &[u8] = b"sk-ant-[redacted by Ship Studio]";
+const TOKEN_PLACEHOLDER: &[u8] = b"sk-ant-[redacted by Cripcode]";
 
 /// Minimum column width for the `claude setup-token` PTY. The CLI renders its
 /// output (via Ink) wrapped to the terminal width, so a narrow terminal inserts
@@ -1508,7 +1508,7 @@ pub fn disconnect_claude_account(id: String) -> Result<(), CommandError> {
     if id == DEFAULT_ACCOUNT_ID {
         return Err(CommandError::Validation {
             field: "id".into(),
-            reason: "The Default workspace's Claude login isn't managed by Ship Studio; \
+            reason: "The Default workspace's Claude login isn't managed by Cripcode; \
                      run `claude` and use /logout there instead."
                 .into(),
         });
@@ -1939,7 +1939,7 @@ mod tests {
         // The real token is gone from what the webview would see; placeholder stays.
         let shown = String::from_utf8_lossy(&emit);
         assert!(!shown.contains("oat01-abcDEF"), "token leaked: {shown}");
-        assert!(shown.contains("sk-ant-[redacted by Ship Studio]"));
+        assert!(shown.contains("sk-ant-[redacted by Cripcode]"));
         // Surrounding text is preserved verbatim.
         assert!(shown.contains("Long-lived token created!"));
         assert!(shown.contains("Store it."));
@@ -1958,7 +1958,7 @@ mod tests {
         );
         let shown = String::from_utf8_lossy(&emit);
         assert!(!shown.contains("AbC+dEf"), "token leaked: {shown}");
-        assert!(shown.contains("sk-ant-[redacted by Ship Studio]"));
+        assert!(shown.contains("sk-ant-[redacted by Cripcode]"));
         assert!(shown.contains("trailing"));
     }
 
@@ -2065,7 +2065,7 @@ mod tests {
             !shown.contains("splitAcrossTwoReads"),
             "token leaked: {shown}"
         );
-        assert!(shown.contains("sk-ant-[redacted by Ship Studio]"));
+        assert!(shown.contains("sk-ant-[redacted by Cripcode]"));
         assert!(shown.contains("(done)"));
     }
 

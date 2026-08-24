@@ -3,7 +3,7 @@
  *
  * Three states:
  * - Managed (Next.js Pages Router, Astro, or App Router with next-intl):
- *   pick languages, Ship Studio writes the config directly.
+ *   pick languages, Cripcode writes the config directly.
  * - Guided setup (App Router without next-intl): pick languages, review the
  *   one-time setup prompt, run it with the AI agent — after which the
  *   project becomes managed.
@@ -248,7 +248,7 @@ export function LanguagesModal({ projectPath, onSendToClaude }: LanguagesModalPr
     const removed = removedLocales;
     const updated = await saveConfig(true);
     if (!updated || removed.length === 0) return;
-    // Ship Studio never deletes files, so removed languages leave translated
+    // Cripcode never deletes files, so removed languages leave translated
     // content behind (which Astro keeps serving). Offer an optional cleanup.
     void trackEvent('i18n_removal_cleanup_offered', { removed_count: removed.length });
     setPromptReview({
@@ -311,7 +311,7 @@ export function LanguagesModal({ projectPath, onSendToClaude }: LanguagesModalPr
     void trackEvent('i18n_ai_fallback_used', { framework: status.framework });
     setPromptReview({
       description:
-        "Ship Studio couldn't edit this config automatically. This prompt asks your AI agent to make the change instead.",
+        "Cripcode couldn't edit this config automatically. This prompt asks your AI agent to make the change instead.",
       prompt: buildAiSetupPrompt(status),
     });
   };
@@ -332,7 +332,7 @@ export function LanguagesModal({ projectPath, onSendToClaude }: LanguagesModalPr
   const translateTargets = status?.locales.filter((l) => l !== effectiveDefault) ?? [];
   const draftTargets = draftLocales.filter((l) => l !== draftDefault);
   const showSetupFlow = !!status && !status.supported && status.agentSetupAvailable;
-  // Removal needs honest messaging: Ship Studio never deletes files, and
+  // Removal needs honest messaging: Cripcode never deletes files, and
   // Astro keeps serving locale folders that still exist on disk.
   const removalNote =
     removedLocales.length > 0
@@ -411,7 +411,7 @@ export function LanguagesModal({ projectPath, onSendToClaude }: LanguagesModalPr
       {!promptReview && !isLoading && showSetupFlow && (
         <div className="languages-editor">
           <p className="languages-intro">
-            Your project uses the Next.js App Router. Ship Studio adds multilingual support with{' '}
+            Your project uses the Next.js App Router. Cripcode adds multilingual support with{' '}
             <strong>next-intl</strong> — pick your languages, then run a one-time setup with your AI
             agent:
           </p>

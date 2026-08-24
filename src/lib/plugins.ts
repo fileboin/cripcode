@@ -1,5 +1,5 @@
 /**
- * Plugin management utilities for Ship Studio.
+ * Plugin management utilities for Cripcode.
  *
  * Plugins are project-level: each project has its own set of plugins
  * stored at <project>/.shipstudio/plugins/.

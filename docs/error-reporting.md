@@ -1,8 +1,8 @@
 # Automatic Error Reporting (Admin Agent)
 
-Ship Studio automatically reports uncaught errors from production builds to the
-Ship Studio admin agent — an AI pipeline that investigates each report against
-the `ship-studio/ship-studio` codebase, files deduplicated GitHub issues, and
+Cripcode automatically reports uncaught errors from production builds to the
+Cripcode admin agent — an AI pipeline that investigates each report against
+the `fileboin/cripcode` codebase, files deduplicated GitHub issues, and
 can open draft fix PRs (it cannot merge). This is separate from Sentry, which
 handles aggregation/alerting; the admin agent is the act-on-it pipeline.
 

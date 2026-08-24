@@ -106,7 +106,7 @@ export function AgentOnboardingScreen({ onComplete }: AgentOnboardingScreenProps
       logger.warn('Agent onboarding: failed to fetch setup status', { error: err });
       setError(
         err instanceof TimeoutError
-          ? 'Setup check timed out — click Retry. If this persists, restart Ship Studio.'
+          ? 'Setup check timed out — click Retry. If this persists, restart Cripcode.'
           : 'Failed to check setup status. Please try again.'
       );
       return null;
@@ -333,7 +333,7 @@ export function AgentOnboardingScreen({ onComplete }: AgentOnboardingScreenProps
         className={`onboarding-content agent-onboarding-content ${phase === 'guided' ? 'agent-guided-content' : ''}`}
       >
         <div className="onboarding-header">
-          <img src="/ship_studio_full_noshadow.svg" alt="Ship Studio" className="onboarding-logo" />
+          <img src="/cripcode_full_noshadow.svg" alt="Cripcode" className="onboarding-logo" />
           {phase === 'pick' && !detailAgent && (
             <>
               <h1>First, pick your AI agent</h1>

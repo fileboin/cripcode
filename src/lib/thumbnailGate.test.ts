@@ -20,7 +20,7 @@ describe('isPermissionDenialError', () => {
     expect(
       isPermissionDenialError(
         new Error(
-          "Ship Studio's window isn't visible to macOS screen capture — Screen Recording permission is likely denied."
+          "Cripcode's window isn't visible to macOS screen capture — Screen Recording permission is likely denied."
         )
       )
     ).toBe(true);
@@ -28,7 +28,7 @@ describe('isPermissionDenialError', () => {
 
   it('detects plugin errors mentioning ScreenCaptureKit authorization', () => {
     expect(isPermissionDenialError('SCStream error: not authorized to capture')).toBe(true);
-    expect(isPermissionDenialError(new Error('TCC denied screen recording for Ship Studio'))).toBe(
+    expect(isPermissionDenialError(new Error('TCC denied screen recording for Cripcode'))).toBe(
       true
     );
   });

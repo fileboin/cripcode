@@ -950,10 +950,10 @@ mod tests {
     /// earlier versions of the canaries below hit exactly that:
     ///  - unbounded first version: wedged a CI runner until the job's
     ///    40-minute kill —
-    ///    https://github.com/ship-studio/ship-studio/actions/runs/28903431927/job/85745268821
+    ///    https://github.com/fileboin/cripcode/actions/runs/28903431927/job/85745268821
     ///  - bounded second version: the DIRECT (unwrapped) spawn also timed
     ///    out, with `ESC[6n` as the only captured output —
-    ///    https://github.com/ship-studio/ship-studio/actions/runs/28905743965/job/85752341507
+    ///    https://github.com/fileboin/cripcode/actions/runs/28905743965/job/85752341507
     /// So this harness scans the accumulated output for `ESC[6n` (it can
     /// arrive split across reads, and ConPTY may re-query) and writes
     /// `ESC[1;1R` back to the PTY for each query seen.

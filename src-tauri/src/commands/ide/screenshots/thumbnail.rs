@@ -394,7 +394,7 @@ pub async fn capture_project_thumbnail(
                     {
                         "macOS refused the browser's IPC registration (bootstrap_check_in: \
                          Permission denied). This is usually caused by security or \
-                         device-management software restricting processes spawned by Ship Studio."
+                         device-management software restricting processes spawned by Cripcode."
                             .to_string()
                     } else {
                         detail

@@ -1,6 +1,6 @@
 //! # Analytics Commands
 //!
-//! PostHog analytics integration for Ship Studio.
+//! PostHog analytics integration for Cripcode.
 //! Events are sent to PostHog via the HTTP capture API from the Rust backend,
 //! keeping the API key out of the frontend webview.
 //!
@@ -94,7 +94,7 @@ fn send_event(event_name: &str, distinct_id: &str, properties: serde_json::Value
     if !props.contains_key("$screen_name") {
         props.insert(
             "$screen_name".to_string(),
-            serde_json::Value::String("Ship Studio".to_string()),
+            serde_json::Value::String("Cripcode".to_string()),
         );
     }
     props.insert(
@@ -103,7 +103,7 @@ fn send_event(event_name: &str, distinct_id: &str, properties: serde_json::Value
     );
     props.insert(
         "$lib".to_string(),
-        serde_json::Value::String("Ship Studio App".to_string()),
+        serde_json::Value::String("Cripcode App".to_string()),
     );
 
     #[cfg(target_os = "macos")]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Ship Studio -- one-command installer for macOS.
+# Cripcode -- one-command installer for macOS.
 #
 #   curl -fsSL https://ship.studio/install | bash
 #
@@ -14,13 +14,13 @@
 # no Homebrew, nothing to install first.
 #
 # Options (env vars):
-#   SHIPSTUDIO_DEST=/path        install dir (default: /Applications)
-#   SHIPSTUDIO_NO_LAUNCH=1       install but don't open the app afterwards
+#   CRIPCODE_DEST=/path        install dir (default: /Applications)
+#   CRIPCODE_NO_LAUNCH=1       install but don't open the app afterwards
 set -euo pipefail
 
-REPO="fileboin/ship-studio"
-APP_NAME="Ship Studio.app"
-DEST="${SHIPSTUDIO_DEST:-/Applications}"
+REPO="fileboin/cripcode"
+APP_NAME="Cripcode.app"
+DEST="${CRIPCODE_DEST:-/Applications}"
 MANIFEST="https://github.com/${REPO}/releases/latest/download/latest.json"
 
 say()  { printf '\033[1;32m==>\033[0m %s\n' "$1"; }
@@ -47,11 +47,11 @@ URL="$(printf '%s' "$JSON" | tr -d '\n' | grep -oE "\"${PLATFORM}\"[^}]*\"url\"[
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-say "Downloading Ship Studio ${VERSION:-latest} (${PLATFORM})..."
-curl -fSL --progress-bar "$URL" -o "$TMP/shipstudio.tar.gz" || err "Download failed: $URL"
+say "Downloading Cripcode ${VERSION:-latest} (${PLATFORM})..."
+curl -fSL --progress-bar "$URL" -o "$TMP/cripcode.tar.gz" || err "Download failed: $URL"
 
 say "Extracting..."
-tar -xzf "$TMP/shipstudio.tar.gz" -C "$TMP"
+tar -xzf "$TMP/cripcode.tar.gz" -C "$TMP"
 APP_PATH="$(find "$TMP" -maxdepth 2 -name '*.app' -type d | head -1)"
 [ -n "$APP_PATH" ] || err "No .app found inside the downloaded archive."
 
@@ -75,7 +75,7 @@ run ditto "$APP_PATH" "${DEST}/${APP_NAME}"
 say "Clearing the quarantine flag..."
 run xattr -dr com.apple.quarantine "${DEST}/${APP_NAME}" 2>/dev/null || true
 
-say "Ship Studio ${VERSION:-} installed to ${DEST}."
-if [ -z "${SHIPSTUDIO_NO_LAUNCH:-}" ]; then
+say "Cripcode ${VERSION:-} installed to ${DEST}."
+if [ -z "${CRIPCODE_NO_LAUNCH:-}" ]; then
   open "${DEST}/${APP_NAME}"
 fi

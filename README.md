@@ -1,20 +1,20 @@
-# Ship Studio
+# Cripcode
 
-[![CI](https://github.com/ship-studio/ship-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/ship-studio/ship-studio/actions/workflows/ci.yml)
+[![CI](https://github.com/fileboin/cripcode/actions/workflows/ci.yml/badge.svg)](https://github.com/fileboin/cripcode/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Download](https://img.shields.io/badge/Download-macOS%20%7C%20Windows-54E36E)](https://www.ship.studio/download)
 
 **The professional studio for modern development.**
 Build it, ship it, host it — without leaving the app.
 
-Ship Studio is a **free desktop app** that puts everything you need for
+Cripcode is a **free desktop app** that puts everything you need for
 agentic development in one window: an AI agent terminal, a live preview,
 visual editing, Git branches and PRs, and one-click deploys. Plug in the
 agent and accounts you already pay for — Claude Code, Codex, or OpenCode;
 GitHub; Vercel — and start shipping.
 
 The web is changing, and freelancers, agencies, and designers are trying to
-stay up to speed. Ship Studio is the easiest path to modern development: all
+stay up to speed. Cripcode is the easiest path to modern development: all
 the simplicity of the all-in-one tools you're used to, **without the
 lock-in**. It's a real desktop app that runs locally on your Mac — your code
 lives on your machine, not on our servers.
@@ -25,12 +25,12 @@ lives on your machine, not on our servers.
 
 ---
 
-## Why Ship Studio
+## Why Cripcode
 
-- **Truly free.** No account, no Ship Studio subscription on top. Bring the
+- **Truly free.** No account, no Cripcode subscription on top. Bring the
   agent and hosting accounts you already have.
 - **No lock-in.** It's your repo, your machine, your hosting. Stop using
-  Ship Studio tomorrow and you keep everything.
+  Cripcode tomorrow and you keep everything.
 - **One window.** Agent, preview, branches, deploys — no tab-juggling
   between a terminal, an editor, GitHub, and a hosting dashboard.
 
@@ -66,7 +66,7 @@ lives on your machine, not on our servers.
 ## Install
 
 Grab the latest release from
-[ship-studio/releases](https://github.com/ship-studio/releases/releases/latest):
+[fileboin/cripcode](https://github.com/fileboin/cripcode/releases/latest):
 
 | Platform | Download |
 |----------|----------|
@@ -89,7 +89,7 @@ Prerequisites: [Node 22](https://nodejs.org) (see [`.nvmrc`](.nvmrc)),
 Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone https://github.com/ship-studio/ship-studio.git
+git clone https://github.com/fileboin/cripcode.git
 cd ship-studio
 pnpm install
 pnpm tauri dev      # run in development mode
@@ -170,7 +170,7 @@ Found a vulnerability? **Do not file a public issue.** See
 
 ## Sponsors
 
-Ship Studio is free and open source. These are the people covering the bills
+Cripcode is free and open source. These are the people covering the bills
 and putting in the hours to keep it that way.
 
 ### [Native](https://www.native.agency/) — Web & product agency
@@ -178,27 +178,27 @@ and putting in the hours to keep it that way.
 Native is the web and product team for companies who value speed and quality
 above all else. One team covering strategy, design, and development.
 
-Native funds Ship Studio's running costs and contributes
-development hours to the app itself. It's also part-owned by Ship Studio's
+Native funds Cripcode's running costs and contributes
+development hours to the app itself. It's also part-owned by Cripcode's
 founders, so when you hire Native for a project, you're directly supporting
 this one too.
 
 - **Need a website or product?** [Work with Native ↗](https://www.native.agency/contact)
 - **Agency or freelancer?** Native teams up on projects too — [reach out ↗](https://www.native.agency/contact)
 
-### Support Ship Studio
+### Support Cripcode
 
 Want to support the project with contributions or financially?
 [Reach out](mailto:juliangalluzzois@gmail.com) — `juliangalluzzois@gmail.com`.
 
 ## Community
 
-- [GitHub Discussions](https://github.com/ship-studio/ship-studio/discussions) — questions, ideas, show-and-tell
+- [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) — questions, ideas, show-and-tell
 - [Community Slack](https://ship.studio/slack) — real-time chat with maintainers and users
-- [Issues](https://github.com/ship-studio/ship-studio/issues) — bug reports and feature requests
+- [Issues](https://github.com/fileboin/cripcode/issues) — bug reports and feature requests
 - [@galluzzo_julian](https://x.com/galluzzo_julian) — follow along on X
 - [YouTube](https://www.youtube.com/@shipstudio_app) — tutorials, demos, and walkthroughs
 
 ## License
 
-[MIT](LICENSE) © Julian Galluzzo and Ship Studio contributors.
+[MIT](LICENSE) © Julian Galluzzo and Cripcode contributors.

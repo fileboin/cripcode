@@ -211,7 +211,7 @@ export function WorkspaceHeader({
         <button
           className="toolbar-icon-btn"
           onClick={() => void openUrl(SLACK_INVITE_URL)}
-          title="Join the Ship Studio community on Slack"
+          title="Join the Cripcode community on Slack"
           data-education-id="support-button"
         >
           <SlackIcon size={12} />

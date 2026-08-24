@@ -213,7 +213,7 @@ fn ensure_shipstudio_excluded(path: &std::path::Path) {
     };
     let _ = std::fs::write(
         &exclude_path,
-        format!("{existing}{sep}# ShipStudio metadata (added by Ship Studio)\n.shipstudio/\n"),
+        format!("{existing}{sep}# ShipStudio metadata (added by Cripcode)\n.shipstudio/\n"),
     );
 }
 
@@ -593,7 +593,7 @@ pub async fn init_git_repo(project_path: String) -> Result<(), CommandError> {
     let _ = crate::commands::github::ensure_git_identity(&validated_path);
 
     // Stage and commit all files
-    git_stage_and_commit(&validated_path, "Initial commit from Ship Studio")
+    git_stage_and_commit(&validated_path, "Initial commit from Cripcode")
         .map_err(CommandError::from)?;
 
     info!("Git repository initialized successfully");

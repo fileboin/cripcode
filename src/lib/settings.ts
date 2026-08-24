@@ -112,7 +112,7 @@ export async function setThumbnailsEnabled(enabled: boolean): Promise<void> {
 // ============ Projects root directory ============
 
 /**
- * Get the projects root directory (absolute path). This is where Ship Studio
+ * Get the projects root directory (absolute path). This is where Cripcode
  * lists and creates projects. Falls back to the default `~/ShipStudio` when no
  * custom folder is configured.
  */

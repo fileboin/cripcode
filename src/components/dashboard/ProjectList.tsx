@@ -816,7 +816,7 @@ export function ProjectList({
                 Permanently delete <strong>{deleteConfirm.name}</strong> from this computer?
               </>
             }
-            hint="This removes the local project folder and its files. Use Remove from Ship Studio if you only want to hide it from the app."
+            hint="This removes the local project folder and its files. Use Remove from Cripcode if you only want to hide it from the app."
             loading={deleting}
             confirmLabel="Delete files"
             loadingLabel="Deleting..."
@@ -829,15 +829,15 @@ export function ProjectList({
         {/* Remove Project Confirmation Modal */}
         {removeConfirm && (
           <ProjectActionConfirmModal
-            title="Remove From Ship Studio?"
+            title="Remove From Cripcode?"
             body={
               <>
-                Remove <strong>{removeConfirm.name}</strong> from Ship Studio?
+                Remove <strong>{removeConfirm.name}</strong> from Cripcode?
               </>
             }
             hint="Your project folder and files will stay on this computer. You can add it back later with Import Project, Local Folder."
             loading={removing}
-            confirmLabel="Remove from Ship Studio"
+            confirmLabel="Remove from Cripcode"
             loadingLabel="Removing..."
             confirmVariant="primary"
             onCancel={() => setRemoveConfirm(null)}

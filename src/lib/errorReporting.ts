@@ -1,5 +1,5 @@
 /**
- * Automatic error reporting to the Ship Studio admin agent.
+ * Automatic error reporting to the Cripcode admin agent.
  *
  * Uncaught frontend errors (ErrorBoundary, window.onerror, unhandledrejection)
  * are forwarded to the Rust backend (`report_frontend_error`), which scrubs

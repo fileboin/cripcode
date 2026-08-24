@@ -86,7 +86,7 @@ pub async fn set_external_agent_opt_in(enabled: bool) -> Result<(), CommandError
 /// Directory the guided onboarding agent runs in: the projects root
 /// (~/ShipStudio by default), created if missing — NOT the user's home.
 /// An agent scanning $HOME trips macOS TCC permission prompts (Photos,
-/// Desktop, Documents) attributed to Ship Studio, and the pending dialog
+/// Desktop, Documents) attributed to Cripcode, and the pending dialog
 /// freezes the scan mid-syscall, which reads as "the agent is stuck"
 /// (found in fresh-VM testing).
 #[tauri::command]

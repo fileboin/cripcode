@@ -1,6 +1,6 @@
 # Code of conduct
 
-Ship Studio follows the [Contributor Covenant v2.1][covenant] as its code of
+Cripcode follows the [Contributor Covenant v2.1][covenant] as its code of
 conduct. The full text lives at that link — please read it before contributing.
 
 In short:

@@ -1,16 +1,16 @@
 {
-  "name": "ship-studio",
+  "name": "cripcode",
   "private": true,
   "version": "0.18.6",
-  "description": "Ship Studio — a desktop app for shipping web projects with AI coding agents.",
+  "description": "Cripcode — a desktop app for shipping web projects with AI coding agents.",
   "license": "MIT",
-  "homepage": "https://github.com/ship-studio/ship-studio#readme",
+  "homepage": "https://github.com/fileboin/cripcode#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ship-studio/ship-studio.git"
+    "url": "https://github.com/fileboin/cripcode.git"
   },
   "bugs": {
-    "url": "https://github.com/ship-studio/ship-studio/issues"
+    "url": "https://github.com/fileboin/cripcode/issues"
   },
   "type": "module",
   "scripts": {

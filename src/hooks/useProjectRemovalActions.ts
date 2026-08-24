@@ -88,10 +88,10 @@ export function useProjectRemovalActions({
       setRemoveConfirm(null);
       removeProjectFromSelection(project.path);
       await loadAll();
-      showToast(`${project.name} was removed from Ship Studio`, 'success');
+      showToast(`${project.name} was removed from Cripcode`, 'success');
     } catch (error) {
       trackError('project_remove_from_app', error, 'Dashboard');
-      logger.error('Failed to remove project from Ship Studio', {
+      logger.error('Failed to remove project from Cripcode', {
         error: formatCommandError(asCommandError(error)),
       });
       showToast(`Failed to remove project: ${formatCommandError(asCommandError(error))}`, 'error');

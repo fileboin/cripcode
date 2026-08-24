@@ -4,7 +4,7 @@
  * Provides options for:
  * - Toggling main branch warning
  * - Moving to folder / exporting as template
- * - Removing the project from Ship Studio or deleting local files
+ * - Removing the project from Cripcode or deleting local files
  *
  * @module components/ProjectCardMenu
  */
@@ -42,7 +42,7 @@ interface ProjectCardMenuProps {
   onDelete: () => void;
   /** Whether this is an external project */
   isExternal?: boolean;
-  /** Callback when remove from Ship Studio is clicked */
+  /** Callback when remove from Cripcode is clicked */
   onRemove?: () => void;
   /** Whether the project is currently pinned to the rail. Optional — when
    *  omitted, the pin/unpin row is hidden entirely (legacy callers). */
@@ -134,7 +134,7 @@ export function ProjectCardMenu({
         <DropdownDivider />
         {onRemove && (
           <DropdownItem icon={<CloseIcon size={14} />} onSelect={onRemove}>
-            <span>Remove from Ship Studio</span>
+            <span>Remove from Cripcode</span>
           </DropdownItem>
         )}
         {!isExternal && (

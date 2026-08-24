@@ -1,11 +1,11 @@
-# Contributing to Ship Studio
+# Contributing to Cripcode
 
-Thanks for your interest in contributing to Ship Studio! This guide will help you get started.
+Thanks for your interest in contributing to Cripcode! This guide will help you get started.
 
 > **Before you start**
 >
 > - Read the [Code of Conduct](CODE_OF_CONDUCT.md) — it sets the bar for how we collaborate.
-> - For deeper context on the *patterns* the codebase has standardised on, read [docs/CONTRIBUTING_PATTERNS.md](docs/CONTRIBUTING_PATTERNS.md) and the **"How to Do Things in Ship Studio"** section of [CLAUDE.md](CLAUDE.md). New code that bypasses those primitives will get flagged in review.
+> - For deeper context on the *patterns* the codebase has standardised on, read [docs/CONTRIBUTING_PATTERNS.md](docs/CONTRIBUTING_PATTERNS.md) and the **"How to Do Things in Cripcode"** section of [CLAUDE.md](CLAUDE.md). New code that bypasses those primitives will get flagged in review.
 > - If you found a security issue, **do not file a public issue** — see [SECURITY.md](SECURITY.md) for private reporting.
 > - Want to fork and ship your own build? See [docs/FORKING.md](docs/FORKING.md).
 
@@ -22,7 +22,7 @@ Thanks for your interest in contributing to Ship Studio! This guide will help yo
 
 ```bash
 # Clone the repo
-git clone https://github.com/ship-studio/ship-studio.git
+git clone https://github.com/fileboin/cripcode.git
 cd ship-studio
 
 # Install dependencies
@@ -358,7 +358,7 @@ For anything that affects user-visible state or data integrity, propagate the er
 
 ### Log files
 
-Ship Studio writes structured logs (via the `tracing` crate) to:
+Cripcode writes structured logs (via the `tracing` crate) to:
 
 ```
 macOS:    ~/Library/Logs/ShipStudio/
@@ -396,8 +396,8 @@ See `CLAUDE.md` → **Onboarding / Setup Wizard Testing** for `SHIPSTUDIO_FORCE_
 
 ## Getting Help
 
-- Check existing [issues](https://github.com/ship-studio/ship-studio/issues) for similar problems.
-- Open a [discussion](https://github.com/ship-studio/ship-studio/discussions) for "how do I…" questions.
+- Check existing [issues](https://github.com/fileboin/cripcode/issues) for similar problems.
+- Open a [discussion](https://github.com/fileboin/cripcode/discussions) for "how do I…" questions.
 - Drop into the [community Slack](https://ship.studio/slack).
 - Read the code comments and the docs in [docs/](docs/).
 
@@ -406,14 +406,14 @@ See `CLAUDE.md` → **Onboarding / Setup Wizard Testing** for `SHIPSTUDIO_FORCE_
 ### Why does `package.json` say `"private": true`?
 
 That field blocks accidental `npm publish` — it's unrelated to the
-repository's visibility. Ship Studio is distributed as `.dmg` and `.exe`
+repository's visibility. Cripcode is distributed as `.dmg` and `.exe`
 installers, not as an npm package. The repo itself is open source under
 MIT (see [LICENSE](LICENSE)).
 
 ### Why are `CLAUDE.md` and `AGENTS.md` checked in?
 
 `CLAUDE.md` is a long-form contributor reference used by both humans and AI
-coding assistants. The "How to Do Things in Ship Studio" section documents
+coding assistants. The "How to Do Things in Cripcode" section documents
 the canonical primitives the codebase has standardised on; anything you
 write should follow those patterns. `AGENTS.md` is the short version of the
 same contract for agent tools that read that filename by convention.

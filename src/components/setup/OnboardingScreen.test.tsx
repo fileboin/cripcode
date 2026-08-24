@@ -175,9 +175,7 @@ describe('OnboardingScreen', () => {
     });
 
     expect(
-      screen.getByText(
-        'Setup check timed out — click Retry. If this persists, restart Ship Studio.'
-      )
+      screen.getByText('Setup check timed out — click Retry. If this persists, restart Cripcode.')
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
 
@@ -475,7 +473,7 @@ describe('OnboardingScreen', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Node.js/npm wasn't found. Complete the Node.js step first, or restart Ship Studio if you just installed it."
+          "Node.js/npm wasn't found. Complete the Node.js step first, or restart Cripcode if you just installed it."
         )
       ).toBeInTheDocument();
     });

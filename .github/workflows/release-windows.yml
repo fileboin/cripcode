@@ -52,7 +52,7 @@ jobs:
           BUG_REPORT_SECRET: ${{ secrets.BUG_REPORT_SECRET }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Ship Studio ${{ github.ref_name }}'
+          releaseName: 'Cripcode ${{ github.ref_name }}'
           releaseBody: 'Windows release. See the main repository for full release notes.'
           releaseDraft: true
           prerelease: false
@@ -79,8 +79,8 @@ jobs:
 
           # Stable asset names for predictable download URLs
           mkdir -p artifacts
-          cp "$EXE_FILE" "artifacts/ShipStudio_windows-x86_64-setup.exe"
-          cp "$SIG_FILE" "artifacts/ShipStudio_windows-x86_64-setup.exe.sig"
+          cp "$EXE_FILE" "artifacts/cripcode_windows-x86_64-setup.exe"
+          cp "$SIG_FILE" "artifacts/cripcode_windows-x86_64-setup.exe.sig"
           cat "$SIG_FILE" > "artifacts/signature.txt"
 
           ls -la artifacts/
@@ -143,7 +143,7 @@ jobs:
             --arg notes "$NOTES" \
             --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg sig "$SIG" \
-            --arg url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/ShipStudio_windows-x86_64-setup.exe" \
+            --arg url "https://github.com/${RELEASES_REPO}/releases/download/${TAG}/cripcode_windows-x86_64-setup.exe" \
             '{
               version: $version,
               notes: $notes,
@@ -164,7 +164,7 @@ jobs:
       # Carry forward macOS manifest AND installers so neither macOS
       # auto-update nor the site's download links break when this Windows
       # release flips the "latest" alias. The marketing site links to
-      # releases/latest/download/ShipStudio_darwin-*.dmg — publishing
+      # releases/latest/download/cripcode_darwin-*.dmg — publishing
       # v0.6.8-win without the DMGs 404'd the Mac download buttons.
       # Resolve the newest macOS (non -win) release explicitly: it is
       # guaranteed to have both the manifest and the DMGs. Strict (no
@@ -185,7 +185,7 @@ jobs:
           gh release download "$MAC_TAG" \
             --repo ${{ github.repository }} \
             --pattern "latest.json" \
-            --pattern "ShipStudio_darwin-*.dmg" \
+            --pattern "cripcode_darwin-*.dmg" \
             --dir carry-forward
           ls -la carry-forward/
 
@@ -194,8 +194,8 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            artifacts/ShipStudio_windows-x86_64-setup.exe
-            artifacts/ShipStudio_windows-x86_64-setup.exe.sig
+            artifacts/cripcode_windows-x86_64-setup.exe
+            artifacts/cripcode_windows-x86_64-setup.exe.sig
             latest-windows.json
           draft: true
 
@@ -217,11 +217,11 @@ jobs:
           # Auto-published (no --draft) so the download is live immediately.
           gh release create "$TAG" \
             --repo ${{ github.repository }} \
-            --title "Ship Studio v${VERSION} (Windows)" \
-            --notes "Auto-updater release for Ship Studio v${VERSION} Windows. See the main repository for full release notes." \
-            artifacts/ShipStudio_windows-x86_64-setup.exe \
-            artifacts/ShipStudio_windows-x86_64-setup.exe.sig \
+            --title "Cripcode v${VERSION} (Windows)" \
+            --notes "Auto-updater release for Cripcode v${VERSION} Windows. See the main repository for full release notes." \
+            artifacts/cripcode_windows-x86_64-setup.exe \
+            artifacts/cripcode_windows-x86_64-setup.exe.sig \
             latest-windows.json \
             carry-forward/latest.json \
-            carry-forward/ShipStudio_darwin-aarch64.dmg \
-            carry-forward/ShipStudio_darwin-x86_64.dmg
+            carry-forward/cripcode_darwin-aarch64.dmg \
+            carry-forward/cripcode_darwin-x86_64.dmg

@@ -27,7 +27,7 @@ describe('BootLoadingScreen', () => {
 
   it('shows the logo and spinner initially', () => {
     render(<BootLoadingScreen />);
-    expect(screen.getByAltText('Ship Studio')).toBeInTheDocument();
+    expect(screen.getByAltText('Cripcode')).toBeInTheDocument();
     expect(screen.queryByText(/taking longer than expected/)).not.toBeInTheDocument();
   });
 
@@ -45,7 +45,7 @@ describe('BootLoadingScreen', () => {
       vi.advanceTimersByTime(BOOT_WATCHDOG_MS);
     });
     expect(screen.getByText(/taking longer than expected/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Restart Ship Studio' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restart Cripcode' })).toBeInTheDocument();
     expect(screen.getByText(/~\/Library\/Logs\/ShipStudio\//)).toBeInTheDocument();
   });
 
@@ -54,7 +54,7 @@ describe('BootLoadingScreen', () => {
     act(() => {
       vi.advanceTimersByTime(BOOT_WATCHDOG_MS);
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Restart Ship Studio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Cripcode' }));
     await act(async () => {
       await vi.runAllTimersAsync();
     });

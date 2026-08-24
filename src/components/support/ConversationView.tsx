@@ -116,7 +116,7 @@ export function ConversationView({ ticketId }: ConversationViewProps) {
           return (
             <div key={msg.id} className={`support-message ${isCustomer ? 'customer' : 'agent'}`}>
               <span className="support-message-sender">
-                {isCustomer ? 'You' : msg.sender_name || 'Ship Studio Team'}
+                {isCustomer ? 'You' : msg.sender_name || 'Cripcode Team'}
               </span>
               <div className="support-message-bubble">{msg.content}</div>
               <span className="support-message-time">{formatRelativeTime(msg.created_at)}</span>

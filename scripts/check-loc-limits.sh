@@ -26,7 +26,7 @@ check_file() {
   fi
 }
 
-echo "==> Ship Studio LOC regression guard"
+echo "==> Cripcode LOC regression guard"
 echo
 echo "Components (.tsx limit 1200):"
 # WorkspaceView + App.tsx got denser with the multi-project multitasking

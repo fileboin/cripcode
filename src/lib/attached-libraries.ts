@@ -1,5 +1,5 @@
 /**
- * Attached libraries: local directories the user registers once and Ship Studio
+ * Attached libraries: local directories the user registers once and Cripcode
  * rides along into every agent session via the agent's additional-directory
  * flag (e.g. Claude Code's `--add-dir`). Skills in the library load and its
  * files are readable; its CLAUDE.md is not loaded, so it can't override the

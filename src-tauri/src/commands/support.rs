@@ -1,6 +1,6 @@
 //! # Support Commands
 //!
-//! cStar customer support integration for Ship Studio.
+//! cStar customer support integration for Cripcode.
 //! Only handles identity verification (HMAC signing) — the identity secret
 //! stays server-side while all ticket/message operations use the ChatClient
 //! SDK on the frontend.

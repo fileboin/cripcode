@@ -842,7 +842,7 @@ export function getTerminalCommands(): Record<string, TerminalCommand> {
             '  echo "  2. Click the ⓘ next to your account"',
             '  echo "  3. Enable \\"Allow this user to administer this computer\\""',
             '  echo ""',
-            '  echo "Then restart Ship Studio and try again."',
+            '  echo "Then restart Cripcode and try again."',
             '  exit 1',
             'fi',
             // Capture the installer script first so a failed download fails

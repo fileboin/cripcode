@@ -1,6 +1,6 @@
-//! # Ship Studio Backend
+//! # Cripcode Backend
 //!
-//! This module contains all Tauri commands for the Ship Studio desktop app.
+//! This module contains all Tauri commands for the Cripcode desktop app.
 //! Commands are organized into these categories:
 //!
 //! - **Project Management**: Create, list, delete projects in ~/ShipStudio
@@ -92,7 +92,7 @@ pub fn run() {
         eprintln!("Failed to initialize logging: {e}");
     }
 
-    tracing::info!("Ship Studio starting up");
+    tracing::info!("Cripcode starting up");
 
     // Clean up any orphaned agent processes from previous crashed sessions
     cleanup_agent_processes();
@@ -161,7 +161,7 @@ pub fn run() {
                     "main",
                     tauri::WebviewUrl::App("index.html".into()),
                 )
-                .title("Ship Studio")
+                .title("Cripcode")
                 .inner_size(1400.0, 900.0)
                 .min_inner_size(400.0, 300.0)
                 .resizable(true)
@@ -195,7 +195,7 @@ pub fn run() {
                     .accelerator("CmdOrCtrl+W")
                     .build(app)?;
 
-                let quit_item = MenuItemBuilder::with_id("confirm_quit", "Quit Ship Studio")
+                let quit_item = MenuItemBuilder::with_id("confirm_quit", "Quit Cripcode")
                     .accelerator("CmdOrCtrl+Q")
                     .build(app)?;
 
@@ -213,7 +213,7 @@ pub fn run() {
                     .accelerator("CmdOrCtrl+N")
                     .build(app)?;
 
-                let app_menu = SubmenuBuilder::new(app, "Ship Studio")
+                let app_menu = SubmenuBuilder::new(app, "Cripcode")
                     .about(None)
                     .separator()
                     .services()

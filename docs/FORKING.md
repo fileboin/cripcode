@@ -1,17 +1,17 @@
 # Forking & shipping your own distribution
 
-This guide is for developers who want to **fork Ship Studio and publish their
+This guide is for developers who want to **fork Cripcode and publish their
 own signed, auto-updating builds** under a different name, identity, or
 telemetry configuration.
 
-If you just want to **contribute back** to upstream Ship Studio, read
+If you just want to **contribute back** to upstream Cripcode, read
 [CONTRIBUTING.md](../CONTRIBUTING.md) instead.
 
 ---
 
 ## What's involved
 
-A production Ship Studio release pipeline ships:
+A production Cripcode release pipeline ships:
 
 - A **macOS** `.dmg` (Apple Silicon + Intel), signed and notarised by Apple.
 - A **Windows** `.exe` installer, signed (optional — SmartScreen reputation
@@ -45,7 +45,7 @@ Things to change so your build is unambiguously yours, not the upstream project'
 
 > **Why the bundle identifier matters.** macOS treats two binaries with the
 > same identifier as the same app. If you ship `com.memberstack.shipstudio`,
-> macOS thinks your build is a corrupted Ship Studio update and refuses to
+> macOS thinks your build is a corrupted Cripcode update and refuses to
 > install it. Change the identifier before your first release.
 
 ---
@@ -147,7 +147,7 @@ Add to GitHub Secrets:
 
 The upstream pipeline uses a **two-repo split**:
 
-- **Source repo** — `ship-studio/ship-studio` (this one). Where development
+- **Source repo** — `fileboin/cripcode` (this one). Where development
   and PRs happen.
 - **Releases repo** — `ship-studio/releases`. Where built binaries are
   published. The updater endpoint points here.
@@ -177,7 +177,7 @@ If you want to keep the two-repo split:
 
 ## 5 — Telemetry
 
-The official Ship Studio build sends events to the upstream maintainers'
+The official Cripcode build sends events to the upstream maintainers'
 [PostHog](https://posthog.com/) project and crash reports to
 [Sentry](https://sentry.io/). **Forks must not reuse these keys** — they're
 write-only ingest keys, but the upstream maintainers pay for the events.
@@ -268,7 +268,7 @@ identical workflow.
 
 Once your fork is configured:
 
-- [ ] All `Ship Studio` / `ship-studio/ship-studio` strings in
+- [ ] All `Cripcode` / `fileboin/cripcode` strings in
       user-visible places (app title, menus, About) updated to your brand.
 - [ ] `tauri.conf.json` → `identifier`, `productName`, `version`, updater
       endpoints, updater pubkey, deep-link schemes updated.
@@ -290,7 +290,7 @@ Forks that track upstream changes:
 
 ```bash
 # add upstream remote (once)
-git remote add upstream https://github.com/ship-studio/ship-studio.git
+git remote add upstream https://github.com/fileboin/cripcode.git
 
 # pull upstream changes
 git fetch upstream
@@ -309,7 +309,7 @@ If you ship a meaningful improvement, **please send a PR back to upstream**
 
 - Stuck on signing? See the [Tauri distribution guide](https://tauri.app/distribute/).
 - Stuck on PostHog/Sentry setup? Their docs are extensive; ask in our
-  [Discussions](https://github.com/ship-studio/ship-studio/discussions) if
+  [Discussions](https://github.com/fileboin/cripcode/discussions) if
   you'd like fork-specific advice.
 - Found a bug in the fork pipeline itself? Open an issue — that's a
   contribution to upstream too.

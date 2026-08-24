@@ -210,7 +210,7 @@ pub async fn open_in_ide(
                 " In Cursor, install its shell command from the command palette."
             };
             return Err(crate::errors::CommandError::expected(format!(
-                "{ide_name}'s command-line launcher ('{cmd}') isn't on your PATH, so Ship Studio can't open the project in it.{hint}"
+                "{ide_name}'s command-line launcher ('{cmd}') isn't on your PATH, so Cripcode can't open the project in it.{hint}"
             )));
         };
 

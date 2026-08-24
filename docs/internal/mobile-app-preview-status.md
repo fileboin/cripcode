@@ -10,7 +10,7 @@ Branch: **`feat/mobile-app-preview`** (10 commits, **not pushed**, not merged).
 
 ## TL;DR
 
-Ship Studio can now preview a **real, interactive iOS Simulator** inside the
+Cripcode can now preview a **real, interactive iOS Simulator** inside the
 workspace for React Native / Expo and Flutter projects. The mirror (video +
 tap/scroll input) is **fully working and validated**. Auto-booting a simulator,
 shutting it down on project close, and auto-launching the project's app onto the
@@ -131,7 +131,7 @@ big changes; HMR covers frontend, the watcher recompiles backend).
 
 - **Mirror + input**: open `test-react-native-app` → Preview. It auto-boots an iPhone (~30s first time) and shows the live sim. Tap/drag should work.
 - **Auto-launch**: shows "Dependencies not installed — npm install, then Reconnect" for the skeletons (correct). Needs a real Expo/RN app with deps to actually build.
-- **Sim shutdown**: close the project → the sim Ship Studio booted should shut down. Switch tabs → it stays booted. A sim you pre-booted is never shut down.
+- **Sim shutdown**: close the project → the sim Cripcode booted should shut down. Switch tabs → it stays booted. A sim you pre-booted is never shut down.
 
 Test project skeletons live in `~/ShipStudio/test-expo-app`, `test-react-native-app`, `test-flutter-app` (git-initialized, no deps).
 

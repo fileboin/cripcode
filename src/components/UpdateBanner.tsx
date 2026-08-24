@@ -125,7 +125,7 @@ export function UpdateBanner() {
       const detail = formatCommandError(asCommandError(err));
       logger.warn('[UpdateBanner] Restart failed', { error: detail });
       trackError('app_restart', err, 'Dashboard');
-      setError(`Couldn't restart the app: ${detail}. Please quit and reopen Ship Studio manually.`);
+      setError(`Couldn't restart the app: ${detail}. Please quit and reopen Cripcode manually.`);
     }
   }, []);
 

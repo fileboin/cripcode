@@ -153,7 +153,7 @@ fn project_bridge_url(port: u16, token: &str, canonical_project_path: &str) -> S
 
 /// URL segment for agents with GLOBAL MCP configs (Codex, Opencode, Cursor):
 /// instead of a baked-in project path, tool calls resolve to the currently
-/// focused Ship Studio project at call time.
+/// focused Cripcode project at call time.
 pub const ACTIVE_PROJECT_SEGMENT: &str = "active";
 
 fn decode_project_segment(segment: &str) -> Option<String> {
@@ -170,7 +170,7 @@ fn decode_project_segment(segment: &str) -> Option<String> {
 ///
 /// The token and port persist in app state: a `claude mcp add` registration
 /// done in one app run must keep working in every later run. If the stored
-/// port is taken (another Ship Studio instance, or an unrelated process), we
+/// port is taken (another Cripcode instance, or an unrelated process), we
 /// fall back to an ephemeral port and persist the new one — per-project
 /// registrations self-correct the next time that project is opened.
 pub async fn start_global_agent_bridge(app: tauri::AppHandle) -> Result<(u16, String), String> {
@@ -284,7 +284,7 @@ pub async fn agent_bridge_url_for_project(
 }
 
 /// URL for agents whose MCP config is global (Codex, Opencode, Cursor):
-/// routes to the focused Ship Studio project at call time.
+/// routes to the focused Cripcode project at call time.
 pub async fn agent_bridge_active_url(app: tauri::AppHandle) -> Result<String, String> {
     let (port, token) = start_global_agent_bridge(app).await?;
     Ok(format!(
@@ -462,7 +462,7 @@ fn initialize_result(params: Option<&Value>) -> Value {
             "name": "ship-studio-preview",
             "version": env!("CARGO_PKG_VERSION"),
         },
-        "instructions": "PREFERRED tools for anything involving THIS project's own site: viewing pages, clicking buttons, filling forms, reading console/network output, taking screenshots. They drive the live preview inside Ship Studio that the user is already watching — always use these instead of generic browser automation (Chrome extensions, Playwright, opening a browser) when the target is this project's pages; they are faster, need no setup, and the user sees an agent cursor mark every action. Start with preview_status to see what's running and which pages exist. After making code changes, use preview_console to check for runtime errors and preview_screenshot to see the rendered result. preview_click/preview_type/preview_scroll interact with the page like a user would; preview_navigate switches pages. When NOT to use these: (1) other websites, the deployed production site, or tasks needing an existing logged-in browser session — use a browser automation tool if one is available; (2) anything requiring the user personally — signing in with real credentials, OAuth/social-login popups, payments or checkout, camera/microphone permissions, or judging how the site feels on their real devices and browsers — there, ask the user to check it themselves in their own browser and tell them what to look for.",
+        "instructions": "PREFERRED tools for anything involving THIS project's own site: viewing pages, clicking buttons, filling forms, reading console/network output, taking screenshots. They drive the live preview inside Cripcode that the user is already watching — always use these instead of generic browser automation (Chrome extensions, Playwright, opening a browser) when the target is this project's pages; they are faster, need no setup, and the user sees an agent cursor mark every action. Start with preview_status to see what's running and which pages exist. After making code changes, use preview_console to check for runtime errors and preview_screenshot to see the rendered result. preview_click/preview_type/preview_scroll interact with the page like a user would; preview_navigate switches pages. When NOT to use these: (1) other websites, the deployed production site, or tasks needing an existing logged-in browser session — use a browser automation tool if one is available; (2) anything requiring the user personally — signing in with real credentials, OAuth/social-login popups, payments or checkout, camera/microphone permissions, or judging how the site feels on their real devices and browsers — there, ask the user to check it themselves in their own browser and tell them what to look for.",
     })
 }
 
@@ -476,7 +476,7 @@ struct ToolDef {
 const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "preview_console",
-        description: "Read recent console output (logs, warnings, errors, uncaught exceptions, unhandled rejections) captured from the Ship Studio live preview of this project. Use after making changes to check for runtime errors.",
+        description: "Read recent console output (logs, warnings, errors, uncaught exceptions, unhandled rejections) captured from the Cripcode live preview of this project. Use after making changes to check for runtime errors.",
         timeout_secs: DEFAULT_TOOL_TIMEOUT_SECS,
         input_schema: || json!({
             "type": "object",
@@ -666,7 +666,7 @@ async fn dispatch_tool(
 ) -> Value {
     // Route by project. Per-project URLs (Claude Code) carry the path; the
     // "active" URL (global-config agents: Codex, Opencode, Cursor) resolves
-    // to the focused Ship Studio project at call time.
+    // to the focused Cripcode project at call time.
     let resolved_project = if project_path == ACTIVE_PROJECT_SEGMENT {
         match resolve_active_project(app) {
             Ok(p) => p,
@@ -679,7 +679,7 @@ async fn dispatch_tool(
 
     let Some(window_label) = crate::state::get_window_for_project(project_path) else {
         return tool_error_result(
-            "This project isn't open in Ship Studio right now. Ask the user to open the project (its preview provides these tools).",
+            "This project isn't open in Cripcode right now. Ask the user to open the project (its preview provides these tools).",
         );
     };
 
@@ -687,7 +687,7 @@ async fn dispatch_tool(
     // timeout would just stall the agent for no reason.
     if !is_project_attached(project_path) {
         return tool_error_result(
-            "The project is open in Ship Studio, but its web preview isn't active, so these tools can't run. If this is a web project, ask the user to switch to its workspace (the preview loads there). If it's a native mobile project (Expo / React Native / Flutter), it uses the simulator preview instead — these web-preview tools don't apply; verify through code, build output, and the user.",
+            "The project is open in Cripcode, but its web preview isn't active, so these tools can't run. If this is a web project, ask the user to switch to its workspace (the preview loads there). If it's a native mobile project (Expo / React Native / Flutter), it uses the simulator preview instead — these web-preview tools don't apply; verify through code, build output, and the user.",
         );
     }
 
@@ -698,7 +698,7 @@ async fn dispatch_tool(
         pending.insert(request_id, tx);
     } else {
         return tool_error_result(
-            "Ship Studio's agent bridge is in a broken state (lock poisoned). Restart Ship Studio.",
+            "Cripcode's agent bridge is in a broken state (lock poisoned). Restart Cripcode.",
         );
     }
 
@@ -718,9 +718,7 @@ async fn dispatch_tool(
         if let Ok(mut pending) = PENDING_REQUESTS.lock() {
             pending.remove(&request_id);
         }
-        return tool_error_result(&format!(
-            "Could not reach the Ship Studio preview window: {e}"
-        ));
+        return tool_error_result(&format!("Could not reach the Cripcode preview window: {e}"));
     }
 
     match tokio::time::timeout(Duration::from_secs(tool.timeout_secs), rx).await {
@@ -730,7 +728,7 @@ async fn dispatch_tool(
             if result.get("content").map(Value::is_array).unwrap_or(false) {
                 result
             } else {
-                tool_error_result("The preview returned a malformed tool result (missing 'content'). This is a Ship Studio bug.")
+                tool_error_result("The preview returned a malformed tool result (missing 'content'). This is a Cripcode bug.")
             }
         }
         Ok(Err(_)) | Err(_) => {
@@ -738,7 +736,7 @@ async fn dispatch_tool(
                 pending.remove(&request_id);
             }
             tool_error_result(&format!(
-                "The preview did not respond within {}s. The preview panel may not be open in Ship Studio, or the dev server may not be running. Ask the user to open the preview.",
+                "The preview did not respond within {}s. The preview panel may not be open in Cripcode, or the dev server may not be running. Ask the user to open the preview.",
                 tool.timeout_secs
             ))
         }
@@ -746,7 +744,7 @@ async fn dispatch_tool(
 }
 
 /// Which project should an "active"-URL tool call act on?
-/// The focused Ship Studio window's project wins; with nothing focused
+/// The focused Cripcode window's project wins; with nothing focused
 /// (agent running while the user looks elsewhere), a single open project is
 /// unambiguous; several open projects without focus is unanswerable.
 fn resolve_active_project(app: &tauri::AppHandle) -> Result<String, String> {
@@ -754,7 +752,7 @@ fn resolve_active_project(app: &tauri::AppHandle) -> Result<String, String> {
     let open = crate::state::get_open_project_windows();
     if open.is_empty() {
         return Err(
-            "No project is open in Ship Studio right now. Ask the user to open the project you're working on (its preview provides these tools).".to_string(),
+            "No project is open in Cripcode right now. Ask the user to open the project you're working on (its preview provides these tools).".to_string(),
         );
     }
     for (label, window) in app.webview_windows() {
@@ -768,7 +766,7 @@ fn resolve_active_project(app: &tauri::AppHandle) -> Result<String, String> {
         return Ok(open[0].0.clone());
     }
     Err(format!(
-        "Several projects are open in Ship Studio ({}) and none is focused, so it's unclear which preview to use. Ask the user to focus the project you're working on.",
+        "Several projects are open in Cripcode ({}) and none is focused, so it's unclear which preview to use. Ask the user to focus the project you're working on.",
         open.iter()
             .map(|(p, _)| p.rsplit('/').next().unwrap_or(p))
             .collect::<Vec<_>>()

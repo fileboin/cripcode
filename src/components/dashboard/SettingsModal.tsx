@@ -261,7 +261,7 @@ export function SettingsModal({
                 <span className="settings-row-description">
                   {multipleWorkspaces && activeAccount
                     ? `Where the ${activeAccount.name} workspace lists and creates projects. Each workspace can use its own folder.`
-                    : 'Where Ship Studio lists and creates your projects. Point this at an existing dev directory to keep everything in one place.'}
+                    : 'Where Cripcode lists and creates your projects. Point this at an existing dev directory to keep everything in one place.'}
                 </span>
                 <button
                   type="button"
@@ -372,7 +372,7 @@ export function SettingsModal({
                 <span className="settings-row-label">Project thumbnails</span>
                 <span className="settings-row-description">
                   Automatically screenshot the preview to show project thumbnails on the dashboard.
-                  On macOS this may require Screen Recording permission — allow Ship Studio under
+                  On macOS this may require Screen Recording permission — allow Cripcode under
                   System Settings → Privacy &amp; Security → Screen Recording, then turn this back
                   on.
                 </span>
@@ -393,9 +393,9 @@ export function SettingsModal({
               <div className="settings-row-info">
                 <span className="settings-row-label">Usage analytics &amp; error reports</span>
                 <span className="settings-row-description">
-                  Help improve Ship Studio by sharing anonymous usage data and automatic error
-                  reports (error messages and stack traces only — never your code or file contents,
-                  and paths are anonymized). Turning this off stops all data sharing.
+                  Help improve Cripcode by sharing anonymous usage data and automatic error reports
+                  (error messages and stack traces only — never your code or file contents, and
+                  paths are anonymized). Turning this off stops all data sharing.
                 </span>
               </div>
               <button

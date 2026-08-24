@@ -1,7 +1,7 @@
 //! # Shared Libraries Commands ("attached libraries" internally)
 //!
 //! Shared libraries are local directories the user registers once per
-//! workspace and Ship Studio rides along into every agent session in that
+//! workspace and Cripcode rides along into every agent session in that
 //! workspace via the agent's additional-directory flag (e.g. Claude Code's
 //! `--add-dir`). The directory's skills load and its files become readable,
 //! but its `CLAUDE.md` is deliberately NOT loaded, so a library can't hijack

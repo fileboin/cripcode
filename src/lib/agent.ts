@@ -12,7 +12,7 @@
 
 import { isWindows } from './setup';
 
-/** Configuration for an AI coding agent integrated with Ship Studio. */
+/** Configuration for an AI coding agent integrated with Cripcode. */
 export interface AgentConfig {
   /** Unique identifier (e.g., "claude-code") */
   id: string;
@@ -26,7 +26,7 @@ export interface AgentConfig {
   autoAcceptFlag: string | null;
   /**
    * Flag this agent uses to attach an additional working directory (read
-   * access + skills), or null if the agent has no equivalent. Ship Studio
+   * access + skills), or null if the agent has no equivalent. Cripcode
    * appends `<flag> <path>` per attached library at launch so the user's
    * cross-project library rides along. Claude Code: `--add-dir` (its skills
    * load and files are readable, but the directory's CLAUDE.md is not loaded).

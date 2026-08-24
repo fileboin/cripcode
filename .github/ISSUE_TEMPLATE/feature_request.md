@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest a new capability or improvement for Ship Studio
+about: Suggest a new capability or improvement for Cripcode
 title: "[Feature] "
 labels: enhancement
 assignees: ""

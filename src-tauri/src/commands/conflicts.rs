@@ -382,7 +382,7 @@ pub async fn complete_merge(project_path: String) -> Result<(), CommandError> {
 
     // Create the merge commit
     let commit_output = crate::utils::git_command_in(&validated_path)?
-        .args(["commit", "-m", "Resolved merge conflicts via Ship Studio"])
+        .args(["commit", "-m", "Resolved merge conflicts via Cripcode"])
         .output()
         .map_err(|e| e.to_string())?;
 

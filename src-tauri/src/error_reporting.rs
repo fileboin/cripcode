@@ -1,6 +1,6 @@
 //! # Automatic Error Reporting
 //!
-//! Sends error reports to the Ship Studio admin agent
+//! Sends error reports to the Cripcode admin agent
 //! (<https://shipstudio-admin-agent.vercel.app>), which investigates them
 //! against the codebase, files deduplicated GitHub issues, and can open draft
 //! fix PRs. See `docs/error-reporting.md` for the full integration contract.
@@ -462,7 +462,7 @@ pub fn report_command_error(err: &crate::errors::CommandError) {
 
 // --- Tracing integration ---------------------------------------------------
 
-/// Forwards every `tracing::error!` from Ship Studio code to the admin agent,
+/// Forwards every `tracing::error!` from Cripcode code to the admin agent,
 /// fingerprinted by callsite (`rs-<file>:<line>` — stable across occurrences
 /// and releases). Attached in `logging::init_logging()` alongside the Sentry
 /// layer, so any error-level log — existing or future — reports automatically

@@ -1,6 +1,6 @@
 # Analytics Reference
 
-Single source of truth for every PostHog event Ship Studio emits, what
+Single source of truth for every PostHog event Cripcode emits, what
 properties it carries, and the question the event answers.
 
 The pipeline: TypeScript [`src/lib/analytics.ts`](../src/lib/analytics.ts) →

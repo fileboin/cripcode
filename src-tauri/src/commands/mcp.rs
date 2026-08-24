@@ -292,7 +292,7 @@ fn opencode_config_load() -> Result<(std::path::PathBuf, serde_json::Value), Com
             .map_err(|e| format!("Failed to read OpenCode config {}: {e}", path.display()))?;
         serde_json::from_str(&raw).map_err(|e| {
             CommandError::expected(format!(
-                "OpenCode's config ({}) isn't valid JSON, so Ship Studio won't edit it. Fix the file, then try again. (parse error: {e})",
+                "OpenCode's config ({}) isn't valid JSON, so Cripcode won't edit it. Fix the file, then try again. (parse error: {e})",
                 path.display()
             ))
         })?
@@ -319,7 +319,7 @@ fn opencode_config_save(
             // telemetry (issue #471).
             if e.raw_os_error() == Some(13) || e.kind() == std::io::ErrorKind::PermissionDenied {
                 crate::errors::CommandError::expected(format!(
-                    "Ship Studio can't write OpenCode's config at {} — permission denied. The                      folder is likely owned by another user (often from a sudo install). In a                      terminal, run: sudo chown -R $(whoami) ~/.config/opencode — then try again.",
+                    "Cripcode can't write OpenCode's config at {} — permission denied. The                      folder is likely owned by another user (often from a sudo install). In a                      terminal, run: sudo chown -R $(whoami) ~/.config/opencode — then try again.",
                     path.display()
                 ))
             } else {
@@ -376,7 +376,7 @@ fn add_opencode_mcp_server(args_str: &str) -> Result<(), CommandError> {
     let (path, mut root) = opencode_config_load()?;
     let Some(root_obj) = root.as_object_mut() else {
         return Err(CommandError::expected(format!(
-            "OpenCode's config ({}) doesn't have a JSON object at its root, so Ship Studio won't edit it.",
+            "OpenCode's config ({}) doesn't have a JSON object at its root, so Cripcode won't edit it.",
             path.display()
         )));
     };
@@ -385,7 +385,7 @@ fn add_opencode_mcp_server(args_str: &str) -> Result<(), CommandError> {
         .or_insert_with(|| serde_json::json!({}));
     let Some(servers_obj) = servers.as_object_mut() else {
         return Err(CommandError::expected(format!(
-            "OpenCode's config ({}) has a non-object `mcp` key, so Ship Studio won't edit it.",
+            "OpenCode's config ({}) has a non-object `mcp` key, so Cripcode won't edit it.",
             path.display()
         )));
     };
@@ -507,7 +507,7 @@ pub async fn add_mcp_server(
 
 /// Turn a failed `<agent> mcp add` invocation's output into a `CommandError`,
 /// classifying the shapes that reflect machine state or org policy — not a
-/// Ship Studio bug — as `Expected` so they stay out of telemetry.
+/// Cripcode bug — as `Expected` so they stay out of telemetry.
 fn classify_mcp_add_failure(details: &str) -> CommandError {
     let message = format!("Failed to add MCP server: {details}");
     let lower = details.to_ascii_lowercase();

@@ -148,7 +148,7 @@ export function ProjectSettingsModal({
                 </span>
               )}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                The port Ship Studio uses to connect to your dev server. Default is 3000.
+                The port Cripcode uses to connect to your dev server. Default is 3000.
               </span>
             </div>
           </div>

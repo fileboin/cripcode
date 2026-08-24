@@ -46,15 +46,15 @@ export function BootLoadingScreen() {
 
   return (
     <div className="app loading">
-      <img src="/ship_studio_full_noshadow.svg" alt="Ship Studio" className="app-logo" />
+      <img src="/cripcode_full_noshadow.svg" alt="Cripcode" className="app-logo" />
       {timedOut ? (
         <div className="boot-watchdog">
           <p>
-            Ship Studio is taking longer than expected to start. A startup check may be stuck —
+            Cripcode is taking longer than expected to start. A startup check may be stuck —
             restarting usually fixes this.
           </p>
           <Button variant="primary" onClick={() => void handleRestart()}>
-            Restart Ship Studio
+            Restart Cripcode
           </Button>
           <p className="boot-watchdog-hint">
             If this keeps happening, check the logs at ~/Library/Logs/ShipStudio/ and reach out on

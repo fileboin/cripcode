@@ -1,6 +1,6 @@
 # Installation guide
 
-This guide is for end users who want to download and run Ship Studio.
+This guide is for end users who want to download and run Cripcode.
 If you want to **build from source** or **publish your own distribution**,
 see [docs/FORKING.md](FORKING.md) instead.
 
@@ -21,7 +21,7 @@ Minimum versions:
 ## Step 1 — Download the installer
 
 Grab the latest release from
-[ship-studio/releases](https://github.com/ship-studio/releases/releases/latest):
+[fileboin/cripcode](https://github.com/fileboin/cripcode/releases/latest):
 
 | Platform | File |
 |----------|------|
@@ -39,11 +39,11 @@ by default; the app checks for new releases on launch and once an hour.
 ### macOS
 
 1. Open the downloaded `.dmg`.
-2. Drag **Ship Studio** into `Applications`.
+2. Drag **Cripcode** into `Applications`.
 3. Eject the disk image.
 4. Launch from `Applications` (or Spotlight).
 
-On first launch macOS may show "Ship Studio is from the internet — are you
+On first launch macOS may show "Cripcode is from the internet — are you
 sure?" Click **Open**. If you see "cannot be opened because the developer
 cannot be verified," right-click the app → **Open** to bypass once.
 
@@ -57,7 +57,7 @@ cannot be verified," right-click the app → **Open** to bypass once.
 
 ## Step 3 — First-launch onboarding
 
-Ship Studio's setup wizard checks for the tools it relies on and installs the
+Cripcode's setup wizard checks for the tools it relies on and installs the
 missing ones. You'll see four steps:
 
 1. **Package manager** — Homebrew (macOS) and Node.js. Installed via your
@@ -82,7 +82,7 @@ After onboarding you land on the **Projects** view. Two paths:
   URL to clone. Monorepos are detected and you'll be asked to pick a
   workspace.
 - **Create a new project** — choose a starter template (Next.js, static
-  HTML, etc.) and a name. Ship Studio clones it and runs `pnpm install`
+  HTML, etc.) and a name. Cripcode clones it and runs `pnpm install`
   for you.
 
 Once a project is open, the workspace has:
@@ -104,7 +104,7 @@ Once a project is open, the workspace has:
 
 ## Updating
 
-Ship Studio updates itself. When a new release is published, a banner appears
+Cripcode updates itself. When a new release is published, a banner appears
 inside the app. Click **Update**, wait for the download, then **Restart Now**.
 
 If you ever need to update manually, download the latest installer and run
@@ -112,7 +112,7 @@ it — your projects and settings persist outside the app bundle.
 
 ## Uninstalling
 
-> The paths below use the official Ship Studio bundle identifier
+> The paths below use the official Cripcode bundle identifier
 > (`com.memberstack.shipstudio`). If you installed a fork, swap that for the
 > bundle identifier the fork uses.
 
@@ -132,7 +132,7 @@ rm -rf ~/Library/Caches/com.memberstack.shipstudio
 
 ### Windows
 
-1. **Settings → Apps → Installed apps → Ship Studio → Uninstall.**
+1. **Settings → Apps → Installed apps → Cripcode → Uninstall.**
 2. Optionally remove `%LOCALAPPDATA%\ShipStudio\` for logs and caches.
 3. Optionally remove `%APPDATA%\com.memberstack.shipstudio\` for app state.
 
@@ -145,7 +145,7 @@ one-time Gatekeeper prompt.
 
 ### GitHub features show "not connected" after I ran `gh auth login`
 
-Quit and relaunch Ship Studio. Auth state is cached at startup.
+Quit and relaunch Cripcode. Auth state is cached at startup.
 
 ### Auto-update banner doesn't appear
 
@@ -166,7 +166,7 @@ This is optional — the rest of the app works without it.
 
 ## Getting help
 
-- [GitHub Discussions](https://github.com/ship-studio/ship-studio/discussions) for questions.
-- [GitHub Issues](https://github.com/ship-studio/ship-studio/issues) for bug reports — please use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md).
+- [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) for questions.
+- [GitHub Issues](https://github.com/fileboin/cripcode/issues) for bug reports — please use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md).
 - [Community Slack](https://ship.studio/slack) for real-time chat.
 - Security issues → [SECURITY.md](../SECURITY.md).

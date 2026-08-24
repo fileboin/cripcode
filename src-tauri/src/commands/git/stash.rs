@@ -40,7 +40,7 @@ pub async fn stash_changes(project_path: String) -> Result<bool, CommandError> {
             "push",
             "--include-untracked",
             "-m",
-            "Ship Studio: set aside before creating a branch",
+            "Cripcode: set aside before creating a branch",
         ])
         .output()
         .map_err(|e| e.to_string())?;

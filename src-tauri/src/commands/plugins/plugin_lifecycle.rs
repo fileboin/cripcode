@@ -51,7 +51,7 @@ fn validate_clone_url(url: &str) -> Result<(), CommandError> {
 fn resolve_git() -> Result<PathBuf, CommandError> {
     find_executable("git").ok_or_else(|| {
         "Git isn't installed or couldn't be located. Install Git (https://git-scm.com) \
-         and restart Ship Studio, then try again."
+         and restart Cripcode, then try again."
             .to_string()
             .into()
     })

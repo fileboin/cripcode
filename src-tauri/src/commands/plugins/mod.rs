@@ -1,5 +1,5 @@
 /**
- * Plugin management commands for Ship Studio.
+ * Plugin management commands for Cripcode.
  *
  * Plugins are project-level: each project has its own plugins directory
  * at <project>/.shipstudio/plugins/. Git worktrees of one repository all
@@ -139,7 +139,7 @@ pub(crate) fn check_min_app_version(
 
     if app_ver < min_ver {
         return Err(format!(
-            "Plugin '{}' requires Ship Studio v{} or later (current: v{}). Please update Ship Studio.",
+            "Plugin '{}' requires Cripcode v{} or later (current: v{}). Please update Cripcode.",
             manifest.name, min_ver, app_ver
         ));
     }
@@ -172,7 +172,7 @@ pub struct PluginManifest {
     /// Setup items this plugin contributes to onboarding
     #[serde(default)]
     pub setup: Vec<PluginSetupItem>,
-    /// Minimum Ship Studio version required
+    /// Minimum Cripcode version required
     #[serde(default)]
     pub min_app_version: String,
     /// Icon filename (relative to plugin dir)

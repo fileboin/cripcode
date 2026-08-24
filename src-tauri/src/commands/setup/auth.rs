@@ -330,15 +330,15 @@ async fn install_version_platform(
     };
 
     let url = format!(
-        "https://github.com/fileboin/ship-studio/releases/download/v{version}/ShipStudio_darwin-{arch_suffix}.app.tar.gz"
+        "https://github.com/fileboin/cripcode/releases/download/v{version}/cripcode_darwin-{arch_suffix}.app.tar.gz"
     );
 
-    // Find current app bundle path (e.g., /Applications/Ship Studio.app)
+    // Find current app bundle path (e.g., /Applications/Cripcode.app)
     let exe = std::env::current_exe().map_err(|e| format!("Cannot find app path: {e}"))?;
     let app_bundle = exe
         .parent() // MacOS
         .and_then(|p| p.parent()) // Contents
-        .and_then(|p| p.parent()) // Ship Studio.app
+        .and_then(|p| p.parent()) // Cripcode.app
         .ok_or("Could not determine app bundle path")?
         .to_path_buf();
 
@@ -376,7 +376,7 @@ async fn install_version_platform(
     }
 
     // Find the extracted .app bundle
-    let extracted_app = extract_dir.join("Ship Studio.app");
+    let extracted_app = extract_dir.join("Cripcode.app");
     if !extracted_app.exists() {
         return Err(("Extracted app bundle not found".to_string()).into());
     }
@@ -414,7 +414,7 @@ async fn install_version_platform(
     temp_dir: &std::path::Path,
 ) -> Result<(), CommandError> {
     let url = format!(
-        "https://github.com/fileboin/ship-studio/releases/download/v{}/ShipStudio_windows-x86_64.nsis.zip",
+        "https://github.com/fileboin/cripcode/releases/download/v{}/cripcode_windows-x86_64.nsis.zip",
         version
     );
 

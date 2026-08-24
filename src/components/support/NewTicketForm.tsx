@@ -104,7 +104,7 @@ export function NewTicketForm({
       // Append system/project context as a formatted block
       if (shareProjectInfo && projectInfo) {
         const lines: string[] = [];
-        lines.push(`App: Ship Studio v${projectInfo.appVersion}`);
+        lines.push(`App: Cripcode v${projectInfo.appVersion}`);
         lines.push(`OS: ${projectInfo.os}`);
         if (projectInfo.projectName) lines.push(`Project: ${projectInfo.projectName}`);
         if (projectInfo.framework) lines.push(`Framework: ${projectInfo.framework}`);

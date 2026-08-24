@@ -190,7 +190,7 @@ pub fn init_logging() -> Result<(), String> {
     tracing::info!(
         log_dir = %log_dir.display(),
         version = env!("CARGO_PKG_VERSION"),
-        "Ship Studio logging initialized"
+        "Cripcode logging initialized"
     );
 
     Ok(())

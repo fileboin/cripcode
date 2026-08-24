@@ -1,7 +1,7 @@
 /**
- * Ship Studio Plugin SDK
+ * Cripcode Plugin SDK
  *
- * Provides hooks and types for building Ship Studio plugins.
+ * Provides hooks and types for building Cripcode plugins.
  *
  * Plugins use this SDK to access the host app's context, execute shell commands,
  * show toast notifications, and persist data — all without direct Tauri invoke access.

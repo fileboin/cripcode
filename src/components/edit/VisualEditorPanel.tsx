@@ -693,7 +693,7 @@ export function VisualEditorPanel({
           type="button"
           className="ss-edit-panel__slack"
           onClick={() => void openUrl(SLACK_INVITE_URL)}
-          title="Join the Ship Studio community on Slack"
+          title="Join the Cripcode community on Slack"
         >
           <SlackIcon size={12} />
           Join the Slack

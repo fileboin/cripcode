@@ -184,7 +184,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       if (!mountedRef.current) return null;
       setError(
         err instanceof TimeoutError
-          ? 'Setup check timed out — click Retry. If this persists, restart Ship Studio.'
+          ? 'Setup check timed out — click Retry. If this persists, restart Cripcode.'
           : 'Failed to check setup status. Please try again.'
       );
       setState('wizard');
@@ -349,7 +349,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           }
         } else if (isNodeMissingError(outputTail)) {
           errorMessage =
-            "Node.js/npm wasn't found. Complete the Node.js step first, or restart Ship Studio if you just installed it.";
+            "Node.js/npm wasn't found. Complete the Node.js step first, or restart Cripcode if you just installed it.";
         } else if (alreadySignedIn) {
           // Auth flow failed while the CLI insists it already has a login —
           // surface the disagreement instead of a misleading command error.
@@ -654,7 +654,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     <div className="onboarding-screen">
       <div className="onboarding-content">
         <div className="onboarding-header">
-          <img src="/ship_studio_full_noshadow.svg" alt="Ship Studio" className="onboarding-logo" />
+          <img src="/cripcode_full_noshadow.svg" alt="Cripcode" className="onboarding-logo" />
           <h1>Quick Setup</h1>
           <p className="onboarding-reassurance">
             Most users finish in under 3 minutes. Let's get you ready to ship.
@@ -696,7 +696,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                       </span>
                     )
                   )}
-                  {'), install it through your terminal, then restart Ship Studio.'}
+                  {'), install it through your terminal, then restart Cripcode.'}
                 </>
               )}
             </p>

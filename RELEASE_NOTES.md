@@ -29,7 +29,7 @@ facing language — what changed, in plain English — not commit subjects.
 
 - **App freeze fixed** - Running multiple projects could freeze the whole app until force-quit: background thumbnail captures piled up silently and starved it. Captures are now strictly time-limited and never overlap.
 - **Thumbnails reliable again** - An interrupted capture no longer leaves a lock file that broke every future capture (the most-reported bug of v0.18.3), and captures survive your browser being open.
-- **Commits no longer blocked by .shipstudio** - Ship Studio's metadata folder is always excluded from your commits, so a background process holding a file there can't fail a commit or publish (frequent on Windows).
+- **Commits no longer blocked by .shipstudio** - Cripcode's metadata folder is always excluded from your commits, so a background process holding a file there can't fail a commit or publish (frequent on Windows).
 - **Real errors when a command can't start** - A missing package manager or tool is now named with install guidance, instead of a bare "exited with code -1".
 - **Draft PRs handled** - A Draft badge with merging disabled, instead of a raw GraphQL error.
 - **Steadier hot reload** - The preview retries a dropped WebSocket connection to your dev server instead of giving up on the first hiccup.
@@ -65,7 +65,7 @@ facing language — what changed, in plain English — not commit subjects.
 ## What's New in v0.18.1
 
 - **Bug bash** - 40+ auto-reported bugs fixed within two days of v0.18.0, thanks to the new automatic error reporting
-- **Clean shutdown** - quitting Ship Studio now stops all dev servers and agent sessions; restarting a dev server reliably frees its port
+- **Clean shutdown** - quitting Cripcode now stops all dev servers and agent sessions; restarting a dev server reliably frees its port
 - **Preview resilience** - wedged dev servers (404 on every page) are detected with a one-click restart, and hot reload survives dev-server restarts
 - **Agent spawning** - terminals find your agent wherever it's installed (nvm, pnpm, volta, fnm), fixing "Unable to spawn claude" on valid installs
 - **Windows fixes** - GitHub CLI in its default install path works for fetch/pull/merge, project deletion waits out antivirus locks, consistent path handling
@@ -75,7 +75,7 @@ facing language — what changed, in plain English — not commit subjects.
 
 ## What's New in v0.18.0
 
-- **Automatic bug reports** - When something goes wrong, Ship Studio now reports the error automatically (fully anonymized — never your code or file contents) so bugs get found and fixed faster. Opt out anytime in Settings → Usage analytics & error reports.
+- **Automatic bug reports** - When something goes wrong, Cripcode now reports the error automatically (fully anonymized — never your code or file contents) so bugs get found and fixed faster. Opt out anytime in Settings → Usage analytics & error reports.
 
 
 ## What's New in v0.17.2
@@ -107,7 +107,7 @@ facing language — what changed, in plain English — not commit subjects.
 ## What's New in v0.15.0
 
 - **Your agent can now use the preview** - Claude Code (and Codex, Opencode, Cursor) get built-in tools to see and drive your live preview: screenshots, console errors, network requests, clicking, typing, page and breakpoint switching — so the agent verifies its own changes. A green glow and cursor show exactly what it's doing. Zero setup on every project you open.
-- **Agent-led onboarding** - Pick your AI agent and it installs everything for you (Homebrew, Node, Git, GitHub, your hosting CLI) while Ship Studio verifies each step with its own checks. Classic onboarding stays one click away.
+- **Agent-led onboarding** - Pick your AI agent and it installs everything for you (Homebrew, Node, Git, GitHub, your hosting CLI) while Cripcode verifies each step with its own checks. Classic onboarding stays one click away.
 - **Set an exact preview size** - Click the dimensions readout in the preview toolbar to type a width and height; oversized viewports render at true width and scale to fit.
 - **Screenshot reliability** - Screenshots self-heal when macOS evicts the headless browser, and a Playwright/Node 24 install hang is fixed.
 
@@ -123,7 +123,7 @@ facing language — what changed, in plain English — not commit subjects.
 - **Windows: terminals no longer stall at startup** - Windows' ConPTY blocks all terminal output until a cursor-position query is answered; if the app wasn't ready to answer, the terminal sat at "Starting…" forever. The backend now answers whenever no terminal view is attached. Community fix by Vasanth — thank you!
 - **Agent connect flows actually sign you in** - The Connect buttons for Claude/Codex now run the real sign-in flows (`claude auth login` / `codex login`) instead of leaving you stranded in the agent's chat prompt.
 - **Preview reliability** - Next.js hot-reload no longer goes stale until you re-enter the project, and if an agent kills your dev server the preview now says so honestly — with a Restart button that actually restarts.
-- **Import can't crash the app anymore** - Importing a repository with a symlink loop (or other unusual layouts) used to crash Ship Studio outright; every import step now fails gracefully with a specific message.
+- **Import can't crash the app anymore** - Importing a repository with a symlink loop (or other unusual layouts) used to crash Cripcode outright; every import step now fails gracefully with a specific message.
 - **The screen-recording prompt explains itself** - macOS asks for screen-recording permission for project thumbnails; the app now tells you why before the scary system dialog, and respects a "no" instead of re-asking forever.
 
 ## What's New in v0.13.4
@@ -204,7 +204,7 @@ facing language — what changed, in plain English — not commit subjects.
 
 - **Workspaces** - Keep separate Claude, GitHub, and Codex logins for different clients or orgs, fully isolated. Each workspace has its own credentials, so an agent working in one project never sees another's auth. Your existing setup becomes the "Default" workspace, untouched. Assign any project to a workspace — its terminals, git, PRs, and AI all use that workspace's logins automatically — and move projects between workspaces right from the dashboard.
 - **Credential vault** - Store a per-workspace Vercel token, Anthropic base URL, and git identity securely in the macOS Keychain. Secret values never leave the backend.
-- **Choose your projects folder** - Point Ship Studio at any folder (like an existing ~/Dev directory) instead of ~/ShipStudio, globally or per workspace, and optionally move your existing projects across.
+- **Choose your projects folder** - Point Cripcode at any folder (like an existing ~/Dev directory) instead of ~/ShipStudio, globally or per workspace, and optionally move your existing projects across.
 - **Windows fixes** - The Code tab no longer shows a garbled file list, and "Install Claude Code" now installs from the terminal instead of opening a browser. Setup terminals also remind you that a typed password stays hidden even though nothing appears.
 
 
@@ -254,10 +254,10 @@ facing language — what changed, in plain English — not commit subjects.
 
 ## What's New in v0.7.0
 
-- **Mobile app previews** - Open a React Native, Expo, or Flutter project and the preview pane becomes a real, interactive device. Ship Studio boots an iOS Simulator or Android emulator, builds and launches your app onto it (build log streams in), and mirrors the screen live — tap, swipe, and type right in the workspace. macOS only for now.
+- **Mobile app previews** - Open a React Native, Expo, or Flutter project and the preview pane becomes a real, interactive device. Cripcode boots an iOS Simulator or Android emulator, builds and launches your app onto it (build log streams in), and mirrors the screen live — tap, swipe, and type right in the workspace. macOS only for now.
 - **Android, no setup required** - Android runs on a low-latency scrcpy stream with the server bundled. Projects targeting both platforms get an iOS | Android picker in the preview toolbar.
 - **Set up with AI** - Missing Xcode or the Android SDK? A one-click hand-off sends your agent a detailed install prompt instead of dead-ending you with manual steps.
-- **Multilingual sites** - Cmd+K → "Languages" to add languages to any Next.js or Astro site. Search every language, pick a default, and Ship Studio edits your i18n config surgically — it never guesses, and unusual configs fall back to a "Fix with AI" hand-off instead of being overwritten.
+- **Multilingual sites** - Cmd+K → "Languages" to add languages to any Next.js or Astro site. Search every language, pick a default, and Cripcode edits your i18n config surgically — it never guesses, and unusual configs fall back to a "Fix with AI" hand-off instead of being overwritten.
 - **Translate with AI** - "Save & translate with AI" shows you the exact translation prompt to review, then copies or pastes it straight into your agent terminal. App Router projects get a guided next-intl setup the same way.
 - **Preview in any language** - A globe switcher appears in the preview toolbar once you have 2+ languages, and switching pages keeps the language you are viewing. Removing a language warns about leftover translated files and offers an AI cleanup prompt.
 - **"Open in Browser" is now "Open"** - Same button, shorter label.
@@ -268,7 +268,7 @@ facing language — what changed, in plain English — not commit subjects.
 - **Inline text editing in the visual editor** - Double-click any text on the page to rewrite it right there, Webflow-style. Select text to make it bold, italic, or a link, and press Enter for a line break. Works the same on Next.js and Astro, saves to your source, and is free (0 tokens).
 - **Dynamic text → agent hand-off** - When text comes from your code or data and can't be edited inline, the panel gives you a one-click "Copy request for your agent" to paste into the terminal.
 - **Clearer selection** - The element you're editing is outlined in blue; other same-source elements an edit will also change are outlined in orange.
-- **Fix: dev server restart no longer crashes the app** - Restarting the dev server was killing Ship Studio's own preview (WebKit) process on some setups.
+- **Fix: dev server restart no longer crashes the app** - Restarting the dev server was killing Cripcode's own preview (WebKit) process on some setups.
 - **Dev server wait screen is no longer a black box** - Stop waiting instantly, read live dev-server logs inline, or hand the stuck server to your agent with "Fix with agent".
 - **Fix: branch cleanup after merge** - Merged branches now delete correctly even when GitHub auto-deletes the head branch.
 
@@ -278,7 +278,7 @@ facing language — what changed, in plain English — not commit subjects.
 - **Visual editor works on Astro + Tailwind** - Edit pages built with custom CSS classes too; edits win the cascade and save to your .astro source. The editor only appears when Tailwind is actually set up in the project
 - **Smoother Astro editing** - Saving no longer snaps the preview back to the top of the page
 - **Clearer editor** - An intro explains what it does before you select anything (Next.js/Astro + Tailwind, free, 0 tokens, live + instant saves)
-- **Support button opens Slack** - The toolbar Support button now opens the Ship Studio community Slack directly
+- **Support button opens Slack** - The toolbar Support button now opens the Cripcode community Slack directly
 
 
 ## What's New in v0.6.6
@@ -298,7 +298,7 @@ facing language — what changed, in plain English — not commit subjects.
 
 ## What's New in v0.6.4
 
-- **Monorepo support** — Ship Studio now detects pnpm/npm workspaces when you import a repo (or first open an existing project) and asks which app you want to work on. The dev server, preview, and `/public` asset tools all run inside that workspace, while git and PRs stay at the repo root. Choose "Use the whole repo" to skip the picker.
+- **Monorepo support** — Cripcode now detects pnpm/npm workspaces when you import a repo (or first open an existing project) and asks which app you want to work on. The dev server, preview, and `/public` asset tools all run inside that workspace, while git and PRs stay at the repo root. Choose "Use the whole repo" to skip the picker.
 - **Merge right after submitting for review** — After you create a PR, the Submit for Review window stays open with an inline "Merge into main" action. If there are conflicts you can hand them to the agent ("Ask agent to fix") or resolve them yourself, and once it's merged you get a one-click branch-cleanup prompt.
 - **One-click dependency install** — Open a project whose `node_modules` is missing and the preview pane shows an "Install with pnpm" prompt instead of a blank screen. Click it to stream the install in a terminal; the dev server starts automatically when it finishes.
 - **Fixes** — Removing and re-adding a local folder now re-prompts the workspace picker, and fixed a bug where the dependency-install terminal could relaunch itself every couple of seconds.
@@ -307,7 +307,7 @@ facing language — what changed, in plain English — not commit subjects.
 ## What's New in v0.6.3
 
 - **Side-by-side agents** — in focus mode with two or more agents on a project, toggle "Split" in the terminal toolbar to view them side by side. Drag the handle between panes to resize. Click a pane to make it the active one.
-- **Open in Browser** now opens your real dev server URL (e.g. `localhost:3000`) instead of Ship Studio's internal proxy port.
+- **Open in Browser** now opens your real dev server URL (e.g. `localhost:3000`) instead of Cripcode's internal proxy port.
 - **Auto-accept on resume** — resumed sessions now apply auto-accept mode correctly on startup; a race could previously cause it to silently turn off.
 - **Sync dropdown polish** — no longer shows the stale "All changes synced — Done" view after dismissing it without clicking Done.
 - **Agent Settings dropdown** stays on-screen in focus mode (previously cut off on the right).
@@ -319,7 +319,7 @@ facing language — what changed, in plain English — not commit subjects.
 - **Undo/Redo (⌘Z / ⌘⇧Z)** — every burst of edits gets snapshotted as a git stash so you can roll the working tree back, even on changes the agent never committed. Toast confirms "Undid 3 files: App.tsx, Preview.tsx +1 more". Buttons grey out at the edge of history. Native character-undo still wins inside text inputs.
 - **Custom project thumbnails** — upload your own thumbnail via the project menu; auto-capture stops overwriting it.
 - **Sidebar agent picker** — replaced the hover-to-open behaviour with an explicit caret button next to "Add new agent" so the agent name no longer shifts when the cursor drifts past.
-- **Skip broken Claude binaries** — if a stale `claude` install is on the GUI PATH (e.g. an old `/opt/homebrew/bin/claude` from a legacy installer), Ship Studio now validates each candidate with `--version` and falls through to the next working install instead of surfacing the raw npm-wrapper error.
+- **Skip broken Claude binaries** — if a stale `claude` install is on the GUI PATH (e.g. an old `/opt/homebrew/bin/claude` from a legacy installer), Cripcode now validates each candidate with `--version` and falls through to the next working install instead of surfacing the raw npm-wrapper error.
 
 
 ## What's New in v0.6.1
@@ -625,7 +625,7 @@ facing language — what changed, in plain English — not commit subjects.
 ## What's New in v0.3.44
 
 - **Vercel site URLs dropdown** — Hover over the Vercel button to quickly access production and preview URLs
-- **Slack community CTA** — Join our community to suggest features and shape the future of Ship Studio
+- **Slack community CTA** — Join our community to suggest features and shape the future of Cripcode
 - **Compact mode improvements** — Main branch warning banner now fits better in compact mode
 
 
@@ -636,7 +636,7 @@ facing language — what changed, in plain English — not commit subjects.
 
 ## What's New in v0.3.42
 
-- **Skills Manager** - Install and manage Claude skills directly from Ship Studio. Click the lightning bolt icon to browse installed skills, search for new ones, and install/remove them with one click.
+- **Skills Manager** - Install and manage Claude skills directly from Cripcode. Click the lightning bolt icon to browse installed skills, search for new ones, and install/remove them with one click.
 - **Help & Commands** - New help modal showing all Claude slash commands, your installed skills, keyboard shortcuts, and example prompts. Click the question mark icon in the terminal header.
 - **Improved Terminal Header** - Server, Health, and Notification buttons are now icon-only for a cleaner look. Hover for tooltips.
 - **Better Integration Status** - GitHub and Vercel CLI status checks now have timeout handling with graceful fallbacks
@@ -868,7 +868,7 @@ facing language — what changed, in plain English — not commit subjects.
 ## What's New in v0.2.3
 
 - **Import projects from GitHub** - Import existing repositories directly from your GitHub account or organizations
-- **Ship Studio preview detection** - Sites can now detect when running in Ship Studio preview via `?shipstudio=1` query parameter (useful for disabling iframe detection)
+- **Cripcode preview detection** - Sites can now detect when running in Cripcode preview via `?shipstudio=1` query parameter (useful for disabling iframe detection)
 - **Better Vercel detection for imported projects** - Imported projects with existing Vercel config are now correctly detected as connected
 - **Fixed branch author display** - Branch cards no longer show misleading author info for newly created branches
 
