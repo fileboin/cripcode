@@ -26,6 +26,13 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.7', // v0.18.7
+    items: [
+      'First Cripcode release: the app now uses its own bundle identity, deep-link scheme, updater key, and release repository',
+      'Windows builds are published from the single fileboin/cripcode repository with predictable installer and updater asset names',
+    ],
+  },
+  {
     version: '0.18.6', // v0.18.6
     items: [
       'Two crash fixes: the app no longer panics when generating a commit message containing accents, emoji, or non-Latin characters, and closing a project no longer risks a crash from the dev-server logs terminal',

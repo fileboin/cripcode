@@ -161,15 +161,9 @@ jobs:
 
           python3 -c "import json; json.load(open('latest-windows.json'))" && echo "JSON is valid"
 
-      # Carry forward macOS manifest AND installers so neither macOS
-      # auto-update nor the site's download links break when this Windows
-      # release flips the "latest" alias. The marketing site links to
-      # releases/latest/download/cripcode_darwin-*.dmg — publishing
-      # v0.6.8-win without the DMGs 404'd the Mac download buttons.
-      # Resolve the newest macOS (non -win) release explicitly: it is
-      # guaranteed to have both the manifest and the DMGs. Strict (no
-      # continue-on-error): publishing without these assets breaks macOS
-      # users, so failing the Windows release is the lesser evil.
+      # Carry forward macOS assets when a macOS release already exists. The
+      # first Windows-only release is allowed to run before Apple signing is
+      # configured; a later macOS release will add the missing assets.
       - name: Carry forward macOS manifest and installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -178,15 +172,16 @@ jobs:
           MAC_TAG=$(gh release list --repo ${{ github.repository }} --limit 50 \
             --json tagName --jq '[.[] | select(.tagName | endswith("-win") | not)][0].tagName // empty')
           if [ -z "$MAC_TAG" ]; then
-            echo "No macOS release found to carry forward" >&2
-            exit 1
+            echo "::warning::No macOS release found; publishing Windows-only release"
+            exit 0
           fi
           echo "Carrying forward macOS assets from $MAC_TAG"
           gh release download "$MAC_TAG" \
             --repo ${{ github.repository }} \
             --pattern "latest.json" \
             --pattern "cripcode_darwin-*.dmg" \
-            --dir carry-forward
+            --dir carry-forward \
+            || echo "::warning::Could not download macOS assets; publishing Windows-only release"
           ls -la carry-forward/
 
       - name: Upload artifacts to main repo draft release
@@ -213,16 +208,28 @@ jobs:
           TAG="${{ github.ref_name }}"
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Add the remaining assets to the existing draft release.
+          # Add the Windows assets and any available macOS carry-forward
+          # assets to the existing draft release.
+          ASSETS=(
+            artifacts/cripcode_windows-x86_64-setup.exe
+            artifacts/cripcode_windows-x86_64-setup.exe.sig
+            latest-windows.json
+          )
+          for asset in \
+            carry-forward/latest.json \
+            carry-forward/cripcode_darwin-aarch64.dmg \
+            carry-forward/cripcode_darwin-x86_64.dmg; do
+            if [ -f "$asset" ]; then
+              ASSETS+=("$asset")
+            else
+              echo "::warning::Optional macOS asset missing: $asset"
+            fi
+          done
+
           gh release upload "$TAG" \
             --repo ${{ github.repository }} \
             --clobber \
-            artifacts/cripcode_windows-x86_64-setup.exe \
-            artifacts/cripcode_windows-x86_64-setup.exe.sig \
-            latest-windows.json \
-            carry-forward/latest.json \
-            carry-forward/cripcode_darwin-aarch64.dmg \
-            carry-forward/cripcode_darwin-x86_64.dmg
+            "${ASSETS[@]}"
 
           # Publish the existing draft release (do not create a second one).
           gh release edit "$TAG" \

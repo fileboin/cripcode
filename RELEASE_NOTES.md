@@ -6,6 +6,12 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.7
+
+- **First Cripcode release** - The app now uses the `com.fileboin.cripcode` bundle identity, the `cripcode` deep-link scheme, and the fileboin/cripcode release repository.
+- **Windows release pipeline** - Windows installers and updater manifests are published from the single repository with predictable `cripcode_*` asset names.
+
+
 ## What's New in v0.18.6
 
 - **Two crash fixes** - No more panic on commit messages with accents/emoji/non-Latin text; closing a project can no longer crash via the dev-server logs terminal
