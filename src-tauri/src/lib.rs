@@ -801,6 +801,12 @@ pub fn run() {
             // Ollama
             commands::ssh::check_ollama_status,
             commands::ssh::list_ollama_models,
+            // Remote Dev Server
+            commands::ssh::start_remote_dev_server,
+            commands::ssh::stop_remote_dev_server,
+            commands::ssh::restart_remote_dev_server,
+            commands::ssh::get_remote_dev_server_status,
+            commands::ssh::get_remote_dev_server_logs,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
