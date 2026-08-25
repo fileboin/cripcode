@@ -471,6 +471,14 @@ export function useAppCommands({
         keywords: ['vps', 'remote', 'connect', 'server'],
         run: () => openModal('sshServers'),
       },
+      {
+        id: 'modal.remoteProjects',
+        title: 'Remote projects',
+        icon: <SettingsIcon size={14} />,
+        category: 'settings',
+        keywords: ['vps', 'remote', 'ssh', 'project'],
+        run: () => openModal('sshServers'),
+      },
     ],
     [openModal]
   );

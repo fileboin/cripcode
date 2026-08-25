@@ -9,7 +9,9 @@
 mod config;
 mod connection;
 mod files;
+mod remote_projects;
 
 pub use config::*;
 pub use connection::*;
 pub use files::*;
+pub use remote_projects::*;

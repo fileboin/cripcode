@@ -784,6 +784,11 @@ pub fn run() {
             commands::ssh::create_remote_directory,
             commands::ssh::delete_remote_file,
             commands::ssh::rename_remote_file,
+            // Remote Projects
+            commands::ssh::list_remote_projects,
+            commands::ssh::add_remote_project,
+            commands::ssh::remove_remote_project,
+            commands::ssh::mark_remote_project_opened,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

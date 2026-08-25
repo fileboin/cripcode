@@ -988,6 +988,38 @@ impl Default for SshConnectionState {
     }
 }
 
+// ============ Remote Projects ============
+
+/// Current schema version for remote projects config.
+pub const REMOTE_PROJECTS_CONFIG_SCHEMA_VERSION: u32 = 1;
+
+/// Configuration for remote projects stored in
+/// ~/ShipStudio/.shipstudio/remote-projects.json
+#[derive(Serialize, Deserialize, Default)]
+pub struct RemoteProjectsConfig {
+    pub schema_version: u32,
+    pub projects: Vec<RemoteProject>,
+}
+
+/// A project that lives on a remote VPS, accessible via SSH. Stored locally
+/// so it appears on the dashboard alongside local projects.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProject {
+    /// UUID generated at registration time.
+    pub id: String,
+    /// User-friendly label (e.g. "My Next.js App").
+    pub name: String,
+    /// ID of the SSH server this project lives on.
+    pub server_id: String,
+    /// Absolute path on the remote VPS (e.g. /home/user/my-app).
+    pub remote_path: String,
+    /// Unix ms timestamp of registration.
+    pub created_at: u64,
+    /// Unix ms timestamp of last time this project was opened.
+    pub last_opened: Option<u64>,
+}
+
 #[cfg(test)]
 mod metadata_tests {
     use super::ProjectMetadata;
