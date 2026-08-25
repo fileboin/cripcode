@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - '*-win'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to build and publish'
+        required: true
+        default: 'v0.18.7-win'
+        type: string
 
 jobs:
   build:
@@ -51,8 +58,8 @@ jobs:
           # option_env! — if the secret is unset, reporting is a silent no-op.
           BUG_REPORT_SECRET: ${{ secrets.BUG_REPORT_SECRET }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Cripcode ${{ github.ref_name }}'
+          tagName: ${{ inputs.release_tag || github.ref_name }}
+          releaseName: 'Cripcode ${{ inputs.release_tag || github.ref_name }}'
           releaseBody: 'Windows release. See the main repository for full release notes.'
           releaseDraft: true
           prerelease: false
@@ -114,9 +121,11 @@ jobs:
 
       - name: Get version from tag
         id: version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           # v0.5.0-win -> 0.5.0
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           VERSION="${VERSION%-win}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -130,9 +139,10 @@ jobs:
       - name: Create latest-windows.json
         env:
           NOTES: ${{ steps.release_notes.outputs.notes }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ github.ref_name }}"
+          TAG="$RELEASE_TAG"
           RELEASES_REPO="${{ github.repository }}"
 
           SIG=$(cat artifacts/signature.txt)
@@ -187,7 +197,7 @@ jobs:
       - name: Upload artifacts to main repo draft release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: |
             artifacts/cripcode_windows-x86_64-setup.exe
             artifacts/cripcode_windows-x86_64-setup.exe.sig
@@ -204,8 +214,9 @@ jobs:
       - name: Publish existing draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          TAG="${{ github.ref_name }}"
+          TAG="$RELEASE_TAG"
           VERSION="${{ steps.version.outputs.version }}"
 
           # Add the Windows assets and any available macOS carry-forward
