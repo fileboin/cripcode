@@ -1,22 +1,32 @@
 # Automatic Error Reporting (Admin Agent)
 
-Cripcode automatically reports uncaught errors from production builds to the
-Cripcode admin agent — an AI pipeline that investigates each report against
-the `fileboin/cripcode` codebase, files deduplicated GitHub issues, and
+> **Status in Cripcode:** DISABLED. The `ENDPOINT` constant in
+> `error_reporting.rs` is intentionally empty, so no reports are ever sent.
+> The pipeline below is preserved as structural plumbing; a future operator
+> can set `ENDPOINT` + `BUG_REPORT_SECRET` (build-time env) to point at their
+> own admin agent.
+
+Cripcode automatically reports uncaught errors from production builds to a
+remote admin agent — an AI pipeline that investigates each report against the
+`fileboin/cripcode` codebase, files deduplicated GitHub issues, and
 can open draft fix PRs (it cannot merge). This is separate from Sentry, which
 handles aggregation/alerting; the admin agent is the act-on-it pipeline.
 
 ## The endpoint
 
 ```
-POST https://shipstudio-admin-agent.vercel.app/report
+POST <ENDPOINT>/report
 Authorization: Bearer <BUG_REPORT_SECRET>
 Content-Type: application/json
 ```
 
+`ENDPOINT` is the `ENDPOINT` constant in `error_reporting.rs` (currently empty
+— disabled). `BUG_REPORT_SECRET` is injected at build time via
+`option_env!("BUG_REPORT_SECRET")`. Without both set, the pipeline is a
+silent no-op.
+
 Body fields: `message` (required), `stack`, `source`, `appVersion`,
-`fingerprint`, `context` (JSON object). Get `BUG_REPORT_SECRET` from Julian —
-never commit it.
+`fingerprint`, `context` (JSON object). Never commit a real secret.
 
 ## What gets reported (coverage map)
 
@@ -154,10 +164,10 @@ Two gotchas when testing: the Settings analytics toggle must be ON (the
 opt-out is absolute — it beats the force flags), and consecutive test triggers
 must be more than 5s apart or incident collapse will suppress the second one.
 
-Or send a raw test report:
+Or send a raw test report (replace `$ENDPOINT` with your admin agent URL):
 
 ```bash
-curl -s -X POST https://shipstudio-admin-agent.vercel.app/report \
+curl -s -X POST "$ENDPOINT/report" \
   -H "Authorization: Bearer $BUG_REPORT_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"message":"Integration test","source":"integration-test","context":{"note":"testing the pipeline, do not file an issue"}}'

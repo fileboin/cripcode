@@ -1,9 +1,11 @@
 //! # Automatic Error Reporting
 //!
-//! Sends error reports to the Cripcode admin agent
-//! (<https://shipstudio-admin-agent.vercel.app>), which investigates them
-//! against the codebase, files deduplicated GitHub issues, and can open draft
-//! fix PRs. See `docs/error-reporting.md` for the full integration contract.
+//! Error-reporting pipeline that can forward uncaught errors to a remote admin
+//! agent for investigation. In this fork the endpoint is intentionally left
+//! empty (`ENDPOINT` below), so **no reports are ever sent** — the pipeline is
+//! a structural no-op. The plumbing (dedup, throttle, scrubbing) is preserved
+//! so a future operator can point `ENDPOINT` + `BUG_REPORT_SECRET` at their
+//! own admin agent if desired. See `docs/error-reporting.md` for the contract.
 //!
 //! This complements Sentry (aggregation/alerting); the admin agent is the
 //! act-on-it pipeline. Rules enforced here:
