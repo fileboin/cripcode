@@ -25,6 +25,7 @@ import {
 import type { SshServer } from '../../lib/ssh';
 import { RemoteGitPanel } from './RemoteGitPanel';
 import { RemoteDevServerPanel } from './RemoteDevServerPanel';
+import { RemotePreviewPanel } from './RemotePreviewPanel';
 
 interface RemoteFileBrowserProps {
   server: SshServer;
@@ -40,7 +41,7 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'files' | 'git' | 'dev'>('files');
+  const [activeTab, setActiveTab] = useState<'files' | 'git' | 'dev' | 'preview'>('files');
 
   const loadFiles = useCallback(
     async (path: string) => {
@@ -168,6 +169,13 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         >
           Dev
         </Button>
+        <Button
+          variant={activeTab === 'preview' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('preview')}
+        >
+          Preview
+        </Button>
         {activeTab === 'files' && (
           <>
             <Button variant="ghost" size="sm" onClick={handleRefresh}>
@@ -184,6 +192,8 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         <RemoteGitPanel server={server} remotePath={currentPath} />
       ) : activeTab === 'dev' ? (
         <RemoteDevServerPanel server={server} remotePath={currentPath} />
+      ) : activeTab === 'preview' ? (
+        <RemotePreviewPanel server={server} remotePath={currentPath} />
       ) : (
         <>
           <div className="ssh-remote-files-pathbar">

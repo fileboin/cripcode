@@ -12,6 +12,7 @@ mod files;
 mod ollama;
 mod remote_dev_server;
 mod remote_git;
+mod remote_preview;
 mod remote_projects;
 
 pub use config::*;
@@ -20,4 +21,5 @@ pub use files::*;
 pub use ollama::*;
 pub use remote_dev_server::*;
 pub use remote_git::*;
+pub use remote_preview::*;
 pub use remote_projects::*;

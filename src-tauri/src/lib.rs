@@ -807,6 +807,10 @@ pub fn run() {
             commands::ssh::restart_remote_dev_server,
             commands::ssh::get_remote_dev_server_status,
             commands::ssh::get_remote_dev_server_logs,
+            // Remote Preview (SSH port forwarding)
+            commands::ssh::start_remote_preview_tunnel,
+            commands::ssh::stop_remote_preview_tunnel,
+            commands::ssh::get_remote_preview_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
