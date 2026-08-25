@@ -937,6 +937,57 @@ pub struct CompactModePreferences {
     pub is_expanded: bool,
 }
 
+// ============ SSH Servers ============
+
+/// Current schema version for SSH servers config.
+pub const SSH_SERVERS_CONFIG_SCHEMA_VERSION: u32 = 1;
+
+/// Configuration for SSH servers stored in ~/ShipStudio/.shipstudio/ssh-servers.json
+#[derive(Serialize, Deserialize, Default)]
+pub struct SshServersConfig {
+    pub schema_version: u32,
+    pub servers: Vec<SshServer>,
+}
+
+/// An SSH server configuration. The private key file itself is never read into
+/// memory — only its filesystem path is stored. SSH CLI reads the key directly.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SshServer {
+    /// UUID generated at creation time.
+    pub id: String,
+    /// User-friendly label (e.g. "Production VPS", "Staging").
+    pub name: String,
+    /// Hostname or IP address.
+    pub host: String,
+    /// SSH port. Defaults to 22 when None.
+    pub port: Option<u16>,
+    /// Remote username.
+    pub username: String,
+    /// Absolute filesystem path to the private key (e.g. `~/.ssh/id_ed25519`).
+    pub key_path: Option<String>,
+    /// Unix ms timestamp of creation.
+    pub created_at: u64,
+    /// Unix ms timestamp of the last successful connection (None = never).
+    pub last_connected_at: Option<u64>,
+}
+
+/// Live connection state. In-memory only; never persisted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SshConnectionState {
+    Disconnected,
+    Connecting,
+    Connected,
+    Error,
+}
+
+impl Default for SshConnectionState {
+    fn default() -> Self {
+        Self::Disconnected
+    }
+}
+
 #[cfg(test)]
 mod metadata_tests {
     use super::ProjectMetadata;

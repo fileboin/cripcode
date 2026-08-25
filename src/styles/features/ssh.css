@@ -1,0 +1,90 @@
+/* SSH server management UI */
+
+.ssh-test-result {
+  margin: var(--spacing-sm) 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.ssh-server-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  transition: border-color var(--transition);
+}
+
+.ssh-server-card:hover {
+  border-color: var(--accent);
+}
+
+.ssh-server-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xxs);
+  min-width: 0;
+}
+
+.ssh-server-name {
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+
+.ssh-server-detail {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.ssh-connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xxs);
+  padding: 2px var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
+}
+
+.ssh-connection-badge--disconnected {
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+}
+
+.ssh-connection-badge--connecting {
+  color: var(--warning);
+  background: rgba(var(--warning-rgb, 245, 158, 11), 0.1);
+}
+
+.ssh-connection-badge--connected {
+  color: var(--success);
+  background: rgba(var(--success-rgb, 34, 197, 94), 0.1);
+}
+
+.ssh-connection-badge--error {
+  color: var(--error);
+  background: rgba(var(--error-rgb, 239, 68, 68), 0.1);
+}
+
+.ssh-server-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.ssh-empty-state {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}

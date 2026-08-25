@@ -463,6 +463,14 @@ export function useAppCommands({
         shortcut: kbd('mod', '/'),
         run: () => openModal('help'),
       },
+      {
+        id: 'modal.sshServers',
+        title: 'SSH servers',
+        icon: <SettingsIcon size={14} />,
+        category: 'settings',
+        keywords: ['vps', 'remote', 'connect', 'server'],
+        run: () => openModal('sshServers'),
+      },
     ],
     [openModal]
   );

@@ -1,0 +1,13 @@
+//! # SSH Server Commands
+//!
+//! SSH server configuration CRUD and connection state management.
+//! Server configs are persisted to `~/ShipStudio/.shipstudio/ssh-servers.json`;
+//! connection state is in-memory only.
+//!
+//! See `docs/ssh-architecture.md` for the full architecture.
+
+mod config;
+mod connection;
+
+pub use config::*;
+pub use connection::*;

@@ -768,6 +768,15 @@ pub fn run() {
             // Clipboard (Windows terminal paste)
             commands::clipboard::read_clipboard_text,
             commands::clipboard::stage_clipboard_image,
+            // SSH Servers
+            commands::ssh::list_ssh_servers,
+            commands::ssh::add_ssh_server,
+            commands::ssh::update_ssh_server,
+            commands::ssh::delete_ssh_server,
+            commands::ssh::test_ssh_connection,
+            commands::ssh::connect_ssh,
+            commands::ssh::disconnect_ssh,
+            commands::ssh::get_ssh_connection_state,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

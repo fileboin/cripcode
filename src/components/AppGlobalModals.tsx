@@ -1,6 +1,7 @@
 import { HelpModal } from './HelpModal';
 import { ChangelogModal } from './dashboard/ChangelogModal';
 import { AttachedLibrariesModal } from './dashboard/AttachedLibrariesModal';
+import { SshServersModal } from './ssh/SshServersModal';
 import { ToastList } from './primitives/ToastList';
 import { useModal } from '../contexts/ModalContext';
 import { usePaletteContext } from './CommandPalette/paletteContext';
@@ -33,6 +34,7 @@ function GlobalModalsBody() {
   const ctx = usePaletteContext();
   const changelog = useModal('changelog');
   const attachedLibraries = useModal('attachedLibraries');
+  const sshServers = useModal('sshServers');
   const { toasts, dismissToast } = useToast();
 
   return (
@@ -40,6 +42,7 @@ function GlobalModalsBody() {
       <HelpModal projectPath={ctx.currentProjectPath ?? undefined} />
       <ChangelogModal isOpen={changelog.isOpen} onClose={changelog.close} />
       <AttachedLibrariesModal isOpen={attachedLibraries.isOpen} onClose={attachedLibraries.close} />
+      <SshServersModal isOpen={sshServers.isOpen} onClose={sshServers.close} />
       <ToastList toasts={toasts} onDismiss={dismissToast} />
     </>
   );
