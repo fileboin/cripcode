@@ -61,3 +61,35 @@ export async function disconnectSsh(id: string): Promise<void> {
 export async function getSshConnectionState(id: string): Promise<SshConnectionState> {
   return invoke<SshConnectionState>('get_ssh_connection_state', { id });
 }
+
+/**
+ * Build the SSH CLI argument list for an interactive terminal session.
+ * Uses keepalive (ServerAliveInterval) so a dropped connection is detected,
+ * and `StrictHostKeyChecking=accept-new` for first-connection auto-accept.
+ * Unlike the connection test, BatchMode is NOT set — interactive sessions
+ * may need to prompt for a key passphrase.
+ */
+export function buildSshTerminalArgs(server: SshServer): string[] {
+  const args = [
+    '-o',
+    'ConnectTimeout=10',
+    '-o',
+    'ServerAliveInterval=30',
+    '-o',
+    'ServerAliveCountMax=3',
+    '-o',
+    'StrictHostKeyChecking=accept-new',
+    '-t',
+  ];
+
+  if (server.port && server.port !== 22) {
+    args.push('-p', String(server.port));
+  }
+
+  if (server.keyPath) {
+    args.push('-i', server.keyPath);
+  }
+
+  args.push(`${server.username}@${server.host}`);
+  return args;
+}

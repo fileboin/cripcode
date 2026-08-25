@@ -9,6 +9,8 @@ import {
   connectSsh,
   disconnectSsh,
   getSshConnectionState,
+  buildSshTerminalArgs,
+  type SshServer,
 } from './ssh';
 
 const sampleServer = {
@@ -142,5 +144,59 @@ describe('getSshConnectionState', () => {
       throw new Error(`unexpected command: ${cmd}`);
     });
     await expect(getSshConnectionState('unknown-id')).resolves.toBe('disconnected');
+  });
+});
+
+describe('buildSshTerminalArgs', () => {
+  const server: SshServer = {
+    id: 'abc',
+    name: 'Test',
+    host: 'example.com',
+    port: 2222,
+    username: 'deploy',
+    keyPath: '/home/me/.ssh/id_ed25519',
+    createdAt: 0,
+    lastConnectedAt: null,
+  };
+
+  it('includes keepalive and host-key options', () => {
+    const args = buildSshTerminalArgs(server);
+    const joined = args.join(' ');
+    expect(joined).toContain('ServerAliveInterval=30');
+    expect(joined).toContain('ServerAliveCountMax=3');
+    expect(joined).toContain('accept-new');
+    expect(joined).toContain('ConnectTimeout=10');
+  });
+
+  it('forces pseudo-terminal allocation with -t', () => {
+    const args = buildSshTerminalArgs(server);
+    expect(args).toContain('-t');
+  });
+
+  it('includes port when not 22', () => {
+    const args = buildSshTerminalArgs(server);
+    expect(args).toContain('-p');
+    expect(args).toContain('2222');
+  });
+
+  it('omits port when 22', () => {
+    const args = buildSshTerminalArgs({ ...server, port: 22 });
+    expect(args).not.toContain('-p');
+  });
+
+  it('includes key path when set', () => {
+    const args = buildSshTerminalArgs(server);
+    expect(args).toContain('-i');
+    expect(args).toContain('/home/me/.ssh/id_ed25519');
+  });
+
+  it('omits key path when null', () => {
+    const args = buildSshTerminalArgs({ ...server, keyPath: null });
+    expect(args).not.toContain('-i');
+  });
+
+  it('ends with user@host', () => {
+    const args = buildSshTerminalArgs(server);
+    expect(args[args.length - 1]).toBe('deploy@example.com');
   });
 });

@@ -88,3 +88,39 @@
   color: var(--text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* Remote terminal */
+
+.ssh-remote-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.ssh-remote-terminal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.ssh-remote-terminal-title {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-remote-terminal-body {
+  flex: 1;
+  min-height: 300px;
+  background: #1e1e1e;
+  padding: var(--spacing-xs);
+}

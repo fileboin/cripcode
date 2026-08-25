@@ -27,6 +27,7 @@ import {
   type SshConnectionState,
 } from '../../lib/ssh';
 import { AddServerModal } from './AddServerModal';
+import { RemoteTerminal } from './RemoteTerminal';
 
 export function ServerList() {
   const { showToast } = useOptionalToast();
@@ -35,6 +36,7 @@ export function ServerList() {
   const [connStates, setConnStates] = useState<Record<string, SshConnectionState>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const [editServer, setEditServer] = useState<SshServer | null>(null);
+  const [terminalServer, setTerminalServer] = useState<SshServer | null>(null);
 
   const loadServers = useCallback(async () => {
     try {
@@ -129,6 +131,10 @@ export function ServerList() {
     );
   }
 
+  if (terminalServer) {
+    return <RemoteTerminal server={terminalServer} onBack={() => setTerminalServer(null)} />;
+  }
+
   return (
     <div style={{ padding: 'var(--spacing-lg)' }}>
       <div
@@ -167,6 +173,9 @@ export function ServerList() {
                   </span>
                 </div>
                 <div className="ssh-server-actions">
+                  <Button variant="ghost" size="sm" onClick={() => setTerminalServer(server)}>
+                    Terminal
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => void handleTest(server)}>
                     Test
                   </Button>
