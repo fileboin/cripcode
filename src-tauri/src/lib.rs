@@ -801,6 +801,7 @@ pub fn run() {
             // Ollama
             commands::ssh::check_ollama_status,
             commands::ssh::list_ollama_models,
+            commands::ssh::get_ollama_model_info,
             // Remote Dev Server
             commands::ssh::start_remote_dev_server,
             commands::ssh::stop_remote_dev_server,

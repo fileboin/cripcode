@@ -80,3 +80,50 @@ export function formatModelSize(bytes: number): string {
   }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
+
+/** Detailed info for a single model (from /api/show). */
+export interface OllamaModelInfo {
+  name: string;
+  family: string;
+  parameterSize: string;
+  quantization: string | null;
+  contextLength: number | null;
+  parameterCount: number | null;
+  loaded: boolean;
+}
+
+/** Format a context length in tokens to a human-readable string. */
+export function formatContextLength(tokens: number | null): string {
+  if (tokens === null) return 'unknown';
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(0)}K`;
+  return `${tokens}`;
+}
+
+/**
+ * Get detailed info for a single model via Ollama's `/api/show` endpoint.
+ * Provides context window length and other details not available from `/api/tags`.
+ */
+export async function getOllamaModelInfo(
+  serverId: string | null,
+  modelName: string
+): Promise<OllamaModelInfo> {
+  const result = await invoke<{
+    name: string;
+    family: string;
+    parameter_size: string;
+    quantization: string | null;
+    context_length: number | null;
+    parameter_count: number | null;
+    loaded: boolean;
+  }>('get_ollama_model_info', { serverId, modelName });
+
+  return {
+    name: result.name,
+    family: result.family,
+    parameterSize: result.parameter_size,
+    quantization: result.quantization,
+    contextLength: result.context_length,
+    parameterCount: result.parameter_count,
+    loaded: result.loaded,
+  };
+}

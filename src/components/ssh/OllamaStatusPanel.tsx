@@ -16,9 +16,12 @@ import { asCommandError, formatCommandError } from '../../lib/errors';
 import {
   checkOllamaStatus,
   listOllamaModels,
+  getOllamaModelInfo,
   formatModelSize,
+  formatContextLength,
   type OllamaStatus,
   type OllamaModel,
+  type OllamaModelInfo,
 } from '../../lib/ollama';
 import { listSshServers, type SshServer } from '../../lib/ssh';
 
@@ -35,6 +38,8 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [isChecking, setIsChecking] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedModelInfo, setSelectedModelInfo] = useState<OllamaModelInfo | null>(null);
+  const [isLoadingModelInfo, setIsLoadingModelInfo] = useState(false);
 
   // Load SSH servers for the dropdown
   useState(() => {
@@ -81,6 +86,22 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
       setIsRefreshing(false);
     }
   }, [selectedServerId, status, handleCheck, showToast]);
+
+  const handleModelClick = useCallback(
+    async (model: OllamaModel) => {
+      setIsLoadingModelInfo(true);
+      setSelectedModelInfo(null);
+      try {
+        const info = await getOllamaModelInfo(selectedServerId, model.name);
+        setSelectedModelInfo(info);
+      } catch (err) {
+        showToast(formatCommandError(asCommandError(err)), 'error');
+      } finally {
+        setIsLoadingModelInfo(false);
+      }
+    },
+    [selectedServerId, showToast]
+  );
 
   return (
     <div className="ssh-ollama-panel">
@@ -172,18 +193,63 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
                 <ul className="ssh-file-list">
                   {models.map((model) => (
                     <li key={model.name} className="ssh-file-item">
-                      <div className="ssh-file-item-button" style={{ cursor: 'default' }}>
+                      <button
+                        className="ssh-file-item-button"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => void handleModelClick(model)}
+                      >
                         <span className="ssh-file-icon">🤖</span>
                         <span className="ssh-file-name">{model.name}</span>
                         <span className="ssh-file-size">
                           {formatModelSize(model.size)}
                           {model.details ? ` · ${model.details.parameterSize}` : ''}
+                          {model.details ? ` · ${model.details.family}` : ''}
                         </span>
-                      </div>
+                      </button>
                     </li>
                   ))}
                 </ul>
               )}
+            </div>
+          )}
+
+          {isLoadingModelInfo && (
+            <div style={{ padding: 'var(--spacing-sm)', textAlign: 'center' }}>
+              <Spinner size="sm" />
+            </div>
+          )}
+
+          {selectedModelInfo && !isLoadingModelInfo && (
+            <div className="ssh-ollama-models" style={{ marginTop: 'var(--spacing-sm)' }}>
+              <div className="ssh-server-card" style={{ cursor: 'default' }}>
+                <div className="ssh-server-info">
+                  <span className="ssh-server-name">{selectedModelInfo.name}</span>
+                  <span className="ssh-server-detail">Family: {selectedModelInfo.family}</span>
+                  <span className="ssh-server-detail">
+                    Parameters: {selectedModelInfo.parameterSize}
+                  </span>
+                  {selectedModelInfo.quantization && (
+                    <span className="ssh-server-detail">
+                      Quantization: {selectedModelInfo.quantization}
+                    </span>
+                  )}
+                  <span className="ssh-server-detail">
+                    Context: {formatContextLength(selectedModelInfo.contextLength)} tokens
+                  </span>
+                  {selectedModelInfo.parameterCount !== null && (
+                    <span className="ssh-server-detail">
+                      Parameter count: {selectedModelInfo.parameterCount.toLocaleString()}
+                    </span>
+                  )}
+                  <span
+                    className={`ssh-connection-badge ssh-connection-badge--${
+                      selectedModelInfo.loaded ? 'connected' : 'disconnected'
+                    }`}
+                  >
+                    {selectedModelInfo.loaded ? 'Loaded' : 'Not Loaded'}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>

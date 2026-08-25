@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { checkOllamaStatus, listOllamaModels, formatModelSize } from './ollama';
+import {
+  checkOllamaStatus,
+  listOllamaModels,
+  getOllamaModelInfo,
+  formatModelSize,
+  formatContextLength,
+} from './ollama';
 
 describe('checkOllamaStatus', () => {
   it('returns status for local Ollama (running)', async () => {
@@ -118,5 +124,87 @@ describe('formatModelSize', () => {
 
   it('formats exactly 1 GB', () => {
     expect(formatModelSize(1024 * 1024 * 1024)).toBe('1.0 GB');
+  });
+});
+
+describe('getOllamaModelInfo', () => {
+  it('returns model info with context length', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'get_ollama_model_info') {
+        expect(args).toMatchObject({ serverId: null, modelName: 'llama3:latest' });
+        return {
+          name: 'llama3:latest',
+          family: 'llama',
+          parameter_size: '8B',
+          quantization: 'q4_K_M',
+          context_length: 8192,
+          parameter_count: 8030261248,
+          loaded: false,
+        };
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    const info = await getOllamaModelInfo(null, 'llama3:latest');
+    expect(info.name).toBe('llama3:latest');
+    expect(info.family).toBe('llama');
+    expect(info.contextLength).toBe(8192);
+    expect(info.parameterSize).toBe('8B');
+    expect(info.quantization).toBe('q4_K_M');
+  });
+
+  it('passes serverId for remote model info', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'get_ollama_model_info') {
+        expect(args).toMatchObject({ serverId: 'server-1', modelName: 'gemma:latest' });
+        return {
+          name: 'gemma:latest',
+          family: 'gemma',
+          parameter_size: '7B',
+          quantization: null,
+          context_length: 4096,
+          parameter_count: null,
+          loaded: false,
+        };
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    const info = await getOllamaModelInfo('server-1', 'gemma:latest');
+    expect(info.family).toBe('gemma');
+    expect(info.contextLength).toBe(4096);
+    expect(info.quantization).toBeNull();
+  });
+
+  it('handles null context length', async () => {
+    mockIPC((cmd) => {
+      if (cmd === 'get_ollama_model_info') {
+        return {
+          name: 'custom:latest',
+          family: 'unknown',
+          parameter_size: '?',
+          quantization: null,
+          context_length: null,
+          parameter_count: null,
+          loaded: false,
+        };
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    const info = await getOllamaModelInfo(null, 'custom:latest');
+    expect(info.contextLength).toBeNull();
+  });
+});
+
+describe('formatContextLength', () => {
+  it('formats large token counts as K', () => {
+    expect(formatContextLength(8192)).toBe('8K');
+    expect(formatContextLength(128000)).toBe('128K');
+  });
+
+  it('formats small token counts as-is', () => {
+    expect(formatContextLength(512)).toBe('512');
+  });
+
+  it('returns unknown for null', () => {
+    expect(formatContextLength(null)).toBe('unknown');
   });
 });
