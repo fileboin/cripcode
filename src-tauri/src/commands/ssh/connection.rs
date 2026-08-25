@@ -34,7 +34,7 @@ fn now_millis() -> u64 {
 /// Uses `BatchMode=yes` (never prompt for password), `ConnectTimeout=10`
 /// (10s TCP+handshake), and `StrictHostKeyChecking=accept-new` (auto-accept
 /// first connection, reject host key changes after that).
-fn build_ssh_args(server: &SshServer) -> Vec<String> {
+pub(crate) fn build_ssh_args(server: &SshServer) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "-o".into(),
         "BatchMode=yes".into(),

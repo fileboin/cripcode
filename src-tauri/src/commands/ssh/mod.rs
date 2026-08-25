@@ -8,6 +8,8 @@
 
 mod config;
 mod connection;
+mod files;
 
 pub use config::*;
 pub use connection::*;
+pub use files::*;

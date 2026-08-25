@@ -274,7 +274,7 @@ pub fn save_project_file(
 ///
 /// Checks the filename first for well-known extensionless files (Dockerfile, Makefile, etc.),
 /// then falls back to extension-based matching.
-fn infer_language(file_path: &str) -> String {
+pub(crate) fn infer_language(file_path: &str) -> String {
     // Check filename for extensionless files
     let filename = Path::new(file_path)
         .file_name()
