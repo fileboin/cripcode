@@ -127,3 +127,31 @@ export async function getOllamaModelInfo(
     loaded: result.loaded,
   };
 }
+
+// ============ Model Selection ============
+
+/**
+ * Get the currently selected Ollama model for a location.
+ * Returns null if no model has been selected (the app should use a default).
+ */
+export async function getSelectedOllamaModel(serverId: string | null): Promise<string | null> {
+  return invoke<string | null>('get_selected_ollama_model', { serverId });
+}
+
+/**
+ * Set the selected Ollama model for a location.
+ * Persists to disk so the selection survives app restarts.
+ */
+export async function setSelectedOllamaModel(
+  serverId: string | null,
+  modelName: string
+): Promise<void> {
+  await invoke('set_selected_ollama_model', { serverId, modelName });
+}
+
+/**
+ * Clear the selected Ollama model for a location (reset to default).
+ */
+export async function clearSelectedOllamaModel(serverId: string | null): Promise<void> {
+  await invoke('clear_selected_ollama_model', { serverId });
+}

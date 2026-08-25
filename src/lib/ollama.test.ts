@@ -4,6 +4,9 @@ import {
   checkOllamaStatus,
   listOllamaModels,
   getOllamaModelInfo,
+  getSelectedOllamaModel,
+  setSelectedOllamaModel,
+  clearSelectedOllamaModel,
   formatModelSize,
   formatContextLength,
 } from './ollama';
@@ -206,5 +209,74 @@ describe('formatContextLength', () => {
 
   it('returns unknown for null', () => {
     expect(formatContextLength(null)).toBe('unknown');
+  });
+});
+
+describe('getSelectedOllamaModel', () => {
+  it('returns the selected model for local', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'get_selected_ollama_model') {
+        expect(args).toMatchObject({ serverId: null });
+        return 'llama3:latest';
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(getSelectedOllamaModel(null)).resolves.toBe('llama3:latest');
+  });
+
+  it('returns null when no model selected', async () => {
+    mockIPC((cmd) => {
+      if (cmd === 'get_selected_ollama_model') return null;
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(getSelectedOllamaModel(null)).resolves.toBeNull();
+  });
+
+  it('passes serverId for remote', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'get_selected_ollama_model') {
+        expect(args).toMatchObject({ serverId: 'server-1' });
+        return 'gemma:latest';
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(getSelectedOllamaModel('server-1')).resolves.toBe('gemma:latest');
+  });
+});
+
+describe('setSelectedOllamaModel', () => {
+  it('calls set_selected_ollama_model with the right args', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'set_selected_ollama_model') {
+        expect(args).toMatchObject({ serverId: null, modelName: 'llama3:latest' });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(setSelectedOllamaModel(null, 'llama3:latest')).resolves.toBeUndefined();
+  });
+
+  it('passes serverId for remote', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'set_selected_ollama_model') {
+        expect(args).toMatchObject({ serverId: 'server-1', modelName: 'gemma:latest' });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(setSelectedOllamaModel('server-1', 'gemma:latest')).resolves.toBeUndefined();
+  });
+});
+
+describe('clearSelectedOllamaModel', () => {
+  it('calls clear_selected_ollama_model', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'clear_selected_ollama_model') {
+        expect(args).toMatchObject({ serverId: null });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(clearSelectedOllamaModel(null)).resolves.toBeUndefined();
   });
 });

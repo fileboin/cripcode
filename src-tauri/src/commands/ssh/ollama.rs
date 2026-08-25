@@ -468,6 +468,102 @@ fn parse_show_response(name: &str, show: &OllamaShowResponse) -> OllamaModelInfo
     }
 }
 
+// ============ Model Selection ============
+
+/// Ollama model selection config, persisted to
+/// `~/.ship-studio/.shipstudio/ollama-config.json`.
+/// Maps a location key ("local" or an SSH server ID) to a selected model name.
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct OllamaConfig {
+    #[serde(default)]
+    selections: std::collections::HashMap<String, String>,
+}
+
+/// Get the path to the Ollama config file.
+fn ollama_config_path() -> Result<std::path::PathBuf, String> {
+    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home
+        .join("ShipStudio")
+        .join(".shipstudio")
+        .join("ollama-config.json"))
+}
+
+/// Load the Ollama config from disk (empty config if file doesn't exist).
+fn load_ollama_config() -> Result<OllamaConfig, String> {
+    let path = ollama_config_path()?;
+    if !path.exists() {
+        return Ok(OllamaConfig::default());
+    }
+    let contents =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read Ollama config: {e}"))?;
+    serde_json::from_str(&contents).map_err(|e| format!("Failed to parse Ollama config: {e}"))
+}
+
+/// Save the Ollama config to disk.
+fn save_ollama_config(config: &OllamaConfig) -> Result<(), String> {
+    let path = ollama_config_path()?;
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+        }
+    }
+    let json = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize Ollama config: {e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("Failed to write Ollama config: {e}"))
+}
+
+/// Location key: "local" for local Ollama, or the SSH server ID for remote.
+fn location_key(server_id: &Option<String>) -> String {
+    match server_id {
+        None => "local".to_string(),
+        Some(id) => id.clone(),
+    }
+}
+
+/// Get the currently selected Ollama model for a location (local or remote).
+#[tauri::command]
+#[tracing::instrument]
+pub fn get_selected_ollama_model(
+    server_id: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    let config = load_ollama_config().map_err(CommandError::from)?;
+    Ok(config.selections.get(&location_key(&server_id)).cloned())
+}
+
+/// Set the selected Ollama model for a location (local or remote).
+/// Persists to disk so the selection survives app restarts.
+#[tauri::command]
+#[tracing::instrument]
+pub fn set_selected_ollama_model(
+    server_id: Option<String>,
+    model_name: String,
+) -> Result<(), CommandError> {
+    let model_trimmed = model_name.trim();
+    if model_trimmed.is_empty() {
+        return Err(CommandError::Validation {
+            field: "model_name".into(),
+            reason: "Model name must not be empty".into(),
+        });
+    }
+    let mut config = load_ollama_config().map_err(CommandError::from)?;
+    config
+        .selections
+        .insert(location_key(&server_id), model_trimmed.to_string());
+    save_ollama_config(&config).map_err(CommandError::from)?;
+    Ok(())
+}
+
+/// Clear the selected Ollama model for a location (reset to None / default).
+#[tauri::command]
+#[tracing::instrument]
+pub fn clear_selected_ollama_model(server_id: Option<String>) -> Result<(), CommandError> {
+    let mut config = load_ollama_config().map_err(CommandError::from)?;
+    config.selections.remove(&location_key(&server_id));
+    save_ollama_config(&config).map_err(CommandError::from)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -568,5 +664,36 @@ mod tests {
         assert!(json.contains("\"contextLength\":8192"));
         assert!(json.contains("\"parameterSize\":\"8B\""));
         assert!(json.contains("\"parameterCount\":8000000000"));
+    }
+
+    #[test]
+    fn location_key_uses_local_for_none() {
+        assert_eq!(location_key(&None), "local");
+    }
+
+    #[test]
+    fn location_key_uses_server_id_for_some() {
+        assert_eq!(location_key(&Some("server-1".into())), "server-1");
+    }
+
+    #[test]
+    fn ollama_config_round_trips() {
+        let mut config = OllamaConfig::default();
+        config
+            .selections
+            .insert("local".into(), "llama3:latest".into());
+        config
+            .selections
+            .insert("server-1".into(), "gemma:latest".into());
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: OllamaConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.selections.get("local").unwrap(), "llama3:latest");
+        assert_eq!(parsed.selections.get("server-1").unwrap(), "gemma:latest");
+    }
+
+    #[test]
+    fn ollama_config_defaults_to_empty() {
+        let config = OllamaConfig::default();
+        assert!(config.selections.is_empty());
     }
 }

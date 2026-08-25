@@ -17,6 +17,8 @@ import {
   checkOllamaStatus,
   listOllamaModels,
   getOllamaModelInfo,
+  getSelectedOllamaModel,
+  setSelectedOllamaModel,
   formatModelSize,
   formatContextLength,
   type OllamaStatus,
@@ -40,6 +42,7 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedModelInfo, setSelectedModelInfo] = useState<OllamaModelInfo | null>(null);
   const [isLoadingModelInfo, setIsLoadingModelInfo] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   // Load SSH servers for the dropdown
   useState(() => {
@@ -59,6 +62,8 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
       if (result.running) {
         const modelList = await listOllamaModels(selectedServerId);
         setModels(modelList);
+        const saved = await getSelectedOllamaModel(selectedServerId);
+        setSelectedModel(saved);
       }
     } catch (err) {
       showToast(formatCommandError(asCommandError(err)), 'error');
@@ -98,6 +103,19 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
         showToast(formatCommandError(asCommandError(err)), 'error');
       } finally {
         setIsLoadingModelInfo(false);
+      }
+    },
+    [selectedServerId, showToast]
+  );
+
+  const handleModelSelect = useCallback(
+    async (modelName: string) => {
+      setSelectedModel(modelName);
+      try {
+        await setSelectedOllamaModel(selectedServerId, modelName);
+        showToast(`Model set to ${modelName}`, 'success');
+      } catch (err) {
+        showToast(formatCommandError(asCommandError(err)), 'error');
       }
     },
     [selectedServerId, showToast]
@@ -210,6 +228,44 @@ export function OllamaStatusPanel({ defaultServerId }: OllamaStatusPanelProps) {
                   ))}
                 </ul>
               )}
+            </div>
+          )}
+
+          {status.running && models.length > 0 && (
+            <div className="ssh-ollama-models" style={{ marginTop: 'var(--spacing-sm)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--spacing-sm)',
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: 'var(--font-size-sm)',
+                    color: 'var(--text-secondary)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  AI Model:
+                </label>
+                <select
+                  value={selectedModel ?? ''}
+                  onChange={(e) => void handleModelSelect(e.target.value)}
+                  className="ssh-remote-files-path-input"
+                  style={{ flex: 1, width: 'auto' }}
+                >
+                  <option value="" disabled>
+                    Select a model...
+                  </option>
+                  {models.map((model) => (
+                    <option key={model.name} value={model.name}>
+                      {model.name}
+                      {model.details ? ` (${model.details.parameterSize})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
