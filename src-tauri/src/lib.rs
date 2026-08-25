@@ -798,6 +798,9 @@ pub fn run() {
             commands::ssh::remote_git_pull,
             commands::ssh::remote_git_push,
             commands::ssh::remote_git_diff,
+            // Ollama
+            commands::ssh::check_ollama_status,
+            commands::ssh::list_ollama_models,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

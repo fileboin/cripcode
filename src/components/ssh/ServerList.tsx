@@ -29,6 +29,7 @@ import {
 import { AddServerModal } from './AddServerModal';
 import { RemoteTerminal } from './RemoteTerminal';
 import { RemoteFileBrowser } from './RemoteFileBrowser';
+import { OllamaStatusPanel } from './OllamaStatusPanel';
 
 export function ServerList() {
   const { showToast } = useOptionalToast();
@@ -39,6 +40,8 @@ export function ServerList() {
   const [editServer, setEditServer] = useState<SshServer | null>(null);
   const [terminalServer, setTerminalServer] = useState<SshServer | null>(null);
   const [filesServer, setFilesServer] = useState<SshServer | null>(null);
+  const [ollamaServer, setOllamaServer] = useState<SshServer | null>(null);
+  const [showLocalOllama, setShowLocalOllama] = useState(false);
 
   const loadServers = useCallback(async () => {
     try {
@@ -141,6 +144,32 @@ export function ServerList() {
     return <RemoteFileBrowser server={filesServer} onBack={() => setFilesServer(null)} />;
   }
 
+  if (ollamaServer) {
+    return (
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <OllamaStatusPanel defaultServerId={ollamaServer.id} />
+        <div style={{ marginTop: 'var(--spacing-lg)' }}>
+          <Button variant="ghost" size="sm" onClick={() => setOllamaServer(null)}>
+            ← Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showLocalOllama) {
+    return (
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <OllamaStatusPanel defaultServerId={null} />
+        <div style={{ marginTop: 'var(--spacing-lg)' }}>
+          <Button variant="ghost" size="sm" onClick={() => setShowLocalOllama(false)}>
+            ← Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 'var(--spacing-lg)' }}>
       <div
@@ -152,9 +181,14 @@ export function ServerList() {
         }}
       >
         <h3 style={{ margin: 0, fontSize: 'var(--font-size-lg)' }}>SSH Servers</h3>
-        <Button variant="primary" size="sm" onClick={handleAdd}>
-          Add Server
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+          <Button variant="secondary" size="sm" onClick={() => setShowLocalOllama(true)}>
+            Local Ollama
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleAdd}>
+            Add Server
+          </Button>
+        </div>
       </div>
 
       {servers.length === 0 ? (
@@ -184,6 +218,9 @@ export function ServerList() {
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setFilesServer(server)}>
                     Files
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setOllamaServer(server)}>
+                    Ollama
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => void handleTest(server)}>
                     Test

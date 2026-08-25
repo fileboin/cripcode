@@ -9,11 +9,13 @@
 mod config;
 mod connection;
 mod files;
+mod ollama;
 mod remote_git;
 mod remote_projects;
 
 pub use config::*;
 pub use connection::*;
 pub use files::*;
+pub use ollama::*;
 pub use remote_git::*;
 pub use remote_projects::*;
