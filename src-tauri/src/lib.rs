@@ -789,6 +789,15 @@ pub fn run() {
             commands::ssh::add_remote_project,
             commands::ssh::remove_remote_project,
             commands::ssh::mark_remote_project_opened,
+            // Remote Git
+            commands::ssh::remote_git_status,
+            commands::ssh::remote_git_current_branch,
+            commands::ssh::remote_git_list_branches,
+            commands::ssh::remote_git_changed_files,
+            commands::ssh::remote_git_commit,
+            commands::ssh::remote_git_pull,
+            commands::ssh::remote_git_push,
+            commands::ssh::remote_git_diff,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

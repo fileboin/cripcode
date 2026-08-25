@@ -313,3 +313,43 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Remote Git panel */
+
+.ssh-remote-git {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.ssh-remote-git-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.ssh-remote-git-branch {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-sm);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ssh-remote-git-changes {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ssh-remote-git-commit {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.ssh-remote-git-diff {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+}

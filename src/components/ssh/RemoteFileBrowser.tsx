@@ -23,6 +23,7 @@ import {
   deleteRemoteFile,
 } from '../../lib/remoteFiles';
 import type { SshServer } from '../../lib/ssh';
+import { RemoteGitPanel } from './RemoteGitPanel';
 
 interface RemoteFileBrowserProps {
   server: SshServer;
@@ -38,6 +39,7 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [activeTab, setActiveTab] = useState<'files' | 'git'>('files');
 
   const loadFiles = useCallback(
     async (path: string) => {
@@ -144,98 +146,122 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         <span className="ssh-remote-files-title">
           {server.name} — {currentPath}
         </span>
-        <Button variant="ghost" size="sm" onClick={handleRefresh}>
-          Refresh
+        <Button
+          variant={activeTab === 'files' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('files')}
+        >
+          Files
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => void handleMkdir()}>
-          New Folder
+        <Button
+          variant={activeTab === 'git' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('git')}
+        >
+          Git
         </Button>
+        {activeTab === 'files' && (
+          <>
+            <Button variant="ghost" size="sm" onClick={handleRefresh}>
+              Refresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => void handleMkdir()}>
+              New Folder
+            </Button>
+          </>
+        )}
       </div>
 
-      <div className="ssh-remote-files-pathbar">
-        <input
-          type="text"
-          value={pathInput}
-          onChange={(e) => setPathInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleBrowse();
-          }}
-          placeholder="/home/user/project"
-          className="ssh-remote-files-path-input"
-        />
-        <Button variant="secondary" size="sm" onClick={handleBrowse}>
-          Browse
-        </Button>
-        <Button variant="ghost" size="sm" onClick={handleGoUp}>
-          ↑ Up
-        </Button>
-      </div>
+      {activeTab === 'git' ? (
+        <RemoteGitPanel server={server} remotePath={currentPath} />
+      ) : (
+        <>
+          <div className="ssh-remote-files-pathbar">
+            <input
+              type="text"
+              value={pathInput}
+              onChange={(e) => setPathInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleBrowse();
+              }}
+              placeholder="/home/user/project"
+              className="ssh-remote-files-path-input"
+            />
+            <Button variant="secondary" size="sm" onClick={handleBrowse}>
+              Browse
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleGoUp}>
+              ↑ Up
+            </Button>
+          </div>
 
-      <div className="ssh-remote-files-body">
-        <div className="ssh-remote-files-list">
-          {isLoading ? (
-            <div className="ssh-remote-files-loading">
-              <Spinner />
-            </div>
-          ) : entries.length === 0 ? (
-            <p className="ssh-empty-state">No files in this directory.</p>
-          ) : (
-            <ul className="ssh-file-list">
-              {entries.map((entry) => (
-                <li key={entry.name} className="ssh-file-item">
-                  <button
-                    className="ssh-file-item-button"
-                    onClick={() => void handleEntryClick(entry)}
-                  >
-                    <span className="ssh-file-icon">{entry.isDirectory ? '📁' : '📄'}</span>
-                    <span className="ssh-file-name">{entry.name}</span>
-                    {!entry.isDirectory && (
-                      <span className="ssh-file-size">{formatSize(entry.size)}</span>
-                    )}
-                  </button>
-                  <button
-                    className="ssh-file-delete"
-                    onClick={() => void handleDelete(entry)}
-                    title="Delete"
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="ssh-remote-files-viewer">
-          {isLoadingFile ? (
-            <div className="ssh-remote-files-loading">
-              <Spinner />
-            </div>
-          ) : selectedFile ? (
-            <div className="ssh-file-content">
-              <div className="ssh-file-content-header">
-                {selectedFileName}
-                <span className="ssh-file-content-meta">
-                  {selectedFile.language} · {formatSize(selectedFile.size)}
-                </span>
-              </div>
-              {selectedFile.isBinary ? (
-                <p className="ssh-empty-state">Binary file — cannot display.</p>
-              ) : selectedFile.isTruncated ? (
-                <p className="ssh-empty-state">
-                  File is too large ({formatSize(selectedFile.size)}).
-                </p>
+          <div className="ssh-remote-files-body">
+            <div className="ssh-remote-files-list">
+              {isLoading ? (
+                <div className="ssh-remote-files-loading">
+                  <Spinner />
+                </div>
+              ) : entries.length === 0 ? (
+                <p className="ssh-empty-state">No files in this directory.</p>
               ) : (
-                <pre className="ssh-file-content-pre">
-                  <code>{selectedFile.content}</code>
-                </pre>
+                <ul className="ssh-file-list">
+                  {entries.map((entry) => (
+                    <li key={entry.name} className="ssh-file-item">
+                      <button
+                        className="ssh-file-item-button"
+                        onClick={() => void handleEntryClick(entry)}
+                      >
+                        <span className="ssh-file-icon">{entry.isDirectory ? '📁' : '📄'}</span>
+                        <span className="ssh-file-name">{entry.name}</span>
+                        {!entry.isDirectory && (
+                          <span className="ssh-file-size">{formatSize(entry.size)}</span>
+                        )}
+                      </button>
+                      <button
+                        className="ssh-file-delete"
+                        onClick={() => void handleDelete(entry)}
+                        title="Delete"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-          ) : (
-            <p className="ssh-empty-state">Select a file to view its content.</p>
-          )}
-        </div>
-      </div>
+
+            <div className="ssh-remote-files-viewer">
+              {isLoadingFile ? (
+                <div className="ssh-remote-files-loading">
+                  <Spinner />
+                </div>
+              ) : selectedFile ? (
+                <div className="ssh-file-content">
+                  <div className="ssh-file-content-header">
+                    {selectedFileName}
+                    <span className="ssh-file-content-meta">
+                      {selectedFile.language} · {formatSize(selectedFile.size)}
+                    </span>
+                  </div>
+                  {selectedFile.isBinary ? (
+                    <p className="ssh-empty-state">Binary file — cannot display.</p>
+                  ) : selectedFile.isTruncated ? (
+                    <p className="ssh-empty-state">
+                      File is too large ({formatSize(selectedFile.size)}).
+                    </p>
+                  ) : (
+                    <pre className="ssh-file-content-pre">
+                      <code>{selectedFile.content}</code>
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <p className="ssh-empty-state">Select a file to view its content.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
