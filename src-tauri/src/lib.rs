@@ -811,6 +811,11 @@ pub fn run() {
             commands::ssh::get_ai_provider_info,
             // Remote Agent
             commands::ssh::check_remote_agent_installed,
+            // Remote Build
+            commands::ssh::start_remote_build,
+            commands::ssh::stop_remote_build,
+            commands::ssh::get_remote_build_status,
+            commands::ssh::get_remote_build_logs,
             // Remote Dev Server
             commands::ssh::start_remote_dev_server,
             commands::ssh::stop_remote_dev_server,
