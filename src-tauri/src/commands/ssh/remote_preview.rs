@@ -142,7 +142,7 @@ pub async fn start_remote_preview_tunnel(
             message: format!("Failed to start SSH tunnel: {e}"),
         })?;
 
-        pid = child.id();
+        pid = Some(child.id());
         std::mem::forget(child);
     }
 
@@ -162,7 +162,7 @@ pub async fn start_remote_preview_tunnel(
             message: format!("Failed to start SSH tunnel: {e}"),
         })?;
 
-        pid = child.id();
+        pid = Some(child.id());
         std::mem::forget(child);
     }
 
