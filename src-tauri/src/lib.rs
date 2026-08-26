@@ -809,6 +809,8 @@ pub fn run() {
             // AI Provider Abstraction
             commands::ssh::list_ai_providers,
             commands::ssh::get_ai_provider_info,
+            // Remote Agent
+            commands::ssh::check_remote_agent_installed,
             // Remote Dev Server
             commands::ssh::start_remote_dev_server,
             commands::ssh::stop_remote_dev_server,
