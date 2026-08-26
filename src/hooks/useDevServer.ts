@@ -586,7 +586,7 @@ export function useDevServer(currentProjectPath: string | null) {
       // tooling (PostCSS, autoprefixer, a CSS minifier) is detected as `generic`
       // and would start no server; a site whose HTML lives somewhere detection
       // doesn't look is `unknown`. The user can opt into static serving via
-      // `.shipstudio/project.json` → `force_static_serve`; when set, treat it as
+      // `.cripcode/project.json` → `force_static_serve`; when set, treat it as
       // a static-HTML project so it serves over the static server and the
       // Preview pane renders (it gates out `generic`/`unknown`). Never applied
       // to detected web frameworks — the override exists only for the two

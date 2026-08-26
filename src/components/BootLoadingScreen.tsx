@@ -57,7 +57,7 @@ export function BootLoadingScreen() {
             Restart Cripcode
           </Button>
           <p className="boot-watchdog-hint">
-            If this keeps happening, check the logs at ~/Library/Logs/ShipStudio/ and reach out on
+            If this keeps happening, check the logs at ~/Library/Logs/CripCode/ and reach out on
             Slack.
           </p>
         </div>

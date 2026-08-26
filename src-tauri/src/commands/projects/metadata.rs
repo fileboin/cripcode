@@ -1,6 +1,6 @@
 //! Project metadata read/write commands.
 //!
-//! Generic read/write of `.shipstudio/project.json`, plus the `has_vercel_config`
+//! Generic read/write of `.cripcode/project.json`, plus the `has_vercel_config`
 //! check. Per-topic metadata accessors live in sibling modules (`ui_state`,
 //! `dev_server`).
 
@@ -8,8 +8,8 @@ use crate::errors::CommandError;
 use crate::types::{ProjectMetadata, PROJECT_METADATA_SCHEMA_VERSION};
 use crate::utils::validate_project_path;
 
-/// Persist `metadata` to `<project>/.shipstudio/project.json`, creating the
-/// `.shipstudio` directory as needed.
+/// Persist `metadata` to `<project>/.cripcode/project.json`, creating the
+/// `.cripcode` directory as needed.
 ///
 /// Shared by every project.json writer (metadata, ui_state, dev_server,
 /// shopify, thumbnail) so filesystem failures classify identically through
@@ -20,11 +20,11 @@ pub(crate) fn save_project_metadata(
     project: &std::path::Path,
     metadata: &ProjectMetadata,
 ) -> Result<(), CommandError> {
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     if !shipstudio_dir.exists() {
         std::fs::create_dir_all(&shipstudio_dir).map_err(|e| {
             crate::utils::classify_fs_error(
-                "create this project's .shipstudio folder",
+                "create this project's .cripcode folder",
                 &shipstudio_dir,
                 &e,
             )
@@ -38,14 +38,14 @@ pub(crate) fn save_project_metadata(
         .map_err(|e| crate::utils::classify_fs_error("write project metadata", &metadata_path, &e))
 }
 
-/// Reads project metadata from .shipstudio/project.json with automatic schema migration
+/// Reads project metadata from .cripcode/project.json with automatic schema migration
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn read_project_metadata(
     project_path: String,
 ) -> Result<Option<ProjectMetadata>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -66,7 +66,7 @@ pub async fn read_project_metadata(
     Ok(Some(metadata))
 }
 
-/// Writes project metadata to .shipstudio/project.json
+/// Writes project metadata to .cripcode/project.json
 /// Always ensures the schema_version is set to the current version.
 #[tauri::command]
 #[tracing::instrument(skip(metadata), fields(project = %project_path))]
@@ -103,7 +103,7 @@ mod save_project_metadata_tests {
         };
         save_project_metadata(tmp.path(), &metadata).unwrap();
 
-        let written = tmp.path().join(".shipstudio").join("project.json");
+        let written = tmp.path().join(".cripcode").join("project.json");
         let parsed: ProjectMetadata =
             serde_json::from_str(&std::fs::read_to_string(&written).unwrap()).unwrap();
         assert_eq!(parsed.custom_dev_command.as_deref(), Some("bun dev"));
@@ -116,8 +116,8 @@ mod save_project_metadata_tests {
     fn write_failure_is_labeled() {
         use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::TempDir::new().unwrap();
-        // Pre-create .shipstudio, then make it unwritable so fs::write fails.
-        let dir = tmp.path().join(".shipstudio");
+        // Pre-create .cripcode, then make it unwritable so fs::write fails.
+        let dir = tmp.path().join(".cripcode");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
 

@@ -827,13 +827,13 @@ pub fn find_executable(cmd: &str) -> Option<std::path::PathBuf> {
 /// [`invalidate_projects_root_cache`] when the setting changes.
 static PROJECTS_ROOT_CACHE: RwLock<Option<std::path::PathBuf>> = RwLock::new(None);
 
-/// The built-in default projects root, `~/ShipStudio`.
+/// The built-in default projects root, `~/CripCode`.
 ///
 /// This always remains a valid location even when the user configures a custom
-/// root, so projects already living in `~/ShipStudio` keep opening.
+/// root, so projects already living in `~/CripCode` keep opening.
 pub fn default_projects_root() -> Result<std::path::PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    Ok(home.join("ShipStudio"))
+    Ok(home.join("CripCode"))
 }
 
 /// The directory Cripcode uses to list and create projects.
@@ -1149,7 +1149,7 @@ pub fn validate_project_file_path(
 ///
 /// Results are cached for 5 seconds keyed by (path, mtime of project.json) so
 /// asset-heavy operations don't re-parse the metadata file on every call. The
-/// cache invalidates as soon as anything writes to .shipstudio/project.json
+/// cache invalidates as soon as anything writes to .cripcode/project.json
 /// (mtime changes), so set_workspace_subpath takes effect immediately.
 ///
 /// Falls back to the project root when metadata is missing/malformed; logs a
@@ -1164,7 +1164,7 @@ pub fn resolve_workspace_path(project_root: &std::path::Path) -> std::path::Path
     static CACHE: LazyLock<TtlCache<(String, u128), std::path::PathBuf>> =
         LazyLock::new(|| TtlCache::new(Duration::from_secs(5)));
 
-    let metadata_path = project_root.join(".shipstudio").join("project.json");
+    let metadata_path = project_root.join(".cripcode").join("project.json");
     let mtime = std::fs::metadata(&metadata_path)
         .and_then(|m| m.modified())
         .ok()
@@ -1245,7 +1245,7 @@ pub fn resolve_workspace_path(project_root: &std::path::Path) -> std::path::Path
 }
 
 /// Validate `project_path` as an allowed project root, then resolve it to the
-/// active workspace subfolder (`workspace_subpath` in `.shipstudio/project.json`).
+/// active workspace subfolder (`workspace_subpath` in `.cripcode/project.json`).
 ///
 /// Identical to [`validate_project_path`] for single-app projects (no subpath →
 /// the root is returned unchanged). Commands that should operate on the
@@ -1559,7 +1559,7 @@ mod tests {
             let e = std::io::Error::from_raw_os_error(1);
             let err = classify_fs_error(
                 "read this project's plugin storage",
-                std::path::Path::new("/Users/x/Desktop/proj/.shipstudio"),
+                std::path::Path::new("/Users/x/Desktop/proj/.cripcode"),
                 &e,
             );
             assert!(
@@ -1597,7 +1597,7 @@ mod tests {
             let e = std::io::Error::from_raw_os_error(5);
             let err = classify_fs_error(
                 "write project metadata",
-                std::path::Path::new("C:\\p\\.shipstudio\\project.json"),
+                std::path::Path::new("C:\\p\\.cripcode\\project.json"),
                 &e,
             );
             assert!(
@@ -1616,7 +1616,7 @@ mod tests {
             let e = std::io::Error::from_raw_os_error(30);
             let err = classify_fs_error(
                 "write project metadata",
-                std::path::Path::new("/p/.shipstudio/project.json"),
+                std::path::Path::new("/p/.cripcode/project.json"),
                 &e,
             );
             assert!(
@@ -1637,7 +1637,7 @@ mod tests {
             let e = std::io::Error::from_raw_os_error(1);
             let err = classify_fs_error(
                 "write project metadata",
-                std::path::Path::new("/p/.shipstudio/project.json"),
+                std::path::Path::new("/p/.cripcode/project.json"),
                 &e,
             );
             assert!(
@@ -2156,7 +2156,7 @@ mod tests {
         use std::fs;
 
         fn shipstudio_root() -> std::path::PathBuf {
-            dirs::home_dir().expect("home dir").join("ShipStudio")
+            dirs::home_dir().expect("home dir").join("CripCode")
         }
 
         #[test]
@@ -2288,7 +2288,7 @@ mod tests {
         use std::fs;
 
         fn shipstudio_root() -> std::path::PathBuf {
-            dirs::home_dir().expect("home dir").join("ShipStudio")
+            dirs::home_dir().expect("home dir").join("CripCode")
         }
 
         #[test]

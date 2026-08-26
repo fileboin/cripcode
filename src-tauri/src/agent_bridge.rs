@@ -599,7 +599,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "preview_screenshot",
-        description: "Take a screenshot of the current preview page and return it as an image (also saved under .shipstudio/screenshots/). The first use may take a few minutes while a headless browser is installed.",
+        description: "Take a screenshot of the current preview page and return it as an image (also saved under .cripcode/screenshots/). The first use may take a few minutes while a headless browser is installed.",
         timeout_secs: SCREENSHOT_TOOL_TIMEOUT_SECS,
         input_schema: || json!({
             "type": "object",

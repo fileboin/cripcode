@@ -3,7 +3,7 @@
 //! This module contains all Tauri commands for the Cripcode desktop app.
 //! Commands are organized into these categories:
 //!
-//! - **Project Management**: Create, list, delete projects in ~/ShipStudio
+//! - **Project Management**: Create, list, delete projects in ~/CripCode
 //! - **Dev Server & Terminal**: PTY management for Claude Code terminal
 //! - **GitHub Integration**: Check status, create repos, commit and push
 //! - **Environment Variables**: Read/write .env files with validation
@@ -181,7 +181,7 @@ pub fn run() {
             }
 
             // The static asset-protocol scope (tauri.conf.json) only covers
-            // ~/ShipStudio. Grant access to registered external project roots at
+            // ~/CripCode. Grant access to registered external project roots at
             // runtime so we don't have to expose all of $HOME/Volumes statically
             // (which would let any main-frame script read ~/.ssh, ~/.aws, etc.).
             commands::external_projects::grant_asset_scope_for_registered(_app.handle());

@@ -2,7 +2,7 @@
 //!
 //! Remote projects are local metadata entries that point to a project folder
 //! on a VPS, accessible via an SSH server. They're stored in
-//! `~/ShipStudio/.shipstudio/remote-projects.json` so they appear on the
+//! `~/ShipStudio/.cripcode/remote-projects.json` so they appear on the
 //! dashboard alongside local projects. The actual file/terminal operations
 //! go through the SSH commands in `files.rs` and the PTY-based
 //! `RemoteTerminal` component.
@@ -15,8 +15,8 @@ use uuid::Uuid;
 fn get_config_path() -> Result<std::path::PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home
-        .join("ShipStudio")
-        .join(".shipstudio")
+        .join("CripCode")
+        .join(".cripcode")
         .join("remote-projects.json"))
 }
 
@@ -41,7 +41,7 @@ fn save_config(config: &RemoteProjectsConfig) -> Result<(), String> {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+                .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
         }
     }
     let json = serde_json::to_string_pretty(config)

@@ -4,7 +4,7 @@
 //!
 //! Organized into submodules:
 //! - `detection` — project type detection and page scanning
-//! - `metadata` — reading/writing `.shipstudio/project.json` metadata
+//! - `metadata` — reading/writing `.cripcode/project.json` metadata
 //! - `ui_state` — per-project UI state (last-opened, branch prefix, etc.)
 //! - `dev_server` — dev server configuration + cache clearing
 //! - `templates` — zip template extraction and export
@@ -152,10 +152,10 @@ fn warn_project_excluded(path: &Path, reason: &str) {
     );
 }
 
-/// Sync helper for ensuring .shipstudio/ is in gitignore
+/// Sync helper for ensuring .cripcode/ is in gitignore
 fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(), String> {
     let gitignore_path = project.join(".gitignore");
-    let entry = ".shipstudio/";
+    let entry = ".cripcode/";
 
     let content = if gitignore_path.exists() {
         std::fs::read_to_string(&gitignore_path).unwrap_or_default()
@@ -166,9 +166,9 @@ fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(),
     let already_ignored = content.lines().any(|line| {
         let trimmed = line.trim();
         trimmed == entry
-            || trimmed == ".shipstudio"
-            || trimmed == "/.shipstudio/"
-            || trimmed == "/.shipstudio"
+            || trimmed == ".cripcode"
+            || trimmed == "/.cripcode/"
+            || trimmed == "/.cripcode"
     });
 
     if already_ignored {
@@ -189,7 +189,7 @@ fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(),
 
 /// Check if a directory is a valid project.
 /// Accepts any directory inside ~/ShipStudio that has project files,
-/// a .gitignore (blank projects), or a .shipstudio metadata folder.
+/// a .gitignore (blank projects), or a .cripcode metadata folder.
 ///
 /// The language-ecosystem markers match `looks_like_project_root` in
 /// external_projects.rs — the manual "Select Project Folder" picker used to
@@ -215,7 +215,7 @@ pub(crate) fn is_valid_project(path: &std::path::Path) -> bool {
         && (path.join("package.json").exists()
             || detection::static_site_dir(path).is_some()
             || path.join(".gitignore").exists()
-            || path.join(".shipstudio").exists()
+            || path.join(".cripcode").exists()
             || path.join(".git").exists()
             || ECOSYSTEM_MARKERS.iter().any(|m| path.join(m).exists()))
 }
@@ -316,7 +316,7 @@ fn removed_projects_config_path() -> Result<PathBuf, String> {
     }
 
     Ok(crate::utils::default_projects_root()?
-        .join(".shipstudio")
+        .join(".cripcode")
         .join("removed-projects.json"))
 }
 
@@ -342,7 +342,7 @@ fn save_removed_projects_config(config: &RemovedProjectsConfig) -> Result<(), St
 
     if let Some(parent) = config_path.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+            .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
     }
 
     let contents = serde_json::to_string_pretty(config)
@@ -472,14 +472,14 @@ pub async fn list_projects() -> Result<Vec<ProjectInfo>, CommandError> {
                 continue;
             }
 
-            let thumbnail_path = path.join(".shipstudio").join("thumbnail.png");
+            let thumbnail_path = path.join(".cripcode").join("thumbnail.png");
             let thumbnail = if thumbnail_path.exists() {
                 Some(thumbnail_path.to_string_lossy().to_string())
             } else {
                 None
             };
 
-            let metadata_path = path.join(".shipstudio").join("project.json");
+            let metadata_path = path.join(".cripcode").join("project.json");
             let metadata = if metadata_path.exists() {
                 std::fs::read_to_string(&metadata_path)
                     .ok()
@@ -519,14 +519,14 @@ pub async fn list_projects() -> Result<Vec<ProjectInfo>, CommandError> {
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| "external".to_string());
 
-                let thumbnail_path = ext_path.join(".shipstudio").join("thumbnail.png");
+                let thumbnail_path = ext_path.join(".cripcode").join("thumbnail.png");
                 let thumbnail = if thumbnail_path.exists() {
                     Some(thumbnail_path.to_string_lossy().to_string())
                 } else {
                     None
                 };
 
-                let metadata_path = ext_path.join(".shipstudio").join("project.json");
+                let metadata_path = ext_path.join(".cripcode").join("project.json");
                 let metadata = if metadata_path.exists() {
                     std::fs::read_to_string(&metadata_path)
                         .ok()
@@ -610,14 +610,14 @@ pub async fn get_dashboard_projects() -> Result<Vec<DashboardProject>, CommandEr
                 continue;
             }
 
-            let thumbnail_path = path.join(".shipstudio").join("thumbnail.png");
+            let thumbnail_path = path.join(".cripcode").join("thumbnail.png");
             let thumbnail = if thumbnail_path.exists() {
                 Some(thumbnail_path.to_string_lossy().to_string())
             } else {
                 None
             };
 
-            let metadata_path = path.join(".shipstudio").join("project.json");
+            let metadata_path = path.join(".cripcode").join("project.json");
             let metadata = if metadata_path.exists() {
                 std::fs::read_to_string(&metadata_path)
                     .ok()
@@ -640,7 +640,7 @@ pub async fn get_dashboard_projects() -> Result<Vec<DashboardProject>, CommandEr
                 metadata.as_ref().and_then(|m| m.hide_main_branch_warning);
             let workspace_subpath = metadata.as_ref().and_then(|m| m.workspace_subpath.clone());
 
-            // Ensure .shipstudio/ is gitignored
+            // Ensure .cripcode/ is gitignored
             let _ = ensure_gitignore_has_shipstudio_sync(&path);
 
             projects.push(DashboardProject {
@@ -673,14 +673,14 @@ pub async fn get_dashboard_projects() -> Result<Vec<DashboardProject>, CommandEr
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| "external".to_string());
 
-                let thumbnail_path = path.join(".shipstudio").join("thumbnail.png");
+                let thumbnail_path = path.join(".cripcode").join("thumbnail.png");
                 let thumbnail = if thumbnail_path.exists() {
                     Some(thumbnail_path.to_string_lossy().to_string())
                 } else {
                     None
                 };
 
-                let metadata_path = path.join(".shipstudio").join("project.json");
+                let metadata_path = path.join(".cripcode").join("project.json");
                 let metadata = if metadata_path.exists() {
                     std::fs::read_to_string(&metadata_path)
                         .ok()
@@ -705,7 +705,7 @@ pub async fn get_dashboard_projects() -> Result<Vec<DashboardProject>, CommandEr
                     metadata.as_ref().and_then(|m| m.hide_main_branch_warning);
                 let workspace_subpath = metadata.as_ref().and_then(|m| m.workspace_subpath.clone());
 
-                // Ensure .shipstudio/ is gitignored
+                // Ensure .cripcode/ is gitignored
                 let _ = ensure_gitignore_has_shipstudio_sync(&path);
 
                 projects.push(DashboardProject {
@@ -870,14 +870,14 @@ pub async fn open_in_finder(path: String) -> Result<(), CommandError> {
     Ok(())
 }
 
-/// Ensures .shipstudio/ is in the project's .gitignore
+/// Ensures .cripcode/ is in the project's .gitignore
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn ensure_gitignore_has_shipstudio(project_path: String) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
     let gitignore_path = project.join(".gitignore");
 
-    let entry = ".shipstudio/";
+    let entry = ".cripcode/";
 
     let content = if gitignore_path.exists() {
         std::fs::read_to_string(&gitignore_path)
@@ -889,9 +889,9 @@ pub async fn ensure_gitignore_has_shipstudio(project_path: String) -> Result<(),
     let already_ignored = content.lines().any(|line| {
         let trimmed = line.trim();
         trimmed == entry
-            || trimmed == ".shipstudio"
-            || trimmed == "/.shipstudio/"
-            || trimmed == "/.shipstudio"
+            || trimmed == ".cripcode"
+            || trimmed == "/.cripcode/"
+            || trimmed == "/.cripcode"
     });
 
     if already_ignored {
@@ -932,9 +932,9 @@ pub async fn create_blank_project(project_path: String) -> Result<(), CommandErr
     std::fs::create_dir_all(path)
         .map_err(|e| format!("Failed to create project directory: {e}"))?;
 
-    // Add .shipstudio/ to gitignore
+    // Add .cripcode/ to gitignore
     let gitignore = path.join(".gitignore");
-    std::fs::write(&gitignore, ".shipstudio/\n")
+    std::fs::write(&gitignore, ".cripcode/\n")
         .map_err(|e| format!("Failed to create .gitignore: {e}"))?;
 
     Ok(())
@@ -1166,7 +1166,7 @@ fn validate_project_name(name: &str) -> Result<String, CommandError> {
 /// a *different* window; a hot background session (the rail keeps PTYs and dev
 /// servers alive after the user returns to the dashboard) is suspended first
 /// so the folder isn't moved out from under live processes. Everything inside
-/// the directory — git remotes, `.vercel`, `.shipstudio` metadata — travels
+/// the directory — git remotes, `.vercel`, `.cripcode` metadata — travels
 /// with the move untouched. Returns the new absolute path.
 #[tauri::command]
 #[tracing::instrument(skip(window))]
@@ -1362,7 +1362,7 @@ fn move_dir(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> 
 }
 
 /// Bucket immediate project subfolders of `from` by movable / collision / open.
-/// Hidden dirs (e.g. the `.shipstudio` app-config dir, which stays at the default
+/// Hidden dirs (e.g. the `.cripcode` app-config dir, which stays at the default
 /// root regardless of where projects live) are skipped.
 fn scan_movable(
     from: &std::path::Path,
@@ -1569,7 +1569,7 @@ mod tests {
     fn make_project(root: &std::path::Path, name: &str) {
         let dir = root.join(name);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join(".gitignore"), ".shipstudio/\n").unwrap();
+        std::fs::write(dir.join(".gitignore"), ".cripcode/\n").unwrap();
     }
 
     #[test]
@@ -1582,7 +1582,7 @@ mod tests {
         make_project(to.path(), "beta"); // destination already has beta
 
         // A hidden config dir and a non-project dir must be ignored.
-        std::fs::create_dir_all(from.path().join(".shipstudio")).unwrap();
+        std::fs::create_dir_all(from.path().join(".cripcode")).unwrap();
         std::fs::create_dir_all(from.path().join("not-a-project")).unwrap();
 
         let (movable, collisions, open) = scan_movable(from.path(), to.path());

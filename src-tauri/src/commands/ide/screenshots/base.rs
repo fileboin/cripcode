@@ -17,7 +17,7 @@ pub async fn crop_and_save_screenshot(
     height: u32,
 ) -> Result<String, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let screenshots_dir = project.join(".shipstudio").join("screenshots");
+    let screenshots_dir = project.join(".cripcode").join("screenshots");
 
     // Ensure screenshots directory exists
     if !screenshots_dir.exists() {

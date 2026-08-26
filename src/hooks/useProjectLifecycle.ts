@@ -677,7 +677,7 @@ export function useProjectLifecycle({
       logger.warn('Failed to mark project as opened', { error: err })
     );
 
-    // Ensure .shipstudio/ is gitignored (backwards compat for existing projects)
+    // Ensure .cripcode/ is gitignored (backwards compat for existing projects)
     void invoke('ensure_gitignore_has_shipstudio', { projectPath: project.path }).catch((err) =>
       logger.warn('Failed to ensure gitignore', { error: err })
     );

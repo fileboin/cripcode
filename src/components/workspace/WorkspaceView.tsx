@@ -688,7 +688,7 @@ export const WorkspaceView = memo(function WorkspaceView({
 
   // Manual rename from the sidebar's double-click → input flow. Updates the
   // registry (which becomes the display source of truth via `tabTitles`)
-  // and writes the full tab list back to .shipstudio/project.json so the
+  // and writes the full tab list back to .cripcode/project.json so the
   // rename survives across launches. An empty `name` clears the custom
   // title — useful for "undo my rename, go back to the agent name".
   const handleRenameTab = useCallback(

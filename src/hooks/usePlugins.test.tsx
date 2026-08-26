@@ -59,7 +59,7 @@ function makeInfo(overrides: Partial<PluginInfo> = {}): PluginInfo {
 const workingModule: PluginModule = { name: 'Dependency Checker', slots: {} };
 
 const missingBundleError = new Error(
-  'Plugin bundle not found: /p/.shipstudio/plugins/dependency-checker/dist/index.js'
+  'Plugin bundle not found: /p/.cripcode/plugins/dependency-checker/dist/index.js'
 );
 
 beforeEach(() => {

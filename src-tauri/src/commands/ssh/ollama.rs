@@ -471,7 +471,7 @@ fn parse_show_response(name: &str, show: &OllamaShowResponse) -> OllamaModelInfo
 // ============ Model Selection ============
 
 /// Ollama model selection config, persisted to
-/// `~/.ship-studio/.shipstudio/ollama-config.json`.
+/// `~/.ship-studio/.cripcode/ollama-config.json`.
 /// Maps a location key ("local" or an SSH server ID) to a selected model name.
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct OllamaConfig {
@@ -483,8 +483,8 @@ struct OllamaConfig {
 fn ollama_config_path() -> Result<std::path::PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home
-        .join("ShipStudio")
-        .join(".shipstudio")
+        .join("CripCode")
+        .join(".cripcode")
         .join("ollama-config.json"))
 }
 
@@ -505,7 +505,7 @@ fn save_ollama_config(config: &OllamaConfig) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+                .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
         }
     }
     let json = serde_json::to_string_pretty(config)

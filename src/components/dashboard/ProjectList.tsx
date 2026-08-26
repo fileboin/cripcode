@@ -473,7 +473,7 @@ export function ProjectList({
       setProjects((prev) =>
         prev.map((p) =>
           p.path === projectPath
-            ? { ...p, thumbnail: '.shipstudio/thumbnail.png', thumbnailData: dataUrl }
+            ? { ...p, thumbnail: '.cripcode/thumbnail.png', thumbnailData: dataUrl }
             : p
         )
       );

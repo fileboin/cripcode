@@ -164,7 +164,7 @@ fn humanize_image_decode_error(err: image::ImageError) -> CommandError {
 /// user-supplied — auto-capture must skip these so it doesn't clobber
 /// the upload on the next dev-server boot.
 pub(super) fn is_thumbnail_locked(project: &Path) -> bool {
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
     let Ok(contents) = std::fs::read_to_string(&metadata_path) else {
         return false;
     };
@@ -194,7 +194,7 @@ pub async fn capture_project_thumbnail(
     // Returns the existing thumbnail path so the caller still treats the
     // call as success (the user's image stays put).
     if is_thumbnail_locked(&project) {
-        let thumbnail_path = project.join(".shipstudio").join("thumbnail.png");
+        let thumbnail_path = project.join(".cripcode").join("thumbnail.png");
         tracing::info!("Skipping auto-capture; custom thumbnail in place");
         return Ok(thumbnail_path.to_string_lossy().to_string());
     }
@@ -206,9 +206,9 @@ pub async fn capture_project_thumbnail(
         return Err(("Dev server not responding, skipping thumbnail capture".to_string()).into());
     }
 
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
 
-    // Ensure .shipstudio directory exists
+    // Ensure .cripcode directory exists
     if !shipstudio_dir.exists() {
         std::fs::create_dir_all(&shipstudio_dir).map_err(|e| e.to_string())?;
     }
@@ -269,7 +269,7 @@ pub async fn capture_project_thumbnail(
         // capture interrupted before cleanup leaves a stale SingletonLock that
         // blocks every subsequent capture forever (issue #358 and its many
         // duplicates). PID + a process-wide counter is collision-free across
-        // both concurrent captures and app restarts into a dirty .shipstudio.
+        // both concurrent captures and app restarts into a dirty .cripcode.
         static PROFILE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         sweep_stale_thumbnail_profiles(&shipstudio_dir);
 
@@ -469,7 +469,7 @@ pub async fn capture_project_thumbnail(
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_project_thumbnail(project_path: String) -> Result<Option<String>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let thumbnail_path = project.join(".shipstudio").join("thumbnail.png");
+    let thumbnail_path = project.join(".cripcode").join("thumbnail.png");
 
     if thumbnail_path.exists() {
         // Return as base64 data URL for easy display
@@ -503,11 +503,11 @@ pub async fn upload_project_thumbnail(
     }
 
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     if !shipstudio_dir.exists() {
         std::fs::create_dir_all(&shipstudio_dir).map_err(|e| {
             crate::utils::classify_fs_error(
-                "create this project's .shipstudio folder",
+                "create this project's .cripcode folder",
                 &shipstudio_dir,
                 &e,
             )
@@ -610,7 +610,7 @@ mod singleton_classification_tests {
     #[test]
     fn stale_singleton_lock_stderr_is_recognized() {
         // Condensed from the real report behind issue #644.
-        let stderr = "[0810/163833.123:ERROR:chrome/browser/process_singleton_posix.cc:347] Failed to create /Users/x/ShipStudio/p/.shipstudio/thumbnail_profile/SingletonLock: File exists (17)\n\
+        let stderr = "[0810/163833.123:ERROR:chrome/browser/process_singleton_posix.cc:347] Failed to create /Users/x/ShipStudio/p/.cripcode/thumbnail_profile/SingletonLock: File exists (17)\n\
             [0810/163833.456:ERROR:chrome/app/chrome_main_delegate.cc:520] Failed to create a ProcessSingleton for your profile directory.";
         assert!(is_profile_singleton_error(stderr));
     }

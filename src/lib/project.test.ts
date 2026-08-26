@@ -2,7 +2,7 @@
  * Tests for project management Tauri wrappers (src/lib/project.ts).
  *
  * Focuses on the thin invoke() wrappers: project CRUD, metadata getters/setters,
- * and settings that persist to `.shipstudio/project.json`.
+ * and settings that persist to `.cripcode/project.json`.
  *
  * The complex `startDevServer` function is intentionally not covered here — it
  * orchestrates `tauri-pty`, file reads, event listeners, and PID polling, which

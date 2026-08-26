@@ -45,8 +45,8 @@ pub fn grant_asset_scope_for_registered(app: &AppHandle) {
 fn get_config_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home
-        .join("ShipStudio")
-        .join(".shipstudio")
+        .join("CripCode")
+        .join(".cripcode")
         .join("external-projects.json"))
 }
 
@@ -76,7 +76,7 @@ pub fn save_config(config: &ExternalProjectsConfig) -> Result<(), String> {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+                .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
         }
     }
 
@@ -279,11 +279,11 @@ pub async fn unregister_external_project(path: String) -> Result<(), CommandErro
     Ok(())
 }
 
-/// Clear the `workspace_subpath` field in a project's `.shipstudio/project.json`
+/// Clear the `workspace_subpath` field in a project's `.cripcode/project.json`
 /// without touching any other metadata. No-op when the file is absent.
 fn clear_workspace_subpath_in_metadata(project_root: &Path) -> Result<(), String> {
     use crate::types::ProjectMetadata;
-    let metadata_path = project_root.join(".shipstudio").join("project.json");
+    let metadata_path = project_root.join(".cripcode").join("project.json");
     if !metadata_path.exists() {
         return Ok(());
     }
@@ -316,7 +316,7 @@ fn looks_like_project_root(path: &Path) -> bool {
     const MARKERS: &[&str] = &[
         ".git",
         "package.json",
-        ".shipstudio",
+        ".cripcode",
         "Cargo.toml",
         "go.mod",
         "pyproject.toml",

@@ -40,7 +40,7 @@ const MAX_HISTORY: usize = 50;
 const IGNORE_DIRS: &[&str] = &[
     ".git",
     "node_modules",
-    ".shipstudio",
+    ".cripcode",
     ".next",
     ".turbo",
     "dist",
@@ -668,7 +668,7 @@ mod tests {
         assert!(!is_relevant_path(&root.join(".git/HEAD"), root));
         assert!(!is_relevant_path(&root.join("node_modules/foo/x.js"), root));
         assert!(!is_relevant_path(
-            &root.join(".shipstudio/project.json"),
+            &root.join(".cripcode/project.json"),
             root
         ));
         assert!(is_relevant_path(&root.join("src/App.tsx"), root));

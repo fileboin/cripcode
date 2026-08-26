@@ -319,7 +319,7 @@ fn extract_archive_to<R: std::io::Read + std::io::Seek>(
 const EXPORT_EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
     ".git",
-    ".shipstudio",
+    ".cripcode",
     ".next",
     ".vercel",
     "dist",

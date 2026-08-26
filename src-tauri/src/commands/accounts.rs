@@ -38,7 +38,7 @@ use tauri::{AppHandle, Emitter};
 /// The ID of the built-in default account. Always exists; cannot be deleted.
 pub const DEFAULT_ACCOUNT_ID: &str = "default";
 
-const KEYCHAIN_PREFIX: &str = "ship-studio-account-";
+const KEYCHAIN_PREFIX: &str = "cripcode-account-";
 
 /// Credential key -> injected environment variable name.
 const CRED_ENV_VARS: &[(&str, &str)] = &[
@@ -417,7 +417,7 @@ fn parse_claude_auth_status(stdout: &str) -> Option<(bool, Option<String>)> {
 fn account_config_root(account_id: &str) -> PathBuf {
     dirs::home_dir()
         .unwrap_or_default()
-        .join(".ship-studio")
+        .join(".cripcode")
         .join("accounts")
         .join(account_id)
 }
@@ -1885,8 +1885,8 @@ mod tests {
 
     #[test]
     fn keychain_service_uses_prefix() {
-        assert_eq!(keychain_service("default"), "ship-studio-account-default");
-        assert_eq!(keychain_service("abc-123"), "ship-studio-account-abc-123");
+        assert_eq!(keychain_service("default"), "cripcode-account-default");
+        assert_eq!(keychain_service("abc-123"), "cripcode-account-abc-123");
     }
 
     #[test]

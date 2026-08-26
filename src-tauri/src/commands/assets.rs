@@ -2,7 +2,7 @@
 //!
 //! Commands for managing asset files in a project. The managed folder defaults
 //! to `/public` but can be re-pointed per project (e.g. `src/assets` for Astro
-//! image pipelines) via `assets_root` in `.shipstudio/project.json`.
+//! image pipelines) via `assets_root` in `.cripcode/project.json`.
 
 use crate::commands::git::{load_project_metadata, save_project_metadata};
 use crate::errors::CommandError;
@@ -34,7 +34,7 @@ fn sanitize_assets_root(root: &str) -> Option<String> {
 }
 
 /// The folder the Assets panel manages for this project. `repo_root` locates
-/// `.shipstudio/project.json`; the returned dir lives under `workspace`
+/// `.cripcode/project.json`; the returned dir lives under `workspace`
 /// (monorepo-aware), matching the rest of the asset commands.
 fn assets_root_dir(repo_root: &Path, workspace: &Path) -> PathBuf {
     let configured = load_project_metadata(repo_root)
@@ -175,7 +175,7 @@ pub async fn get_assets_root(project_path: String) -> Result<String, CommandErro
 }
 
 /// Point the Assets panel at a different folder (e.g. `src/assets`), persisted
-/// per project in `.shipstudio/project.json`. Creates the folder if missing.
+/// per project in `.cripcode/project.json`. Creates the folder if missing.
 /// Returns the normalized root that was saved.
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
@@ -557,7 +557,7 @@ mod tests {
     #[test]
     fn assets_root_dir_falls_back_to_public() {
         let tmp = tempfile::tempdir().unwrap();
-        // No .shipstudio/project.json → default root.
+        // No .cripcode/project.json → default root.
         let dir = assets_root_dir(tmp.path(), tmp.path());
         assert_eq!(dir, tmp.path().join("public"));
     }
@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn assets_root_dir_reads_configured_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let shipstudio = tmp.path().join(".shipstudio");
+        let shipstudio = tmp.path().join(".cripcode");
         std::fs::create_dir_all(&shipstudio).unwrap();
         let mut metadata = crate::types::ProjectMetadata::default();
         metadata.assets_root = Some("src/assets".to_string());
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn assets_root_dir_ignores_invalid_configured_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let shipstudio = tmp.path().join(".shipstudio");
+        let shipstudio = tmp.path().join(".cripcode");
         std::fs::create_dir_all(&shipstudio).unwrap();
         let mut metadata = crate::types::ProjectMetadata::default();
         metadata.assets_root = Some("../escape".to_string());

@@ -112,22 +112,22 @@ fn get_log_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
-            .map(|h| h.join("Library/Logs/ShipStudio"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/ship-studio-logs"))
+            .map(|h| h.join("Library/Logs/CripCode"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-logs"))
     }
 
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ShipStudio/logs"))
-            .unwrap_or_else(|| PathBuf::from("C:/temp/ship-studio-logs"))
+            .map(|d| d.join("CripCode/logs"))
+            .unwrap_or_else(|| PathBuf::from("C:/temp/cripcode-logs"))
     }
 
     #[cfg(target_os = "linux")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ship-studio/logs"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/ship-studio-logs"))
+            .map(|d| d.join("cripcode/logs"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-logs"))
     }
 }
 
@@ -146,7 +146,7 @@ pub fn init_logging() -> Result<(), String> {
         .map_err(|e| format!("Failed to create log directory: {e}"))?;
 
     // Set up file appender with daily rotation
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "ship-studio.log");
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "cripcode.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // Store the guard to keep the writer alive
@@ -168,7 +168,6 @@ pub fn init_logging() -> Result<(), String> {
     // Default to info level, can be overridden with RUST_LOG env var
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("ship_studio_lib=info,warn"));
-
     // Build the subscriber
     let subscriber = tracing_subscriber::registry().with(filter).with(file_layer);
 

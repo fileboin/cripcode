@@ -60,7 +60,7 @@ pub async fn stitch_screenshots(
     }
 
     let project = validate_project_path(&project_path)?;
-    let screenshots_dir = project.join(".shipstudio").join("screenshots");
+    let screenshots_dir = project.join(".cripcode").join("screenshots");
 
     // Ensure screenshots directory exists
     if !screenshots_dir.exists() {

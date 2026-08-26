@@ -2,7 +2,7 @@
  * Hook for reading the Workspace (Account) to display in the UI.
  *
  * When a `projectPath` is given, it resolves the workspace that project is
- * tagged with (`account_id` in `.shipstudio/project.json`) so the indicator
+ * tagged with (`account_id` in `.cripcode/project.json`) so the indicator
  * follows the open project as you switch between projects in the sidebar.
  * Without a path (e.g. on Home), it falls back to the globally active account.
  *

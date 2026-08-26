@@ -1,6 +1,6 @@
 //! SSH server configuration CRUD and JSON persistence.
 //!
-//! Server configs are stored in `~/ShipStudio/.shipstudio/ssh-servers.json`,
+//! Server configs are stored in `~/ShipStudio/.cripcode/ssh-servers.json`,
 //! following the same pattern as `external-projects.json`. The private key
 //! file itself is never read into memory — only its filesystem path is stored.
 
@@ -13,8 +13,8 @@ use uuid::Uuid;
 fn get_config_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home
-        .join("ShipStudio")
-        .join(".shipstudio")
+        .join("CripCode")
+        .join(".cripcode")
         .join("ssh-servers.json"))
 }
 
@@ -43,7 +43,7 @@ fn save_config(config: &SshServersConfig) -> Result<(), String> {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+                .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
         }
     }
 

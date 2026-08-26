@@ -72,7 +72,7 @@ describe('usePreviewCapture full-page capture', () => {
   });
 
   it('does not toast when the full-page capture succeeds', async () => {
-    invokeMock.mockResolvedValue('/path/to/project/.shipstudio/screenshots/fullpage-1.png');
+    invokeMock.mockResolvedValue('/path/to/project/.cripcode/screenshots/fullpage-1.png');
 
     const { result } = renderHook(() => usePreviewCapture(baseParams), { wrapper });
 
@@ -81,7 +81,7 @@ describe('usePreviewCapture full-page capture', () => {
       filePath = await result.current.captureFullPage();
     });
 
-    expect(filePath).toBe('/path/to/project/.shipstudio/screenshots/fullpage-1.png');
+    expect(filePath).toBe('/path/to/project/.cripcode/screenshots/fullpage-1.png');
     expect(showToast).not.toHaveBeenCalled();
     expect(trackEvent).toHaveBeenCalledWith('screenshot_captured', {
       mode: 'fullpage',

@@ -1,7 +1,7 @@
 //! Health check execution and persisted result storage.
 //!
 //! These commands run test/lint/typecheck/format scripts in a project and save
-//! the results to `.shipstudio/project.json` so the UI can display last-run
+//! the results to `.cripcode/project.json` so the UI can display last-run
 //! status across app restarts.
 
 use super::detect_package_manager_internal;
@@ -106,7 +106,7 @@ async fn save_health_result(
     category: &ScriptCategory,
     result: &HealthCheckResult,
 ) -> Result<(), CommandError> {
-    let metadata_path = project_path.join(".shipstudio").join("project.json");
+    let metadata_path = project_path.join(".cripcode").join("project.json");
 
     // Read existing metadata or create default
     let mut metadata = if metadata_path.exists() {
@@ -132,11 +132,11 @@ async fn save_health_result(
         }
     }
 
-    // Ensure .shipstudio directory exists
-    let shipstudio_dir = project_path.join(".shipstudio");
+    // Ensure .cripcode directory exists
+    let shipstudio_dir = project_path.join(".cripcode");
     if !shipstudio_dir.exists() {
         std::fs::create_dir_all(&shipstudio_dir)
-            .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+            .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
     }
 
     // Write updated metadata
@@ -155,7 +155,7 @@ pub async fn get_health_status(
     project_path: String,
 ) -> Result<Option<HealthCheckStatus>, CommandError> {
     let validated_path = validate_project_path(&project_path)?;
-    let metadata_path = validated_path.join(".shipstudio").join("project.json");
+    let metadata_path = validated_path.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -175,7 +175,7 @@ pub async fn get_health_status(
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn clear_health_status(project_path: String) -> Result<(), CommandError> {
     let validated_path = validate_project_path(&project_path)?;
-    let metadata_path = validated_path.join(".shipstudio").join("project.json");
+    let metadata_path = validated_path.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(());

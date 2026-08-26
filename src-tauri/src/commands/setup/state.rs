@@ -14,14 +14,14 @@ pub(crate) fn get_app_state_path() -> std::path::PathBuf {
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
-            .map(|h| h.join("Library/Application Support/ShipStudio/app_state.json"))
+            .map(|h| h.join("Library/Application Support/CripCode/app_state.json"))
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ship-studio-app-state.json"))
     }
 
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ShipStudio/app_state.json"))
+            .map(|d| d.join("CripCode/app_state.json"))
             .unwrap_or_else(|| std::path::PathBuf::from("C:/temp/ship-studio-app-state.json"))
     }
 

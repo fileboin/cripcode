@@ -796,7 +796,7 @@ fn scan_html_pages_recursive(
 
         if entry.is_dir {
             let dir_name = entry.file_name;
-            // Skip hidden dirs, node_modules, .git, .shipstudio, etc.
+            // Skip hidden dirs, node_modules, .git, .cripcode, etc.
             if dir_name.starts_with('.') || dir_name == "node_modules" {
                 continue;
             }

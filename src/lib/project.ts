@@ -110,7 +110,7 @@ export async function spawnPty(
 }
 
 /**
- * Ensure .shipstudio is included in the project's .gitignore file.
+ * Ensure .cripcode is included in the project's .gitignore file.
  * Creates .gitignore if it doesn't exist.
  * @param projectPath - Absolute path to the project directory
  */

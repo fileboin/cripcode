@@ -461,7 +461,7 @@ pub async fn get_full_setup_status() -> FullSetupStatus {
             if !npm_cache.exists() {
                 true
             } else {
-                let test_file = npm_cache.join(".shipstudio-write-test");
+                let test_file = npm_cache.join(".cripcode-write-test");
                 match std::fs::write(&test_file, "test") {
                     Ok(_) => {
                         let _ = std::fs::remove_file(&test_file);

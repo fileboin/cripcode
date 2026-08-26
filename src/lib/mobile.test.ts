@@ -78,8 +78,8 @@ describe('appIdFromLog', () => {
     // Regression: Expo logs `Opening com.x://…` with no `cmp=`, which left the
     // launch poll stuck on "Building…" forever before this branch existed.
     const log =
-      '› Opening com.shipstudio.testexpoapp://expo-development-client/?url=http%3A%2F%2F192.168.1.2%3A8081';
-    expect(appIdFromLog('android', log)).toBe('com.shipstudio.testexpoapp');
+      '› Opening com.cripcode.testexpoapp://expo-development-client/?url=http%3A%2F%2F192.168.1.2%3A8081';
+    expect(appIdFromLog('android', log)).toBe('com.cripcode.testexpoapp');
   });
 
   it('does not mistake a plain http(s) URL for an app id', () => {

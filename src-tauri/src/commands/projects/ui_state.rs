@@ -1,6 +1,6 @@
 //! UI state persistence commands.
 //!
-//! Per-project UI preferences stored in `.shipstudio/project.json`:
+//! Per-project UI preferences stored in `.cripcode/project.json`:
 //! last-opened timestamp, branch prefix preference, hide-main-branch-warning,
 //! auto-accept mode, and terminal tab state.
 
@@ -14,7 +14,7 @@ use crate::utils::validate_project_path;
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn mark_project_opened(project_path: String) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -52,7 +52,7 @@ pub async fn mark_project_opened(project_path: String) -> Result<(), CommandErro
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_branch_prefix_preference(project_path: String) -> Result<bool, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(true);
@@ -74,7 +74,7 @@ pub async fn set_branch_prefix_preference(
     prefix: bool,
 ) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -98,7 +98,7 @@ pub async fn set_branch_prefix_preference(
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_hide_main_branch_warning(project_path: String) -> Result<bool, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(false);
@@ -120,7 +120,7 @@ pub async fn set_hide_main_branch_warning(
     hidden: bool,
 ) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -144,7 +144,7 @@ pub async fn set_hide_main_branch_warning(
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_auto_accept_mode(project_path: String) -> Result<bool, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(false);
@@ -164,7 +164,7 @@ pub async fn get_auto_accept_mode(project_path: String) -> Result<bool, CommandE
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn set_auto_accept_mode(project_path: String, enabled: bool) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -190,7 +190,7 @@ pub async fn get_terminal_state(
     project_path: String,
 ) -> Result<Option<TerminalState>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -213,7 +213,7 @@ pub async fn set_terminal_state(
     state: TerminalState,
 ) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -233,7 +233,7 @@ pub async fn set_terminal_state(
 }
 
 /// Reassigns a project to a different Workspace (Account) by updating
-/// `account_id` in `.shipstudio/project.json`. The project folder is not
+/// `account_id` in `.cripcode/project.json`. The project folder is not
 /// moved on disk — only the metadata tag changes.
 ///
 /// Passing `account_id = "default"` moves the project to the Default
@@ -312,14 +312,14 @@ pub async fn move_project_to_account(
     write_project_account_id(&project, &account_id)
 }
 
-/// Write a project's Workspace tag into its `.shipstudio/project.json`. The
+/// Write a project's Workspace tag into its `.cripcode/project.json`. The
 /// Default workspace is stored as `None` so legacy/untagged projects stay
 /// visible there.
 fn write_project_account_id(
     project: &std::path::Path,
     account_id: &str,
 ) -> Result<(), CommandError> {
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -370,13 +370,13 @@ pub fn effective_account_id(metadata: Option<&ProjectMetadata>) -> String {
 }
 
 /// Synchronous resolver for the Workspace (Account) id a project belongs to,
-/// reading `.shipstudio/project.json`'s `account_id`. Shared by env-injection
+/// reading `.cripcode/project.json`'s `account_id`. Shared by env-injection
 /// call sites (terminal spawn, git push, PR create, AI gen) that need it off the
 /// async path so they inherit the *project's* workspace credentials rather than
 /// whichever workspace is globally active. Resolution goes through
 /// [`effective_account_id`] so credentials match what the dashboard shows.
 pub fn project_account_id_sync(project_path: &std::path::Path) -> String {
-    let metadata_path = project_path.join(".shipstudio").join("project.json");
+    let metadata_path = project_path.join(".cripcode").join("project.json");
     let metadata = std::fs::read_to_string(&metadata_path)
         .ok()
         .and_then(|contents| serde_json::from_str::<ProjectMetadata>(&contents).ok());

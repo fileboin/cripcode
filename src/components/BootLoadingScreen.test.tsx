@@ -46,7 +46,7 @@ describe('BootLoadingScreen', () => {
     });
     expect(screen.getByText(/taking longer than expected/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restart Cripcode' })).toBeInTheDocument();
-    expect(screen.getByText(/~\/Library\/Logs\/ShipStudio\//)).toBeInTheDocument();
+    expect(screen.getByText(/~\/Library\/Logs\/CripCode\//)).toBeInTheDocument();
   });
 
   it('calls relaunch when the restart button is clicked', async () => {

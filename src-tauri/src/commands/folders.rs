@@ -11,10 +11,7 @@ use std::path::PathBuf;
 /// Get the path to the global folders config file
 fn get_folders_config_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    Ok(home
-        .join("ShipStudio")
-        .join(".shipstudio")
-        .join("folders.json"))
+    Ok(home.join("CripCode").join(".cripcode").join("folders.json"))
 }
 
 /// Load the folder config from disk
@@ -42,7 +39,7 @@ fn save_folder_config(config: &FolderConfig) -> Result<(), String> {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+                .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
         }
     }
 
@@ -114,7 +111,7 @@ fn generate_uuid() -> String {
 /// Load a project thumbnail as base64
 fn load_thumbnail_base64(project_path: &str) -> Option<String> {
     let thumbnail_path = std::path::Path::new(project_path)
-        .join(".shipstudio")
+        .join(".cripcode")
         .join("thumbnail.png");
 
     if !thumbnail_path.exists() {

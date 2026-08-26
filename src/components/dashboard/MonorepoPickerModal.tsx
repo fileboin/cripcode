@@ -2,7 +2,7 @@
  * MonorepoPickerModal — shown the first time a monorepo project is opened
  * (whether from GitHub import, local-folder add, or just clicking the card).
  * Asks the user to commit to one app, or to use the repo root. The choice is
- * persisted to `.shipstudio/project.json` so it never re-prompts.
+ * persisted to `.cripcode/project.json` so it never re-prompts.
  *
  * Reuses the wizard picker's UI but presents it as a standalone modal so it
  * can fire from the dashboard outside of the import flow.

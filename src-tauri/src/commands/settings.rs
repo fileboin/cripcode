@@ -150,7 +150,7 @@ pub fn set_projects_root(path: String) -> Result<(), CommandError> {
                 .into());
         }
         // Confirm the folder is writable (creating projects needs write access).
-        let probe = pb.join(".shipstudio-write-test");
+        let probe = pb.join(".cripcode-write-test");
         std::fs::write(&probe, b"test").map_err(|e| {
             // "Folder isn't writable" for every failure was misleading: on
             // Windows, a folder that vanished between the is_dir() check and

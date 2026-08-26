@@ -84,7 +84,7 @@ const WATCH_EXTENSIONS: &[&str] = &[
 ];
 
 /// Directories to ignore when watching for file changes.
-const WATCH_IGNORE_DIRS: &[&str] = &[".git", "node_modules", ".shipstudio", ".DS_Store"];
+const WATCH_IGNORE_DIRS: &[&str] = &[".git", "node_modules", ".cripcode", ".DS_Store"];
 
 /// Minimum interval between file change events (debounce).
 const DEBOUNCE_MS: u64 = 300;

@@ -25,7 +25,7 @@ const MAX_PLUGIN_SHELL_TIMEOUT_SECS: u64 = 600;
 
 /// Read plugin storage data
 ///
-/// Storage is at {project}/.shipstudio/plugins/{plugin-id}/storage.json
+/// Storage is at {project}/.cripcode/plugins/{plugin-id}/storage.json
 /// Acquires a per-plugin lock to prevent races with concurrent writes.
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]

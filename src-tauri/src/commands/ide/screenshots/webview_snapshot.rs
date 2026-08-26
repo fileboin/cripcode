@@ -69,17 +69,17 @@ pub async fn capture_thumbnail_from_webview(
     };
 
     if is_thumbnail_locked(&project) {
-        let thumbnail_path = project.join(".shipstudio").join("thumbnail.png");
+        let thumbnail_path = project.join(".cripcode").join("thumbnail.png");
         tracing::info!("Skipping native snapshot; custom thumbnail in place");
         return Ok(thumbnail_path.to_string_lossy().to_string());
     }
 
     let png_bytes = snapshot_webview_region(&webview_window, rect).await?;
 
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     if !shipstudio_dir.exists() {
         std::fs::create_dir_all(&shipstudio_dir)
-            .map_err(|e| format!("Failed to create .shipstudio directory: {e}"))?;
+            .map_err(|e| format!("Failed to create .cripcode directory: {e}"))?;
     }
     let thumbnail_path = shipstudio_dir.join("thumbnail.png");
     // The iframe's layout box can extend a few CSS pixels past its rendered

@@ -167,7 +167,7 @@ pub struct TerminalState {
     pub active_tab_index: usize,
 }
 
-/// Project metadata stored in .shipstudio/project.json
+/// Project metadata stored in .cripcode/project.json
 #[derive(Serialize, Deserialize)]
 pub struct ProjectMetadata {
     #[serde(rename = "_description")]
@@ -569,7 +569,7 @@ pub struct ConflictedFile {
 /// Current schema version for folder config.
 pub const FOLDER_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Folder configuration stored in ~/ShipStudio/.shipstudio/folders.json
+/// Folder configuration stored in ~/ShipStudio/.cripcode/folders.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct FolderConfig {
     pub schema_version: u32,
@@ -605,7 +605,7 @@ pub struct FolderInfo {
 /// Current schema version for external projects config.
 pub const EXTERNAL_PROJECTS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Configuration for external projects stored in ~/ShipStudio/.shipstudio/external-projects.json
+/// Configuration for external projects stored in ~/ShipStudio/.cripcode/external-projects.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct ExternalProjectsConfig {
     pub schema_version: u32,
@@ -628,7 +628,7 @@ pub struct ExternalProject {
 pub const ATTACHED_LIBRARIES_CONFIG_SCHEMA_VERSION: u32 = 2;
 
 /// Configuration for shared libraries stored in
-/// ~/ShipStudio/.shipstudio/attached-libraries.json
+/// ~/ShipStudio/.cripcode/attached-libraries.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct AttachedLibrariesConfig {
     pub schema_version: u32,
@@ -946,7 +946,7 @@ pub struct CompactModePreferences {
 /// Current schema version for SSH servers config.
 pub const SSH_SERVERS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Configuration for SSH servers stored in ~/ShipStudio/.shipstudio/ssh-servers.json
+/// Configuration for SSH servers stored in ~/ShipStudio/.cripcode/ssh-servers.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct SshServersConfig {
     pub schema_version: u32,
@@ -998,7 +998,7 @@ impl Default for SshConnectionState {
 pub const REMOTE_PROJECTS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 /// Configuration for remote projects stored in
-/// ~/ShipStudio/.shipstudio/remote-projects.json
+/// ~/ShipStudio/.cripcode/remote-projects.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct RemoteProjectsConfig {
     pub schema_version: u32,

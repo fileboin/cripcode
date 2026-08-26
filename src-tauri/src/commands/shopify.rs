@@ -97,7 +97,7 @@ pub async fn kill_stale_theme_dev(store: String) -> Result<(), CommandError> {
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_shopify_store(project_path: String) -> Result<Option<String>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -125,7 +125,7 @@ pub async fn set_shopify_store(
     }
 
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {

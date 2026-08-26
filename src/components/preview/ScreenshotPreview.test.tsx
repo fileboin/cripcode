@@ -16,7 +16,7 @@ describe('ScreenshotPreviewModal filename display', () => {
   it('shows only the basename for POSIX paths', () => {
     render(
       <ScreenshotPreviewModal
-        filePath="/Users/dev/project/.shipstudio/screenshots/shot.png"
+        filePath="/Users/dev/project/.cripcode/screenshots/shot.png"
         onClose={() => {}}
       />
     );
@@ -26,7 +26,7 @@ describe('ScreenshotPreviewModal filename display', () => {
   it('shows only the basename for Windows paths', () => {
     render(
       <ScreenshotPreviewModal
-        filePath="C:\\Users\\dev\\project\\.shipstudio\\screenshots\\shot.png"
+        filePath="C:\\Users\\dev\\project\\.cripcode\\screenshots\\shot.png"
         onClose={() => {}}
       />
     );

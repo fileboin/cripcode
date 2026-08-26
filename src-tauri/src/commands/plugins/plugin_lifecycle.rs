@@ -407,7 +407,7 @@ pub async fn install_plugin(
 pub fn uninstall_plugin(project_path: String, plugin_id: String) -> Result<(), CommandError> {
     // Reject traversal-style IDs before joining onto the plugins dir — this
     // command calls remove_dir_all on the result without requiring registry
-    // membership, so an unchecked `../../x` would delete outside .shipstudio.
+    // membership, so an unchecked `../../x` would delete outside .cripcode.
     validate_plugin_id(&plugin_id)?;
 
     // Guard: dev plugins should use unlink instead

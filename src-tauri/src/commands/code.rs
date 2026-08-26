@@ -38,7 +38,7 @@ const MAX_FILE_SIZE: u64 = 500 * 1024;
 pub(crate) const SKIP_DIRS: &[&str] = &[
     ".git",
     "node_modules",
-    ".shipstudio",
+    ".cripcode",
     ".next",
     ".vercel",
     "dist",
@@ -400,8 +400,8 @@ mod tests {
         assert!(should_skip_path(Path::new(".git/HEAD")));
         assert!(should_skip_path(Path::new("node_modules")));
         assert!(should_skip_path(Path::new("node_modules/react/index.js")));
-        assert!(should_skip_path(Path::new(".shipstudio")));
-        assert!(should_skip_path(Path::new("src/.shipstudio")));
+        assert!(should_skip_path(Path::new(".cripcode")));
+        assert!(should_skip_path(Path::new("src/.cripcode")));
         assert!(!should_skip_path(Path::new("src/main.rs")));
         assert!(!should_skip_path(Path::new("README.md")));
         assert!(!should_skip_path(Path::new("src/components/GitView.tsx")));

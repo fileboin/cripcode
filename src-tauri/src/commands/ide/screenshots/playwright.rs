@@ -329,7 +329,7 @@ pub async fn capture_fullpage_playwright(
 
     ensure_node_supports_playwright().await?;
 
-    let screenshots_dir = project.join(".shipstudio").join("screenshots");
+    let screenshots_dir = project.join(".cripcode").join("screenshots");
     // Match the preview's current viewport when given (agent bridge responsive
     // checks); clamp to sane bounds so a bad value can't wedge Chromium.
     let viewport_width = width.unwrap_or(1280).clamp(200, 3000);
@@ -551,7 +551,7 @@ pub async fn capture_viewport_playwright(
 
     ensure_node_supports_playwright().await?;
 
-    let screenshots_dir = project.join(".shipstudio").join("screenshots");
+    let screenshots_dir = project.join(".cripcode").join("screenshots");
     // Match the preview's current viewport when given (agent bridge responsive
     // checks); clamp to sane bounds so a bad value can't wedge Chromium.
     let viewport_width = width.unwrap_or(1280).clamp(200, 3000);

@@ -2,7 +2,7 @@
  * Plugin management commands for Cripcode.
  *
  * Plugins are project-level: each project has its own plugins directory
- * at <project>/.shipstudio/plugins/. Git worktrees of one repository all
+ * at <project>/.cripcode/plugins/. Git worktrees of one repository all
  * resolve to the MAIN worktree's directory (see `plugins_owner_root`), so
  * installing a plugin from any worktree makes it available in every one.
  *
@@ -13,9 +13,9 @@
  * - Plugin-scoped storage
  *
  * Plugin storage locations:
- * - Registry: {project}/.shipstudio/plugins/registry.json
- * - Plugin files: {project}/.shipstudio/plugins/{plugin-id}/ (plugin.json, dist/, icon.svg)
- * - Plugin data: {project}/.shipstudio/plugins/{plugin-id}/storage.json
+ * - Registry: {project}/.cripcode/plugins/registry.json
+ * - Plugin files: {project}/.cripcode/plugins/{plugin-id}/ (plugin.json, dist/, icon.svg)
+ * - Plugin data: {project}/.cripcode/plugins/{plugin-id}/storage.json
  */
 mod plugin_lifecycle;
 mod plugin_storage;
@@ -323,12 +323,12 @@ fn plugins_owner_root(validated: &Path) -> PathBuf {
     resolved
 }
 
-/// Get the plugins directory for a project: `<main worktree>/.shipstudio/plugins/`.
+/// Get the plugins directory for a project: `<main worktree>/.cripcode/plugins/`.
 /// All git worktrees of one repository share a single plugin store.
 pub(crate) fn get_plugins_dir(project_path: &str) -> Result<PathBuf, String> {
     let validated = validate_project_path(project_path)?;
     Ok(plugins_owner_root(&validated)
-        .join(".shipstudio")
+        .join(".cripcode")
         .join("plugins"))
 }
 

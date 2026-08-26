@@ -444,7 +444,7 @@ pub async fn check_npm_cache_permissions() -> String {
         }
 
         // Try to create and delete a temp file to test write access
-        let test_file = npm_cache.join(".shipstudio-write-test");
+        let test_file = npm_cache.join(".cripcode-write-test");
         match std::fs::write(&test_file, "test") {
             Ok(_) => {
                 let _ = std::fs::remove_file(&test_file);

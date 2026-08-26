@@ -2,7 +2,7 @@
  * Plugin management utilities for Cripcode.
  *
  * Plugins are project-level: each project has its own set of plugins
- * stored at <project>/.shipstudio/plugins/.
+ * stored at <project>/.cripcode/plugins/.
  *
  * @module lib/plugins
  */

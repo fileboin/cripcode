@@ -8,7 +8,7 @@
  * progress UI via `getStepStatus`): clone (`git clone` through a `spawn_pty`
  * PTY; zips go through `extract_template_zip`; blank uses
  * `create_blank_project`) → init (`remove_git_history` so the project
- * detaches from the template repo, gitignore `.shipstudio/`, fire-and-forget
+ * detaches from the template repo, gitignore `.cripcode/`, fire-and-forget
  * Vercel plugin install) → install (`npm install` via PTY, gated on an npm
  * cache-permission pre-check) → done → `onComplete(projectPath)`, which the
  * caller turns into a project open. `retryInstall` re-runs just the install
@@ -450,7 +450,7 @@ export function useProjectCreation({ onComplete, onCancel }: UseProjectCreationP
         setCurrentStep('init');
         await invoke('remove_git_history', { projectPath });
 
-        // Ensure .shipstudio/ is gitignored to prevent phantom changes
+        // Ensure .cripcode/ is gitignored to prevent phantom changes
         await invoke('ensure_gitignore_has_shipstudio', { projectPath: projectPath });
 
         // Pre-install Vercel plugin (fire-and-forget, don't block creation)
@@ -534,7 +534,7 @@ export function useProjectCreation({ onComplete, onCancel }: UseProjectCreationP
       setCurrentStep('init');
       await invoke('remove_git_history', { projectPath });
 
-      // Ensure .shipstudio/ is gitignored
+      // Ensure .cripcode/ is gitignored
       await invoke('ensure_gitignore_has_shipstudio', { projectPath });
 
       // Install dependencies (skip if no package.json, e.g. HTML-only zip)

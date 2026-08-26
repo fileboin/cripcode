@@ -150,7 +150,7 @@ describe('executeBridgeTool', () => {
   it('screenshot captures at the preview viewport width', async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === 'capture_viewport_playwright')
-        return Promise.resolve('/proj/.shipstudio/screenshots/s.png');
+        return Promise.resolve('/proj/.cripcode/screenshots/s.png');
       if (cmd === 'get_screenshot_base64') return Promise.resolve('data:image/png;base64,aGVsbG8=');
       return Promise.reject(new Error(`unexpected command ${String(cmd)}`));
     });
@@ -180,7 +180,7 @@ describe('executeBridgeTool', () => {
   it('screenshot returns inline image content with the saved path', async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === 'capture_viewport_playwright')
-        return Promise.resolve('/proj/.shipstudio/screenshots/s.png');
+        return Promise.resolve('/proj/.cripcode/screenshots/s.png');
       if (cmd === 'get_screenshot_base64') return Promise.resolve('data:image/png;base64,aGVsbG8=');
       return Promise.reject(new Error(`unexpected command ${String(cmd)}`));
     });
@@ -197,7 +197,7 @@ describe('executeBridgeTool', () => {
   it('screenshot uses the fullpage command when full_page is true', async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === 'capture_fullpage_playwright')
-        return Promise.resolve('/proj/.shipstudio/screenshots/f.png');
+        return Promise.resolve('/proj/.cripcode/screenshots/f.png');
       if (cmd === 'get_screenshot_base64') return Promise.resolve('data:image/png;base64,aGVsbG8=');
       return Promise.reject(new Error(`unexpected command ${String(cmd)}`));
     });

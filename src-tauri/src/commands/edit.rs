@@ -4062,8 +4062,8 @@ const items = [];
         )
         .unwrap();
 
-        // .shipstudio/project.json points the workspace at the subfolder.
-        let ss = dir.join(".shipstudio");
+        // .cripcode/project.json points the workspace at the subfolder.
+        let ss = dir.join(".cripcode");
         std::fs::create_dir_all(&ss).unwrap();
         let meta = ProjectMetadata {
             workspace_subpath: Some("website".to_string()),

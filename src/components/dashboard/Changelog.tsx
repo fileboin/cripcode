@@ -86,7 +86,7 @@ const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Major fix: the app no longer freezes when running multiple projects. Background thumbnail captures could silently pile up and starve the app until nothing responded and a force-quit was the only way out — captures are now strictly time-limited and never overlap',
       'Project thumbnails are far more reliable: an interrupted capture no longer leaves a lock file that broke every future capture (the single most-reported bug of the last release), and captures no longer fail just because your browser is open',
-      "Committing and publishing no longer fail when a background process is holding a file in .shipstudio (a frequent Windows failure) — Cripcode's own metadata folder is now always excluded from your commits",
+      "Committing and publishing no longer fail when a background process is holding a file in .cripcode (a frequent Windows failure) — Cripcode's own metadata folder is now always excluded from your commits",
       'When a command fails to start (like a package manager that isn\'t installed), you now see the actual reason — and the missing tool by name with install guidance — instead of a bare "exited with code -1"',
       'Draft pull requests now show a Draft badge with merging disabled, instead of failing with a raw GraphQL error when you tried',
       'Undo/rewind on Windows now rides out files still being written (like dev-server logs) instead of failing, and log files are excluded from snapshots',

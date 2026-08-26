@@ -1,7 +1,7 @@
 //! Dev server lifecycle commands.
 //!
 //! Per-project dev server configuration (custom command, port) stored in
-//! `.shipstudio/project.json`, plus cache-clearing used when restarting the
+//! `.cripcode/project.json`, plus cache-clearing used when restarting the
 //! dev server to force a fresh build.
 
 use crate::errors::CommandError;
@@ -14,7 +14,7 @@ use serde::Serialize;
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_custom_dev_command(project_path: String) -> Result<Option<String>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -36,7 +36,7 @@ pub async fn set_custom_dev_command(
     command: Option<String>,
 ) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -62,7 +62,7 @@ pub async fn set_custom_dev_command(
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_force_static_serve(project_path: String) -> Result<bool, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(false);
@@ -82,7 +82,7 @@ pub async fn get_force_static_serve(project_path: String) -> Result<bool, Comman
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn set_force_static_serve(project_path: String, force: bool) -> Result<(), CommandError> {
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -106,7 +106,7 @@ pub async fn set_force_static_serve(project_path: String, force: bool) -> Result
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_dev_server_port(project_path: String) -> Result<Option<u16>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -129,7 +129,7 @@ pub async fn set_dev_server_port(project_path: String, port: u16) -> Result<(), 
     }
 
     let project = validate_project_path(&project_path)?;
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {
@@ -155,7 +155,7 @@ pub async fn set_dev_server_port(project_path: String, port: u16) -> Result<(), 
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_workspace_subpath(project_path: String) -> Result<Option<String>, CommandError> {
     let project = validate_project_path(&project_path)?;
-    let metadata_path = project.join(".shipstudio").join("project.json");
+    let metadata_path = project.join(".cripcode").join("project.json");
 
     if !metadata_path.exists() {
         return Ok(None);
@@ -199,7 +199,7 @@ pub async fn set_workspace_subpath(
         }
     }
 
-    let shipstudio_dir = project.join(".shipstudio");
+    let shipstudio_dir = project.join(".cripcode");
     let metadata_path = shipstudio_dir.join("project.json");
 
     let mut metadata = if metadata_path.exists() {

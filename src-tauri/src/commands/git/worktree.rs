@@ -282,7 +282,7 @@ pub async fn list_worktrees(project_path: String) -> Result<Vec<WorktreeInfo>, C
 
 /// Creates a worktree under `<projects_root>/.worktrees/<parent>/<branch>`,
 /// checking out `branch` (created from `base_ref`/HEAD when `create_branch`).
-/// Seeds the new directory's `.shipstudio/project.json` from the parent
+/// Seeds the new directory's `.cripcode/project.json` from the parent
 /// (dev command, monorepo subpath, workspace) with a distinct dev-server port,
 /// and optionally copies the parent's untracked root `.env*` files.
 #[tauri::command]
@@ -348,7 +348,7 @@ pub async fn add_worktree(
         return Err(process_error(&args, &output));
     }
 
-    // Seed the worktree's own .shipstudio/project.json from the main worktree
+    // Seed the worktree's own .cripcode/project.json from the main worktree
     // so the dev server behaves identically (command, monorepo subpath,
     // workspace) — but on its own port, since every project otherwise
     // defaults to 3000.

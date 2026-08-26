@@ -45,7 +45,7 @@ interface UseScreenshotManagementParams {
   previewRef: RefObject<PreviewHandle | null>;
   /** The current project's dev-server port, or null when no port is
    *  affirmatively known for it. Capture writes into the project's own
-   *  `.shipstudio/thumbnail.png`, so a guessed/fallback port here would
+   *  `.cripcode/thumbnail.png`, so a guessed/fallback port here would
    *  screenshot whatever server happens to answer it — possibly another
    *  project's — and file it under the wrong project. Null skips capture. */
   devServerPort: number | null;

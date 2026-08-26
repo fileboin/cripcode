@@ -167,7 +167,7 @@ pub fn git_has_any_changes(path: &std::path::Path) -> Result<bool, crate::errors
     Ok(!String::from_utf8_lossy(&status.stdout).trim().is_empty())
 }
 
-/// Append `.shipstudio/` to the repo's `.git/info/exclude` when it isn't
+/// Append `.cripcode/` to the repo's `.git/info/exclude` when it isn't
 /// ignored yet. Same effect as the .gitignore entry the frontend maintains,
 /// but repo-local and never committed — so the staging path can enforce it
 /// without creating a working-tree change (issue #431). Best-effort: any
@@ -200,7 +200,7 @@ fn ensure_shipstudio_excluded(path: &std::path::Path) {
     let existing = std::fs::read_to_string(&exclude_path).unwrap_or_default();
     let already = existing.lines().any(|l| {
         let t = l.trim();
-        t == ".shipstudio/" || t == ".shipstudio" || t == "/.shipstudio/" || t == "/.shipstudio"
+        t == ".cripcode/" || t == ".cripcode" || t == "/.cripcode/" || t == "/.cripcode"
     });
     if already {
         return;
@@ -213,7 +213,7 @@ fn ensure_shipstudio_excluded(path: &std::path::Path) {
     };
     let _ = std::fs::write(
         &exclude_path,
-        format!("{existing}{sep}# ShipStudio metadata (added by Cripcode)\n.shipstudio/\n"),
+        format!("{existing}{sep}# ShipStudio metadata (added by Cripcode)\n.cripcode/\n"),
     );
 }
 
@@ -277,7 +277,7 @@ pub fn git_stage_and_commit(path: &std::path::Path, message: &str) -> Result<boo
         )
         .into());
     }
-    // Make sure .shipstudio/ is excluded BEFORE `git add -A` walks the tree:
+    // Make sure .cripcode/ is excluded BEFORE `git add -A` walks the tree:
     // the frontend's ensure-gitignore calls are best-effort and can be skipped
     // by timing or code path, and an unignored leftover Chrome thumbnail
     // profile (locked Cookies DB and all) aborts the entire staging operation
@@ -470,7 +470,7 @@ pub fn get_ahead_behind_batch(
 pub(crate) fn load_project_metadata(
     project_path: &std::path::Path,
 ) -> crate::types::ProjectMetadata {
-    let metadata_path = project_path.join(".shipstudio/project.json");
+    let metadata_path = project_path.join(".cripcode/project.json");
     let mut metadata: crate::types::ProjectMetadata = std::fs::read_to_string(&metadata_path)
         .ok()
         .and_then(|contents| serde_json::from_str(&contents).ok())
@@ -489,11 +489,11 @@ pub(crate) fn save_project_metadata(
     project_path: &std::path::Path,
     metadata: &crate::types::ProjectMetadata,
 ) -> Result<(), String> {
-    let shipstudio_dir = project_path.join(".shipstudio");
-    if !shipstudio_dir.exists() {
-        std::fs::create_dir_all(&shipstudio_dir).map_err(|e| e.to_string())?;
+    let cripcode_dir = project_path.join(".cripcode");
+    if !cripcode_dir.exists() {
+        std::fs::create_dir_all(&cripcode_dir).map_err(|e| e.to_string())?;
     }
-    let metadata_path = shipstudio_dir.join("project.json");
+    let metadata_path = cripcode_dir.join("project.json");
     let json = serde_json::to_string_pretty(metadata).map_err(|e| e.to_string())?;
     std::fs::write(&metadata_path, json).map_err(|e| e.to_string())
 }
@@ -785,7 +785,7 @@ mod tests {
         assert!(rev.status.success(), "HEAD must exist after commit");
     }
 
-    /// Issue #431: `git add -A` must never walk into .shipstudio (Chrome
+    /// Issue #431: `git add -A` must never walk into .cripcode (Chrome
     /// thumbnail profiles with locked files live there). The staging path
     /// enforces the exclusion itself via .git/info/exclude — without creating
     /// a working-tree change.
@@ -793,10 +793,10 @@ mod tests {
     fn stage_and_commit_excludes_shipstudio_dir() {
         let tmp = TempDir::new().unwrap();
         init_repo(tmp.path());
-        std::fs::create_dir_all(tmp.path().join(".shipstudio").join("thumbnail_profile")).unwrap();
+        std::fs::create_dir_all(tmp.path().join(".cripcode").join("thumbnail_profile")).unwrap();
         std::fs::write(
             tmp.path()
-                .join(".shipstudio")
+                .join(".cripcode")
                 .join("thumbnail_profile")
                 .join("Cookies"),
             "locked-ish",
@@ -812,8 +812,8 @@ mod tests {
             .unwrap();
         let listing = String::from_utf8_lossy(&tracked.stdout).to_string();
         assert!(
-            !listing.contains(".shipstudio"),
-            ".shipstudio must not be staged, got: {listing}"
+            !listing.contains(".cripcode"),
+            ".cripcode must not be staged, got: {listing}"
         );
         assert!(listing.contains("a.txt"));
     }
