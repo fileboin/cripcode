@@ -806,6 +806,9 @@ pub fn run() {
             commands::ssh::get_selected_ollama_model,
             commands::ssh::set_selected_ollama_model,
             commands::ssh::clear_selected_ollama_model,
+            // AI Provider Abstraction
+            commands::ssh::list_ai_providers,
+            commands::ssh::get_ai_provider_info,
             // Remote Dev Server
             commands::ssh::start_remote_dev_server,
             commands::ssh::stop_remote_dev_server,

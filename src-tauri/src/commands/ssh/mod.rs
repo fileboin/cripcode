@@ -6,6 +6,7 @@
 //!
 //! See `docs/ssh-architecture.md` for the full architecture.
 
+mod ai_provider;
 mod config;
 mod connection;
 mod files;
@@ -15,6 +16,7 @@ mod remote_git;
 mod remote_preview;
 mod remote_projects;
 
+pub use ai_provider::*;
 pub use config::*;
 pub use connection::*;
 pub use files::*;
