@@ -862,6 +862,10 @@ pub struct AppState {
     /// capture failed because macOS Screen Recording permission was denied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnails_enabled: Option<bool>,
+    /// Background mode: "off" (allow sleep), "smart" (prevent sleep when active tasks),
+    /// "always_on" (always prevent sleep). Defaults to "smart".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_mode: Option<String>,
     /// Workspaces (org/client accounts) with isolated Claude/GitHub config and credentials
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub accounts: Vec<Account>,

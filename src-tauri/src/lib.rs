@@ -523,6 +523,11 @@ pub fn run() {
             commands::settings::set_terminal_gpu_enabled,
             commands::settings::get_thumbnails_enabled,
             commands::settings::set_thumbnails_enabled,
+            // Background Mode
+            commands::background_mode::get_background_mode,
+            commands::background_mode::set_background_mode,
+            commands::background_mode::report_active_task_count,
+            commands::background_mode::is_preventing_sleep,
             // Accounts (Workspaces)
             commands::accounts::list_accounts,
             commands::accounts::create_account,
