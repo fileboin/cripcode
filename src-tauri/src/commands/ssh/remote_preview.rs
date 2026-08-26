@@ -121,12 +121,13 @@ pub async fn start_remote_preview_tunnel(
     args.extend(conn_args);
 
     // Spawn the SSH tunnel process
+    let pid: Option<u32>;
+
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         let mut cmd = create_command("ssh");
         cmd.args(&args);
-        // Double-fork to fully detach so the tunnel outlives the backend process
         unsafe {
             cmd.pre_exec(|| {
                 libc::setsid();
@@ -141,8 +142,7 @@ pub async fn start_remote_preview_tunnel(
             message: format!("Failed to start SSH tunnel: {e}"),
         })?;
 
-        let pid = child.id();
-        // Detach: we don't wait for this process
+        pid = child.id();
         std::mem::forget(child);
     }
 
@@ -162,8 +162,13 @@ pub async fn start_remote_preview_tunnel(
             message: format!("Failed to start SSH tunnel: {e}"),
         })?;
 
-        let pid = child.id();
+        pid = child.id();
         std::mem::forget(child);
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        pid = None;
     }
 
     tracing::info!(
