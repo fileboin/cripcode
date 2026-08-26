@@ -26,6 +26,25 @@ interface ChangelogEntry {
 // Keep ~15 most recent versions for the sidebar
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.19.0', // v0.19.0 — Remote Runtime + Ollama
+    items: [
+      'SSH server management: add, test, connect, and disconnect to VPS servers from the Cmd+K palette',
+      'Remote terminal: SSH shell in the existing xterm.js terminal — input, resize, scrollback, Ctrl+C all work over SSH',
+      'Remote filesystem: browse, read, write, create, rename, and delete files on a VPS via SSH',
+      'Remote workspace: register remote projects on the dashboard alongside local ones',
+      'Remote Git: status, branches, commit, pull, push, and diff — all over SSH on the VPS',
+      'Remote dev server: start, stop, restart, and view logs of a dev server running on the VPS',
+      'Remote preview: SSH port-forwarding tunnel brings the VPS dev server into a local preview iframe',
+      'Ollama connection: detect local or remote Ollama, list installed models with context window and parameter info',
+      'Ollama model selection: pick a coding model from a dropdown, persisted per location',
+      'AI provider abstraction: unified registry for CLI agents (Claude, Codex, OpenCode) and Ollama, modular for future providers',
+      'Remote AI agent: run Claude Code, Codex, or OpenCode on the VPS via SSH — the agent works on the remote project directly',
+      'Remote build: start, monitor, and stop builds on the VPS with live output and success/failure status',
+      'Privacy defaults: all telemetry, analytics, error reporting, and diagnostics are OFF by default',
+      'Background mode: OFF / SMART (default) / ALWAYS ON — prevents system sleep during active tasks',
+    ],
+  },
+  {
     version: '0.18.7', // v0.18.7
     items: [
       'First Cripcode release: the app now uses its own bundle identity, deep-link scheme, updater key, and release repository',

@@ -6,6 +6,24 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.19.0
+
+- **SSH server management** - Add, test, connect, and disconnect to VPS servers from the Cmd+K palette
+- **Remote terminal** - SSH shell in the existing terminal with full input, resize, and scrollback support
+- **Remote filesystem** - Browse, read, write, create, rename, and delete files on a VPS via SSH
+- **Remote workspace** - Register remote projects on the dashboard alongside local ones
+- **Remote Git** - Status, branches, commit, pull, push, and diff — all over SSH
+- **Remote dev server** - Start, stop, restart, and view logs of a dev server on the VPS
+- **Remote preview** - SSH port-forwarding tunnel brings the VPS dev server into a local preview iframe
+- **Ollama connection** - Detect local or remote Ollama, list installed models with context window info
+- **Ollama model selection** - Pick a coding model from a dropdown, persisted per location
+- **AI provider abstraction** - Unified registry for CLI agents and Ollama, modular for future providers
+- **Remote AI agent** - Run Claude Code, Codex, or OpenCode on the VPS via SSH
+- **Remote build** - Start, monitor, and stop builds on the VPS with live output
+- **Privacy defaults** - All telemetry, analytics, and error reporting are OFF by default
+- **Background mode** - OFF / SMART (default) / ALWAYS ON to prevent system sleep during active tasks
+
+
 ## What's New in v0.18.7
 
 - **First Cripcode release** - The app now uses the `com.fileboin.cripcode` bundle identity, the `cripcode` deep-link scheme, and the fileboin/cripcode release repository.

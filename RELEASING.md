@@ -59,8 +59,8 @@ When you push a tag starting with `v`, GitHub Actions will:
 The main `fileboin/cripcode` repo is **private** to protect source code. However, the auto-updater needs public URLs to download updates. The `fileboin/cripcode` repo is **public** and only contains:
 
 - `latest.json` - Version manifest for auto-updater (includes release notes)
-- `ShipStudio_darwin-aarch64.app.tar.gz` - ARM64 update bundle
-- `ShipStudio_darwin-x86_64.app.tar.gz` - Intel update bundle
+- `cripcode_darwin-aarch64.app.tar.gz` - ARM64 update bundle
+- `cripcode_darwin-x86_64.app.tar.gz` - Intel update bundle
 
 No source code is exposed.
 
