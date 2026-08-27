@@ -113,7 +113,7 @@ export async function setThumbnailsEnabled(enabled: boolean): Promise<void> {
 
 /**
  * Get the projects root directory (absolute path). This is where Cripcode
- * lists and creates projects. Falls back to the default `~/ShipStudio` when no
+ * lists and creates projects. Falls back to the default `~/CripCode` when no
  * custom folder is configured.
  */
 export async function getProjectsRoot(): Promise<string> {
@@ -140,7 +140,7 @@ export async function isCustomProjectsRoot(): Promise<boolean> {
 
 /**
  * Set (or clear) the projects folder. Pass an empty string to reset to the
- * default `~/ShipStudio`. Throws (with a user-facing message) if the chosen path
+ * default `~/CripCode`. Throws (with a user-facing message) if the chosen path
  * isn't an existing, writable directory.
  */
 export async function setProjectsRoot(path: string): Promise<void> {

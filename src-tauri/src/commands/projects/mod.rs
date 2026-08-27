@@ -176,11 +176,11 @@ fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(),
     }
 
     let new_content = if content.is_empty() {
-        format!("# ShipStudio metadata\n{entry}\n")
+        format!("# Cripcode metadata\n{entry}\n")
     } else if content.ends_with('\n') {
-        format!("{content}\n# ShipStudio metadata\n{entry}\n")
+        format!("{content}\n# Cripcode metadata\n{entry}\n")
     } else {
-        format!("{content}\n\n# ShipStudio metadata\n{entry}\n")
+        format!("{content}\n\n# Cripcode metadata\n{entry}\n")
     };
 
     std::fs::write(&gitignore_path, new_content).ok();
@@ -188,7 +188,7 @@ fn ensure_gitignore_has_shipstudio_sync(project: &std::path::Path) -> Result<(),
 }
 
 /// Check if a directory is a valid project.
-/// Accepts any directory inside ~/ShipStudio that has project files,
+/// Accepts any directory inside ~/CripCode that has project files,
 /// a .gitignore (blank projects), or a .cripcode metadata folder.
 ///
 /// The language-ecosystem markers match `looks_like_project_root` in
@@ -899,11 +899,11 @@ pub async fn ensure_gitignore_has_shipstudio(project_path: String) -> Result<(),
     }
 
     let new_content = if content.is_empty() {
-        format!("# ShipStudio metadata\n{entry}\n")
+        format!("# Cripcode metadata\n{entry}\n")
     } else if content.ends_with('\n') {
-        format!("{content}\n# ShipStudio metadata\n{entry}\n")
+        format!("{content}\n# Cripcode metadata\n{entry}\n")
     } else {
-        format!("{content}\n\n# ShipStudio metadata\n{entry}\n")
+        format!("{content}\n\n# Cripcode metadata\n{entry}\n")
     };
 
     std::fs::write(&gitignore_path, new_content)
@@ -987,13 +987,13 @@ fn rename_robust(from: &Path, to: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Deletes a project directory. Only allows deletion from ~/ShipStudio.
+/// Deletes a project directory. Only allows deletion from ~/CripCode.
 /// External projects cannot be deleted — use unregister_external_project instead.
 #[tauri::command]
 #[tracing::instrument]
 pub async fn delete_project(path: String) -> Result<(), CommandError> {
     // Canonicalize FIRST (resolves symlinks and `..`) so the containment check
-    // below can't be defeated by a lexical path like `~/ShipStudio/../../.ssh`.
+    // below can't be defeated by a lexical path like `~/CripCode/../../.ssh`.
     // `Path::starts_with` is purely lexical and would otherwise pass such a path
     // straight through to `remove_dir_all`.
     let canonical = dunce::canonicalize(&path).map_err(|e| CommandError::Io {
@@ -1161,7 +1161,7 @@ fn validate_project_name(name: &str) -> Result<String, CommandError> {
 
 /// Renames a project's directory on disk and rekeys all path-keyed stores.
 ///
-/// Only ~/ShipStudio projects can be renamed (external projects are rejected,
+/// Only ~/CripCode projects can be renamed (external projects are rejected,
 /// matching `delete_project`). Refuses to rename while the project is open in
 /// a *different* window; a hot background session (the rail keeps PTYs and dev
 /// servers alive after the user returns to the dashboard) is suspended first
@@ -1176,7 +1176,7 @@ pub async fn rename_project(
     new_name: String,
 ) -> Result<String, CommandError> {
     // Canonicalize FIRST (resolves symlinks and `..`); `Path::starts_with` is
-    // lexical, so checking the raw `old_path` would let `~/ShipStudio/../../foo`
+    // lexical, so checking the raw `old_path` would let `~/CripCode/../../foo`
     // escape the sandbox and rename arbitrary directories. State stores are
     // still keyed by the original `old_path` string the frontend passed.
     let project_path = dunce::canonicalize(&old_path).map_err(|e| CommandError::Io {
@@ -1184,7 +1184,7 @@ pub async fn rename_project(
     })?;
     let project_path = project_path.as_path();
 
-    // Reject external projects (their folders live outside ~/ShipStudio). A
+    // Reject external projects (their folders live outside ~/CripCode). A
     // by-design refusal with a user-side path forward, not a malfunction —
     // Expected keeps it out of telemetry (issue #699).
     if crate::commands::external_projects::is_registered_external_path(project_path)? {

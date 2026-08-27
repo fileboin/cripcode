@@ -25,9 +25,9 @@ Grab the latest release from
 
 | Platform | File |
 |----------|------|
-| macOS (Apple Silicon) | `Ship.Studio_<version>_aarch64.dmg` |
-| macOS (Intel)         | `Ship.Studio_<version>_x64.dmg` |
-| Windows (x64)         | `Ship.Studio_<version>_x64-setup.exe` |
+| macOS (Apple Silicon) | `cripcode_darwin-aarch64.dmg` |
+| macOS (Intel)         | `cripcode_darwin-x86_64.dmg` |
+| Windows (x64)         | `cripcode_windows-x86_64-setup.exe` |
 
 The macOS installer is signed and notarised by Apple. The Windows installer
 is not yet code-signed by a CA — SmartScreen may warn on first install (see
@@ -49,7 +49,7 @@ cannot be verified," right-click the app → **Open** to bypass once.
 
 ### Windows
 
-1. Run `Ship.Studio_<version>_x64-setup.exe`.
+1. Run `cripcode_windows-x86_64-setup.exe`.
 2. SmartScreen will likely show "Windows protected your PC" because the
    current builds are not yet signed by a Certificate Authority. Click
    **More info → Run anyway** to install.
@@ -96,10 +96,10 @@ Once a project is open, the workspace has:
 
 | What | Location |
 |------|----------|
-| Projects | `~/ShipStudio/<project-name>` |
-| Logs (macOS) | `~/Library/Logs/ShipStudio/` |
-| Logs (Windows) | `%LOCALAPPDATA%\ShipStudio\logs\` |
-| Per-project metadata | `<project>/.shipstudio/project.json` |
+| Projects | `~/CripCode/<project-name>` |
+| Logs (macOS) | `~/Library/Logs/CripCode/` |
+| Logs (Windows) | `%LOCALAPPDATA%\CripCode\logs\` |
+| Per-project metadata | `<project>/.cripcode/project.json` |
 | Vercel linkage | `<project>/.vercel/project.json` |
 
 ## Updating
@@ -113,28 +113,28 @@ it — your projects and settings persist outside the app bundle.
 ## Uninstalling
 
 > The paths below use the official Cripcode bundle identifier
-> (`com.memberstack.shipstudio`). If you installed a fork, swap that for the
+> (`com.fileboin.cripcode`). If you installed a fork, swap that for the
 > bundle identifier the fork uses.
 
 ### macOS
 
 ```bash
 # Remove the app
-rm -rf /Applications/Ship\ Studio.app
+rm -rf /Applications/Cripcode.app
 
 # Remove logs and caches
-rm -rf ~/Library/Logs/ShipStudio
-rm -rf ~/Library/Application\ Support/com.memberstack.shipstudio
-rm -rf ~/Library/Caches/com.memberstack.shipstudio
+rm -rf ~/Library/Logs/CripCode
+rm -rf ~/Library/Application\ Support/com.fileboin.cripcode
+rm -rf ~/Library/Caches/com.fileboin.cripcode
 
-# Your projects in ~/ShipStudio/ stay put — delete them manually if you want.
+# Your projects in ~/CripCode/ stay put — delete them manually if you want.
 ```
 
 ### Windows
 
 1. **Settings → Apps → Installed apps → Cripcode → Uninstall.**
-2. Optionally remove `%LOCALAPPDATA%\ShipStudio\` for logs and caches.
-3. Optionally remove `%APPDATA%\com.memberstack.shipstudio\` for app state.
+2. Optionally remove `%LOCALAPPDATA%\CripCode\` for logs and caches.
+3. Optionally remove `%APPDATA%\com.fileboin.cripcode\` for app state.
 
 ## Troubleshooting
 
@@ -150,7 +150,7 @@ Quit and relaunch Cripcode. Auth state is cached at startup.
 ### Auto-update banner doesn't appear
 
 - Make sure you have internet access.
-- Check `~/Library/Logs/ShipStudio/ship-studio.log` for `updater` entries.
+- Check `~/Library/Logs/CripCode/cripcode.log` for `updater` entries.
 - The check runs 5 seconds after launch and again every hour.
 
 ### Terminal text is unreadable / fonts look broken

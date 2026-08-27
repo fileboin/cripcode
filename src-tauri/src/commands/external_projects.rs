@@ -1,6 +1,6 @@
 //! # External Project Management Commands
 //!
-//! Commands for registering and managing projects that live outside ~/ShipStudio.
+//! Commands for registering and managing projects that live outside ~/CripCode.
 
 use crate::errors::CommandError;
 use crate::types::{
@@ -14,7 +14,7 @@ use tauri_plugin_dialog::DialogExt;
 
 /// Grant the asset protocol (`convertFileSrc`) read access to a directory at
 /// runtime. The static scope in tauri.conf.json deliberately only covers
-/// ~/ShipStudio; external projects live anywhere on disk, so we widen the scope
+/// ~/CripCode; external projects live anywhere on disk, so we widen the scope
 /// for each registered external root individually rather than exposing all of
 /// `$HOME`/`/Volumes` (which would let any main-frame script read ~/.ssh etc.).
 pub fn grant_asset_scope(app: &AppHandle, path: &Path) {
@@ -336,11 +336,11 @@ fn looks_like_project_root(path: &Path) -> bool {
 
 /// Register an external project by path (no folder picker dialog).
 ///
-/// Called automatically when a project outside ~/ShipStudio is opened
+/// Called automatically when a project outside ~/CripCode is opened
 /// (e.g., via session restore or URL params) to ensure backend commands
-/// don't fail with "Security error: path is outside ShipStudio directory".
+/// don't fail with "Security error: path is outside the projects directory".
 ///
-/// Returns Ok(true) if newly registered, Ok(false) if already registered or inside ~/ShipStudio.
+/// Returns Ok(true) if newly registered, Ok(false) if already registered or inside ~/CripCode.
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn ensure_external_project_registered(

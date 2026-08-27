@@ -2,7 +2,7 @@
  * Project management utilities for Tauri backend communication.
  *
  * Provides functions for:
- * - Listing and managing projects in ~/ShipStudio
+ * - Listing and managing projects in ~/CripCode
  * - Checking system prerequisites (node, npm, git, claude)
  * - Starting/stopping the Next.js dev server
  *
@@ -50,17 +50,17 @@ export interface DashboardProject {
   auto_accept_mode: boolean | null;
   /** Whether to hide the main branch warning banner */
   hide_main_branch_warning: boolean | null;
-  /** Whether this project is an external (non-~/ShipStudio) project */
+  /** Whether this project is an external (non-~/CripCode) project */
   is_external: boolean;
   /** Active monorepo workspace subpath (e.g. `apps/admin`), or null. */
   workspace_subpath: string | null;
-  /** Number of linked git worktrees under `~/ShipStudio/.worktrees/<name>`, or null. */
+  /** Number of linked git worktrees under `~/CripCode/.worktrees/<name>`, or null. */
   worktree_count: number | null;
 }
 
 /**
  * Get all projects with dashboard metadata.
- * Scans ~/ShipStudio for project folders and enriches with git/deployment info.
+ * Scans ~/CripCode for project folders and enriches with git/deployment info.
  * @returns Array of dashboard projects sorted by last_opened
  */
 export async function getDashboardProjects(): Promise<DashboardProject[]> {
@@ -68,7 +68,7 @@ export async function getDashboardProjects(): Promise<DashboardProject[]> {
 }
 
 /**
- * List all projects in the ~/ShipStudio directory.
+ * List all projects in the ~/CripCode directory.
  * Returns basic project info (name and path) for each project.
  * @returns Array of project name/path objects
  */
@@ -77,8 +77,8 @@ export async function listProjects(): Promise<{ name: string; path: string }[]> 
 }
 
 /**
- * Ensure the ~/ShipStudio directory exists, creating it if necessary.
- * @returns Absolute path to the ShipStudio directory
+ * Ensure the ~/CripCode directory exists, creating it if necessary.
+ * @returns Absolute path to the Cripcode directory
  */
 export async function ensureShipStudioDir(): Promise<string> {
   return invoke<string>('ensure_shipstudio_dir');
@@ -87,7 +87,7 @@ export async function ensureShipStudioDir(): Promise<string> {
 /**
  * Whether a file or folder already exists at `path` inside an allowed projects
  * root. Backend-validated — the Tauri `fs` plugin scope doesn't whitelist
- * arbitrary `~/ShipStudio` paths for `exists`, and this also covers custom
+ * arbitrary `~/CripCode` paths for `exists`, and this also covers custom
  * project roots. Used by the import flow's name-collision check.
  * @param path - Absolute path to probe (inside the projects root)
  */
@@ -161,7 +161,7 @@ export async function removeProjectFromApp(path: string): Promise<void> {
 
 /**
  * Rename a project's folder on disk and rekey path-keyed stores (pins, folders,
- * sessions). Only works for ~/ShipStudio projects, and is rejected by the
+ * sessions). Only works for ~/CripCode projects, and is rejected by the
  * backend if the project is currently open or has an active session.
  * @param oldPath - Current absolute path to the project directory
  * @param newName - New folder name (single path component, no slashes)

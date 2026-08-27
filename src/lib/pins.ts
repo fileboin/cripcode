@@ -2,7 +2,7 @@
  * Tauri wrappers for the pinned-projects backend commands.
  *
  * Pins are persisted on disk in `pins.json`
- * (`~/Library/Application Support/ShipStudio/pins.json` on macOS).
+ * (`~/Library/Application Support/CripCode/pins.json` on macOS).
  * Backend invariants:
  *
  * - `pinProject` dedupes by path — repeated calls are idempotent.

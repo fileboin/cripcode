@@ -1,6 +1,6 @@
 //! SSH server configuration CRUD and JSON persistence.
 //!
-//! Server configs are stored in `~/ShipStudio/.cripcode/ssh-servers.json`,
+//! Server configs are stored in `~/CripCode/.cripcode/ssh-servers.json`,
 //! following the same pattern as `external-projects.json`. The private key
 //! file itself is never read into memory — only its filesystem path is stored.
 

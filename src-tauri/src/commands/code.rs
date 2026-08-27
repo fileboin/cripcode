@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_save_project_file_roundtrip() {
         // The path validator only trusts projects under the configured projects
-        // root (default ~/ShipStudio), so the fixture must live there.
+        // root (default ~/CripCode), so the fixture must live there.
         let root = crate::utils::projects_root().expect("projects root");
         let dir = root.join(format!("shipstudio-code-save-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

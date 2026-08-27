@@ -23,7 +23,7 @@ Thanks for your interest in contributing to Cripcode! This guide will help you g
 ```bash
 # Clone the repo
 git clone https://github.com/fileboin/cripcode.git
-cd ship-studio
+cd cripcode
 
 # Install dependencies
 pnpm install
@@ -182,7 +182,7 @@ Add screenshot capture for project thumbnails
 
 - Implement headless Chrome screenshot capture
 - Add fallback for missing browsers
-- Store thumbnails in .shipstudio/thumbnail.png
+- Store thumbnails in .cripcode/thumbnail.png
 ```
 
 ### Pull Request Process
@@ -298,7 +298,7 @@ The built app will be in `src-tauri/target/release/bundle/`.
 
 ### Frontend: Structured Logger
 
-Use the structured logger (`src/lib/logger.ts`) instead of `console.error`. Logs are flushed to the Rust backend and persisted to disk at `~/Library/Logs/ShipStudio/`.
+Use the structured logger (`src/lib/logger.ts`) instead of `console.error`. Logs are flushed to the Rust backend and persisted to disk at `~/Library/Logs/CripCode/`.
 
 ```typescript
 import { logger } from '../lib/logger';
@@ -361,18 +361,18 @@ For anything that affects user-visible state or data integrity, propagate the er
 Cripcode writes structured logs (via the `tracing` crate) to:
 
 ```
-macOS:    ~/Library/Logs/ShipStudio/
-Windows:  %LOCALAPPDATA%\ShipStudio\logs\
+macOS:    ~/Library/Logs/CripCode/
+Windows:  %LOCALAPPDATA%\CripCode\logs\
 ```
 
 Rotated daily. Tail the latest with:
 
 ```bash
 # macOS / Linux
-tail -f ~/Library/Logs/ShipStudio/ship-studio.log
+tail -f ~/Library/Logs/CripCode/cripcode.log
 
 # Windows (PowerShell)
-Get-Content -Wait $env:LOCALAPPDATA\ShipStudio\logs\ship-studio.log
+Get-Content -Wait $env:LOCALAPPDATA\CripCode\logs\cripcode.log
 ```
 
 ### Rust backtraces

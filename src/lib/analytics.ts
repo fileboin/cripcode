@@ -113,7 +113,7 @@ export async function trackEvent(
 
 /**
  * Track a screen view. Sets the active screen and sends a `$pageview` event
- * with a synthetic `app://ship-studio/<slug>` URL so PostHog's URL-keyed
+ * with a synthetic `app://cripcode/<slug>` URL so PostHog's URL-keyed
  * dashboards (Paths, Web Analytics) work. Call on every top-level view
  * change (dashboard, workspace tabs, onboarding steps).
  */
@@ -127,7 +127,7 @@ export function trackPageview(screen: string): void {
     .replace(/^-|-$/g, '');
   void trackEvent('$pageview', {
     $screen_name: screen,
-    $current_url: `app://ship-studio/${slug}`,
+    $current_url: `app://cripcode/${slug}`,
     $pathname: `/${slug}`,
   });
 }

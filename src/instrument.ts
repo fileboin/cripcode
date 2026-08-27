@@ -37,7 +37,7 @@ try {
     Sentry.init({
       dsn: DSN,
       environment: import.meta.env.PROD ? 'production' : 'development',
-      release: `ship-studio@${__APP_VERSION__}`,
+      release: `cripcode@${__APP_VERSION__}`,
 
       sendDefaultPii: false,
 

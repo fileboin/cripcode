@@ -95,7 +95,7 @@ describe('analytics', () => {
       // trackPageview internally awaits invoke; small tick to settle.
       await Promise.resolve();
       const props = lastEventProps();
-      expect(props.$current_url).toBe('app://ship-studio/workspace-code');
+      expect(props.$current_url).toBe('app://cripcode/workspace-code');
       expect(props.$pathname).toBe('/workspace-code');
       expect(props.$screen_name).toBe('Workspace - Code');
     });

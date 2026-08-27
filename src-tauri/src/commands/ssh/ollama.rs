@@ -471,7 +471,7 @@ fn parse_show_response(name: &str, show: &OllamaShowResponse) -> OllamaModelInfo
 // ============ Model Selection ============
 
 /// Ollama model selection config, persisted to
-/// `~/.ship-studio/.cripcode/ollama-config.json`.
+/// `~/CripCode/.cripcode/ollama-config.json`.
 /// Maps a location key ("local" or an SSH server ID) to a selected model name.
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct OllamaConfig {

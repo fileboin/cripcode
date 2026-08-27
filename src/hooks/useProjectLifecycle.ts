@@ -300,7 +300,7 @@ export function useProjectLifecycle({
     let stepStart = performance.now();
 
     // Ensure external projects are registered BEFORE anything validates the
-    // path. Projects outside ~/ShipStudio can enter the app via session
+    // path. Projects outside ~/CripCode can enter the app via session
     // restore, URL params, or direct path — without this, all
     // validate_project_path() calls would fail. A refusal is fatal: proceeding
     // used to land the user in a broken workspace where every backend call

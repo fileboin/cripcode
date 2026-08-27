@@ -839,7 +839,7 @@ pub fn default_projects_root() -> Result<std::path::PathBuf, String> {
 /// The directory Cripcode uses to list and create projects.
 ///
 /// Resolves the user-configured root from persisted app state (cached), falling
-/// back to `~/ShipStudio`. A configured path that no longer exists on disk falls
+/// back to `~/CripCode`. A configured path that no longer exists on disk falls
 /// back to the default, so the app never points at a dead directory.
 pub fn projects_root() -> Result<std::path::PathBuf, String> {
     if let Some(cached) = PROJECTS_ROOT_CACHE
@@ -873,7 +873,7 @@ fn resolve_projects_root_uncached() -> Result<std::path::PathBuf, String> {
 /// The effective projects folder for one workspace: its own configured folder
 /// if set and still present on disk; for the Default workspace the legacy
 /// top-level `projects_root` is honored next (backward compat with the global
-/// setting that predated per-workspace folders); otherwise `~/ShipStudio`.
+/// setting that predated per-workspace folders); otherwise `~/CripCode`.
 fn account_root_in(
     state: &crate::types::AppState,
     account_id: &str,
@@ -1046,7 +1046,7 @@ pub(crate) fn is_forbidden_project_root(path: &std::path::Path) -> bool {
 }
 
 /// Validates that a project path is inside an allowed projects root (the
-/// configured root or the default `~/ShipStudio`) or is a registered external
+/// configured root or the default `~/CripCode`) or is a registered external
 /// project. Prevents path traversal where the frontend could pass arbitrary paths.
 ///
 /// Refusals are `CommandError::Expected`: the sandbox rejecting a path is the
@@ -1080,7 +1080,7 @@ pub fn validate_project_path(
     )))
 }
 
-/// Validates a path to a *file* that lives inside ~/ShipStudio (or a registered
+/// Validates a path to a *file* that lives inside ~/CripCode (or a registered
 /// external project), WITHOUT requiring the file itself to already exist.
 ///
 /// Unlike [`validate_project_path`] (which canonicalizes the path and therefore

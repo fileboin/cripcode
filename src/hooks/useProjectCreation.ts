@@ -411,7 +411,7 @@ export function useProjectCreation({ onComplete, onCancel }: UseProjectCreationP
     setCurrentStep('clone');
 
     try {
-      // Ensure ShipStudio directory exists
+      // Ensure Cripcode directory exists
       const shipstudioDir = await invoke<string>('ensure_shipstudio_dir');
       const projectPath = `${shipstudioDir}/${safeName}`;
 

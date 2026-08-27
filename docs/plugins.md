@@ -142,7 +142,7 @@ export const slots = { toolbar: MyToolbarButton };
 ### Runtime capabilities
 
 - **`storage.read()` / `storage.write(data)`** — a plugin-scoped JSON blob at
-  `{project}/.shipstudio/plugins/{id}/storage.json`. Whole-object semantics:
+  `{project}/.cripcode/plugins/{id}/storage.json`. Whole-object semantics:
   read, merge, write. Writes are mutex-guarded per plugin.
 - **`shell.exec(command, args, { timeout? })`** — runs a binary in the project
   directory with the app's extended PATH. Default timeout 120s. Returns
@@ -224,7 +224,7 @@ API** (defined in `src/styles/global/base.css`, see
    files.
 
 Dev plugins are per-project; the plugin registry and installed files live at
-`{project}/.shipstudio/plugins/` (shared across git worktrees of the same
+`{project}/.cripcode/plugins/` (shared across git worktrees of the same
 repo).
 
 ## Distributing a plugin

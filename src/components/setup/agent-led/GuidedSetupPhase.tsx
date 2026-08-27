@@ -66,7 +66,7 @@ export function GuidedSetupPhase({
   const [agentExit, setAgentExit] = useState<number | null>(null);
   const { copy, isCopied } = useCopyToClipboard();
 
-  // Spawn the agent in ~/ShipStudio, never $HOME — scanning the home folder
+  // Spawn the agent in ~/CripCode, never $HOME — scanning the home folder
   // trips macOS permission prompts (Photos/Desktop/Documents) attributed to
   // Cripcode, and the pending dialog freezes the agent mid-scan. The
   // backend falls back to the OS temp dir on its own, so a rejection here

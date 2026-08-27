@@ -48,7 +48,7 @@ pub async fn install_skill(
     // Set working directory based on scope
     if scope == "project" {
         if let Some(ref path) = project_path {
-            // Constrain to a known ShipStudio/registered project.
+            // Constrain to a known Cripcode/registered project.
             let validated = validate_project_path(path)?;
             cmd.current_dir(&validated);
         } else {

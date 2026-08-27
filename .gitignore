@@ -46,8 +46,9 @@ src-tauri/.cargo/
 # GSD planning
 .planning/
 
-# Per-project Ship Studio metadata (the app writes these into imported projects;
+# Per-project Cripcode metadata (the app writes these into imported projects;
 # any forensics dir that lands at the repo root should never get tracked).
+.cripcode/
 .shipstudio/
 
 # Test coverage output

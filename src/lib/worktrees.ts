@@ -78,7 +78,7 @@ export async function listWorktrees(projectPath: string): Promise<WorktreeInfo[]
 }
 
 /**
- * Create a worktree under `~/ShipStudio/.worktrees/<project>/<branch>` and
+ * Create a worktree under `~/CripCode/.worktrees/<project>/<branch>` and
  * seed its Cripcode metadata (dev command, monorepo subpath, distinct port).
  */
 export async function addWorktree(

@@ -3,7 +3,7 @@
  *
  * The app is developed on macOS, so much of the UI extracts a file/project name
  * with `path.split('/').pop()`. On Windows, filesystem paths come back with
- * backslash separators (`C:\Users\me\ShipStudio\my-app`), so splitting on `/`
+ * backslash separators (`C:\Users\me\CripCode\my-app`), so splitting on `/`
  * returns the *entire* path — the sidebar, command palette, breadcrumbs, and
  * asset trail then show a full absolute path where a short name belongs.
  *

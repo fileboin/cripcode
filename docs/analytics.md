@@ -49,7 +49,7 @@ Fired from `useIntegrationStatus` once GitHub auth resolves with a username.
 
 ### Screens (`$pageview`)
 
-`trackPageview(name)` ships `$pageview` with `$current_url: app://ship-studio/<slug>` and `$pathname: /<slug>`. Screens currently emitted:
+`trackPageview(name)` ships `$pageview` with `$current_url: app://cripcode/<slug>` and `$pathname: /<slug>`. Screens currently emitted:
 
 - `Dashboard`
 - `Onboarding - <Step Title>` (per wizard step)
@@ -175,7 +175,7 @@ To get an aggregate "any modal opened" count in PostHog, use a regex match on ev
 | `calendar_visibility_toggled` | `visible` |
 | `terminal_gpu_toggled` | `enabled` |
 | `thumbnails_toggled` | `enabled` (the "Project thumbnails" auto-capture toggle) |
-| `projects_root_changed` | `is_custom` (false when reset to the default `~/ShipStudio`) |
+| `projects_root_changed` | `is_custom` (false when reset to the default `~/CripCode`) |
 | `projects_moved` | `moved_count`, `skipped_count` (after moving projects into a newly-chosen folder) |
 
 ### Plugins / Skills / MCP

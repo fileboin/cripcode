@@ -1,8 +1,8 @@
-# Ship Studio Development Guidelines
+# Cripcode Development Guidelines
 
 ## Feature Overview
 
-Ship Studio is a desktop app for web developers that provides:
+Cripcode is a desktop app for web developers that provides:
 - **Project Management** - Create new projects from templates (web + mobile starters), import repos from GitHub, register external local folders, and organize the dashboard with folders
 - **AI Agent Terminal** - Integrated terminal for Claude Code, Codex, or Opencode, with multi-tab and side-by-side panes
 - **Live Preview** - Responsive breakpoints, zoom, fullscreen mode, and a locale switcher for multilingual projects
@@ -32,7 +32,7 @@ Ship Studio is a desktop app for web developers that provides:
 - This prevents confusing users with incorrect information
 
 ### Data Storage
-- Project metadata is stored in `.shipstudio/project.json` within each project
+- Project metadata is stored in `.cripcode/project.json` within each project
 - This file stores: last_opened timestamp, publish records (staging/production with URL, state, publishedAt)
 - Vercel project linking info is in `.vercel/project.json` (managed by Vercel CLI)
 - Only trust data that was explicitly saved - don't infer state from file existence alone
@@ -42,10 +42,10 @@ Ship Studio is a desktop app for web developers that provides:
 ### Backend (Rust/Tauri)
 - Commands are organized in `src-tauri/src/commands/` by domain (git, vercel, github, etc.)
 - Command registration is in `src-tauri/src/lib.rs`
-- Commands validate paths to ensure they're within `~/ShipStudio` directory
+- Commands validate paths to ensure they're within `~/CripCode` directory
 - Git operations use the `git` CLI with TTL-based caching (`src-tauri/src/cache.rs`)
 - Vercel operations use the `vercel` CLI
-- Structured logging via `tracing` crate, logs stored at `~/Library/Logs/ShipStudio/`
+- Structured logging via `tracing` crate, logs stored at `~/Library/Logs/CripCode/`
 
 #### Command Modules
 Command modules in `src-tauri/src/commands/`. Domains with submodules are directories:
@@ -69,7 +69,7 @@ Single-file domains:
 - `conflicts.rs` - Merge conflict detection, parsing, and resolution
 - `edit.rs` - Visual editor backend (mutations, committing edits back to source)
 - `env.rs` - Environment variable management
-- `external_projects.rs` - Registry for projects outside `~/ShipStudio`
+- `external_projects.rs` - Registry for projects outside `~/CripCode`
 - `folders.rs` - Dashboard project folders
 - `github.rs` - GitHub CLI integration (auth status, push, remote management)
 - `i18n.rs` - Multilingual config management (Next.js Pages i18n, Astro i18n, next-intl routing.ts) via conservative string surgery — fails with Validation errors instead of guessing
@@ -282,7 +282,7 @@ Key files:
 
 ## Shared CSS Classes (Plugin-Stable)
 
-These classes are defined in `src/styles/global/base.css` and are part of Ship Studio's public API for plugins. Plugins can use them directly without injecting their own styles. **Do not rename or remove these classes without updating the plugin starter repo.**
+These classes are defined in `src/styles/global/base.css` and are part of Cripcode's public API for plugins. Plugins can use them directly without injecting their own styles. **Do not rename or remove these classes without updating the plugin starter repo.**
 
 | Class | Defined In | Description |
 |-------|-----------|-------------|
@@ -298,7 +298,7 @@ CSS variables (`--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--text-primar
 1. User clicks Publish in PublishBranchDropdown
 2. Backend pushes to GitHub (staging or main branch)
 3. Vercel auto-deploys via GitHub integration
-4. Result (URL, state, timestamp) is saved to `.shipstudio/project.json`
+4. Result (URL, state, timestamp) is saved to `.cripcode/project.json`
 
 ### Pull Request Flow
 1. User clicks "Submit for Review" on a branch
@@ -320,14 +320,14 @@ CSS variables (`--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--text-primar
 - ConflictedFile struct contains parsed conflict blocks with context lines
 - User resolves conflicts in UI by choosing "ours" or "theirs" for each block
 - Resolution written back to file, then auto-staged when all conflicts resolved
-- Complete merge commits with message "Resolved merge conflicts via Ship Studio"
+- Complete merge commits with message "Resolved merge conflicts via Cripcode"
 
 ### Integration Status
 - GitHub: Check via `gh auth status`
 - Vercel: Check via `vercel whoami`
 - Claude: Check via `claude --version`
 
-## How to Do Things in Ship Studio
+## How to Do Things in Cripcode
 
 These are the canonical patterns. Follow them — a DX refactor established primitives so the same logic isn't re-invented in every component. New code that bypasses these patterns will get flagged in review.
 

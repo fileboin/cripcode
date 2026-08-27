@@ -213,7 +213,7 @@ fn ensure_shipstudio_excluded(path: &std::path::Path) {
     };
     let _ = std::fs::write(
         &exclude_path,
-        format!("{existing}{sep}# ShipStudio metadata (added by Cripcode)\n.cripcode/\n"),
+        format!("{existing}{sep}# Cripcode metadata\n.cripcode/\n"),
     );
 }
 
@@ -528,11 +528,11 @@ pub async fn check_prerequisites() -> Vec<PrerequisiteCheck> {
     results
 }
 
-/// Returns the configured projects root directory (custom or default `~/ShipStudio`).
+/// Returns the configured projects root directory (custom or default `~/CripCode`).
 ///
 /// Normalized to forward slashes: the frontend builds project paths by
 /// concatenating `/` onto this value, so a native Windows backslash path here
-/// produces mixed-separator paths (`C:\Users\x\ShipStudio/proj`) that break
+/// produces mixed-separator paths (`C:\Users\x\CripCode/proj`) that break
 /// `@tauri-apps/plugin-fs` scope resolution (issue #257).
 #[tauri::command]
 #[tracing::instrument]

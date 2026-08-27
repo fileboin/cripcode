@@ -69,7 +69,7 @@ pub struct DashboardProject {
     pub auto_accept_mode: Option<bool>,
     /// Whether to hide the main branch warning banner
     pub hide_main_branch_warning: Option<bool>,
-    /// Whether this project is an external (non-~/ShipStudio) project
+    /// Whether this project is an external (non-~/CripCode) project
     pub is_external: bool,
     /// Active monorepo workspace subpath (e.g. `apps/admin`), or None for
     /// single-package projects. Surfaced on the dashboard card so the user
@@ -569,7 +569,7 @@ pub struct ConflictedFile {
 /// Current schema version for folder config.
 pub const FOLDER_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Folder configuration stored in ~/ShipStudio/.cripcode/folders.json
+/// Folder configuration stored in ~/CripCode/.cripcode/folders.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct FolderConfig {
     pub schema_version: u32,
@@ -605,14 +605,14 @@ pub struct FolderInfo {
 /// Current schema version for external projects config.
 pub const EXTERNAL_PROJECTS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Configuration for external projects stored in ~/ShipStudio/.cripcode/external-projects.json
+/// Configuration for external projects stored in ~/CripCode/.cripcode/external-projects.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct ExternalProjectsConfig {
     pub schema_version: u32,
     pub projects: Vec<ExternalProject>,
 }
 
-/// An external project registered from outside ~/ShipStudio
+/// An external project registered from outside ~/CripCode
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExternalProject {
     pub path: String,
@@ -628,7 +628,7 @@ pub struct ExternalProject {
 pub const ATTACHED_LIBRARIES_CONFIG_SCHEMA_VERSION: u32 = 2;
 
 /// Configuration for shared libraries stored in
-/// ~/ShipStudio/.cripcode/attached-libraries.json
+/// ~/CripCode/.cripcode/attached-libraries.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct AttachedLibrariesConfig {
     pub schema_version: u32,
@@ -873,9 +873,9 @@ pub struct AppState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_account_id: Option<String>,
     /// User-configured root directory where projects are listed and created.
-    /// None falls back to the built-in default (`~/ShipStudio`). The default root
+    /// None falls back to the built-in default (`~/CripCode`). The default root
     /// always stays valid even when a custom one is set, so projects already in
-    /// `~/ShipStudio` keep opening.
+    /// `~/CripCode` keep opening.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub projects_root: Option<String>,
 }
@@ -896,7 +896,7 @@ pub struct Account {
     /// Unix ms timestamp of creation
     pub created_at: u64,
     /// Folder this workspace lists/creates projects in. `None` falls back to the
-    /// built-in default (`~/ShipStudio`), or — for the Default workspace — the
+    /// built-in default (`~/CripCode`), or — for the Default workspace — the
     /// legacy top-level `AppState.projects_root` for backward compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projects_root: Option<String>,
@@ -946,7 +946,7 @@ pub struct CompactModePreferences {
 /// Current schema version for SSH servers config.
 pub const SSH_SERVERS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Configuration for SSH servers stored in ~/ShipStudio/.cripcode/ssh-servers.json
+/// Configuration for SSH servers stored in ~/CripCode/.cripcode/ssh-servers.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct SshServersConfig {
     pub schema_version: u32,
@@ -998,7 +998,7 @@ impl Default for SshConnectionState {
 pub const REMOTE_PROJECTS_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 /// Configuration for remote projects stored in
-/// ~/ShipStudio/.cripcode/remote-projects.json
+/// ~/CripCode/.cripcode/remote-projects.json
 #[derive(Serialize, Deserialize, Default)]
 pub struct RemoteProjectsConfig {
     pub schema_version: u32,

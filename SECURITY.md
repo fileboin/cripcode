@@ -22,10 +22,10 @@ Include:
 - A clear description of the vulnerability and its impact.
 - Steps to reproduce (or a proof-of-concept) on a clean install of the latest
   release.
-- The Cripcode version and host OS — find the version in the **Ship
-  Studio** menu → **About** (the leftmost app menu on both platforms).
-- Any logs from `~/Library/Logs/ShipStudio/` (macOS) or
-  `%LOCALAPPDATA%\ShipStudio\logs\` (Windows) that help reproduce.
+- The Cripcode version and host OS — find the version in the **Cripcode**
+  menu → **About** (the leftmost app menu on both platforms).
+- Any logs from `~/Library/Logs/CripCode/` (macOS) or
+  `%LOCALAPPDATA%\CripCode\logs\` (Windows) that help reproduce.
 
 ### What to expect
 

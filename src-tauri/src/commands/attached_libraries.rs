@@ -12,7 +12,7 @@
 //! resolved backend-side so the frontend can't act on a stale id.
 //!
 //! The registry mirrors [`super::external_projects`]: a small JSON file under
-//! `~/ShipStudio/.cripcode`, populated only through a native folder picker so
+//! `~/CripCode/.cripcode`, populated only through a native folder picker so
 //! a compromised webview can't silently attach a sensitive directory. The
 //! selected path rides into the agent as a plain CLI argument (not a validated
 //! cwd), so no path-root validation is needed here — the picker is the trust

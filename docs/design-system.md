@@ -5,7 +5,7 @@ the right token or component in under a minute. Canonical sources (always trust 
 
 - Tokens: the `:root` block at the top of [src/styles/global/base.css](../src/styles/global/base.css)
 - Primitives: [src/components/primitives/](../src/components/primitives/)
-- The rules and rationale: [CLAUDE.md → How to Do Things in Cripcode](../CLAUDE.md#how-to-do-things-in-ship-studio)
+- The rules and rationale: [CLAUDE.md → How to Do Things in Cripcode](../CLAUDE.md#how-to-do-things-in-cripcode)
   and [docs/CONTRIBUTING_PATTERNS.md](CONTRIBUTING_PATTERNS.md)
 
 ## Design tokens

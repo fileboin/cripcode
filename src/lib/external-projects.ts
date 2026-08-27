@@ -2,7 +2,7 @@
  * External project management utilities.
  *
  * Provides functions for registering and managing projects
- * that live outside the ~/ShipStudio directory.
+ * that live outside the ~/CripCode directory.
  *
  * @module lib/external-projects
  */
@@ -28,7 +28,7 @@ export async function unregisterExternalProject(path: string): Promise<void> {
 /**
  * Returns true when the given path is tracked as an external project
  * (registered via `register_external_project`) rather than living inside
- * ~/ShipStudio.
+ * ~/CripCode.
  */
 export async function isProjectExternal(path: string): Promise<boolean> {
   return invoke<boolean>('is_project_external', { path });

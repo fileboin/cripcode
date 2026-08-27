@@ -3567,7 +3567,7 @@ const items = [];
         assert_eq!(spans[0].value, "p-4 flex");
 
         // Simulate the write-back's surgical replacement directly (command layer
-        // adds path validation we can't exercise outside the ShipStudio root).
+        // adds path validation we can't exercise outside the Cripcode root).
         let src = std::fs::read_to_string(&file).unwrap();
         let span = find_classname_spans(&src)
             .into_iter()
@@ -4272,7 +4272,7 @@ const items = [];
     }
 
     /// Locate + write, like the command does, but on a plain temp dir (bypassing
-    /// `validate_project_path`, which only admits ~/ShipStudio paths).
+    /// `validate_project_path`, which only admits ~/CripCode paths).
     fn insert_class(
         root: &Path,
         sig: &ElementSignature,

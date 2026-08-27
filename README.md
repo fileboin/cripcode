@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/fileboin/cripcode/actions/workflows/ci.yml/badge.svg)](https://github.com/fileboin/cripcode/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Download](https://img.shields.io/badge/Download-macOS%20%7C%20Windows-54E36E)](https://www.ship.studio/download)
+[![Download](https://img.shields.io/badge/Download-macOS%20%7C%20Windows-54E36E)](https://github.com/fileboin/cripcode/releases/latest)
 
 **The professional studio for modern development.**
 Build it, ship it, host it — without leaving the app.
@@ -21,7 +21,7 @@ lives on your machine, not on our servers.
 
 *Dev tools for the rest of us.*
 
-[**Download for free**](https://www.ship.studio/download) · [Website](https://www.ship.studio/) · [Community Slack](https://ship.studio/slack) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
+[**Download for free**](https://github.com/fileboin/cripcode/releases/latest) · [Community Slack](https://ship.studio/slack) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
 
 ---
 
@@ -70,9 +70,9 @@ Grab the latest release from
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | `Ship.Studio_<version>_aarch64.dmg` |
-| macOS (Intel)         | `Ship.Studio_<version>_x64.dmg` |
-| Windows (x64)         | `Ship.Studio_<version>_x64-setup.exe` |
+| macOS (Apple Silicon) | `cripcode_darwin-aarch64.dmg` |
+| macOS (Intel)         | `cripcode_darwin-x86_64.dmg` |
+| Windows (x64)         | `cripcode_windows-x86_64-setup.exe` |
 
 Launch the app and the onboarding wizard takes it from there — it installs
 the system prerequisites (Node, Git, GitHub CLI, an AI agent CLI) for you.
@@ -90,7 +90,7 @@ Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/fileboin/cripcode.git
-cd ship-studio
+cd cripcode
 pnpm install
 pnpm tauri dev      # run in development mode
 pnpm tauri build    # production build → src-tauri/target/release/bundle/
@@ -106,7 +106,7 @@ pnpm tauri build    # production build → src-tauri/target/release/bundle/
 | Styling | CSS design tokens (dark theme) |
 
 ```
-ship-studio/
+cripcode/
 ├── src/                      # React frontend
 │   ├── components/           # UI components (incl. setup/, edit/, primitives/)
 │   ├── lib/                  # Tauri command wrappers & utilities

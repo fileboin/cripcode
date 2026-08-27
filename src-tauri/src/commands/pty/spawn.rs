@@ -32,10 +32,10 @@ pub async fn spawn_pty(
     window_label: String,
     project_path: Option<String>,
 ) -> Result<u32, CommandError> {
-    // Constrain the working directory to a ShipStudio/registered project so a
+    // Constrain the working directory to a Cripcode/registered project so a
     // compromised webview can't spawn a process anywhere on disk. The frontend
     // always launches terminals in a project root, a workspace subpath, or the
-    // ~/ShipStudio root itself — all of which validate.
+    // ~/CripCode root itself — all of which validate.
     let validated_cwd = validate_project_path(&options.cwd)?;
     let mut options = options;
     options.cwd = validated_cwd.to_string_lossy().to_string();

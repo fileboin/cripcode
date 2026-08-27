@@ -373,7 +373,7 @@ pub async fn detect_project_type_command(
 /// project list.
 ///
 /// Runs in the backend on purpose: the Tauri `fs` plugin scope only whitelists
-/// `$HOME/.nvm/**` for `exists`, so a frontend `exists()` on a `~/ShipStudio`
+/// `$HOME/.nvm/**` for `exists`, so a frontend `exists()` on a `~/CripCode`
 /// path is rejected with "forbidden path". Validating here also covers custom
 /// project roots, which a static fs-plugin scope cannot express. Containment is
 /// enforced via `validate_project_file_path` (canonicalizes the parent, rejects

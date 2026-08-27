@@ -40,7 +40,7 @@ pub async fn list_env_files(project_path: String) -> Result<Vec<EnvFile>, Comman
 #[tauri::command]
 #[tracing::instrument(skip(file_path), fields(file = %file_path))]
 pub async fn read_env_file(file_path: String) -> Result<Vec<EnvVar>, CommandError> {
-    // Constrain reads to files inside ShipStudio/registered projects so this
+    // Constrain reads to files inside Cripcode/registered projects so this
     // can't be used to exfiltrate arbitrary files (~/.aws/credentials, etc.).
     let safe_path = validate_project_file_path(&file_path)?;
     // classify_fs_error: labels the op/path and turns environment denials —
@@ -91,7 +91,7 @@ const MAX_ENV_VALUE_LENGTH: usize = 65536;
 #[tauri::command]
 #[tracing::instrument(skip(file_path, vars), fields(file = %file_path, var_count = vars.len()))]
 pub async fn write_env_file(file_path: String, vars: Vec<EnvVar>) -> Result<(), CommandError> {
-    // Constrain writes to files inside ShipStudio/registered projects so this
+    // Constrain writes to files inside Cripcode/registered projects so this
     // can't be used to overwrite arbitrary files (~/.zshenv, shell rc, etc.).
     let safe_path = validate_project_file_path(&file_path)?;
     let mut contents = String::new();
@@ -149,14 +149,14 @@ pub async fn write_env_file(file_path: String, vars: Vec<EnvVar>) -> Result<(), 
 }
 
 /// Creates a new .env file in the project directory.
-/// Validates both project path (must be in ShipStudio) and filename.
+/// Validates both project path (must be in Cripcode) and filename.
 #[tauri::command]
 #[tracing::instrument(skip(project_path, file_name), fields(project = %project_path, file = %file_name))]
 pub async fn create_env_file(
     project_path: String,
     file_name: String,
 ) -> Result<String, CommandError> {
-    // Validate project path is inside ShipStudio directory
+    // Validate project path is inside Cripcode directory
     let project = validate_project_path(&project_path)?;
 
     // Validate filename to prevent path traversal attacks
@@ -189,7 +189,7 @@ pub async fn create_env_file(
 #[tauri::command]
 #[tracing::instrument(skip(file_path), fields(file = %file_path))]
 pub async fn delete_env_file(file_path: String) -> Result<(), CommandError> {
-    // Validate the file is inside ShipStudio (or a registered external project)
+    // Validate the file is inside Cripcode (or a registered external project)
     // and operate on the canonicalized path to avoid `..`/symlink escapes.
     let safe_path = validate_project_file_path(&file_path)?;
     // classify_fs_error: see read_env_file (issue #596).

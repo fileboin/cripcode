@@ -114,7 +114,7 @@ Tauri commands:
 
 ## Known issues / limitations / follow-ups
 
-1. **Auto-launch needs a real app.** The test projects (`~/ShipStudio/test-{expo,react-native,flutter}-app`) are bare skeletons with **no deps and no native project** — they will show "Dependencies not installed" or fail in the build log. Need a real `create-expo-app` (or user project) with deps to validate.
+1. **Auto-launch needs a real app.** The test projects (`~/CripCode/test-{expo,react-native,flutter}-app`) are bare skeletons with **no deps and no native project** — they will show "Dependencies not installed" or fail in the build log. Need a real `create-expo-app` (or user project) with deps to validate.
 2. **Read-only build log can't host a fully interactive build.** Mitigated by deps-gate + `npx --yes`, but steps that still prompt (e.g. `pod install`) can't be answered. **Proper fix: run the launch in a real interactive terminal tab** (the user explicitly chose "auto-run in terminal"; current impl streams to a read-only `<pre>`). This is the top follow-up.
 3. **serve-sim daemon lifecycle is partly component-driven.** DeviceMirror stops it on unmount; backend close hooks add a safety net. A hard crash could still orphan a daemon on `:3100`. Deeper fix: a backend mirror registry keyed by window (the review flagged this).
 4. **Ports hardcoded `:3100/:3200`.** Multiple windows would collide. Should reserve via `RESERVED_PORTS` and pass `--port`.
@@ -133,7 +133,7 @@ big changes; HMR covers frontend, the watcher recompiles backend).
 - **Auto-launch**: shows "Dependencies not installed — npm install, then Reconnect" for the skeletons (correct). Needs a real Expo/RN app with deps to actually build.
 - **Sim shutdown**: close the project → the sim Cripcode booted should shut down. Switch tabs → it stays booted. A sim you pre-booted is never shut down.
 
-Test project skeletons live in `~/ShipStudio/test-expo-app`, `test-react-native-app`, `test-flutter-app` (git-initialized, no deps).
+Test project skeletons live in `~/CripCode/test-expo-app`, `test-react-native-app`, `test-flutter-app` (git-initialized, no deps).
 
 ---
 

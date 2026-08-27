@@ -48,7 +48,7 @@ export async function setExternalAgentOptIn(enabled: boolean): Promise<void> {
 
 /**
  * Directory the guided agent session runs in — the projects root
- * (~/ShipStudio), created if missing. Never the user's home: an agent
+ * (~/CripCode), created if missing. Never the user's home: an agent
  * scanning $HOME trips macOS permission prompts (Photos, Desktop, Documents)
  * attributed to Cripcode, and the pending dialog freezes the agent
  * mid-scan.

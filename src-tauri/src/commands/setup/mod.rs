@@ -106,7 +106,7 @@ pub fn read_app_state() -> AppState {
     match serde_json::from_str::<AppState>(&raw) {
         Ok(state) => state,
         Err(e) => {
-            // Log the parse failure so it's visible in ~/Library/Logs/ShipStudio/
+            // Log the parse failure so it's visible in ~/Library/Logs/CripCode/
             // rather than silently resetting all data (including saved Workspaces).
             tracing::error!("Failed to parse app state — keeping defaults. Error: {e}. Raw: {raw}");
             // Attempt a best-effort partial recovery: pull the accounts array out

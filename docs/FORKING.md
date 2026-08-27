@@ -39,12 +39,12 @@ Things to change so your build is unambiguously yours, not the upstream project'
 | `src-tauri/tauri.conf.json` | `plugins.deep-link.desktop.schemes` | Your custom URL scheme |
 | `src-tauri/Cargo.toml` | `[package].name`, `description`, `authors`, `repository`, `homepage` | Your project |
 | `package.json` | `name`, `description`, `repository`, `homepage`, `bugs` | Your project |
-| `.github/workflows/release.yml` | hardcoded `ship-studio/releases` references | Your releases repo (or `${{ github.repository }}` if collapsing to one repo — see §4) |
-| `.github/workflows/release-windows.yml` | hardcoded `ship-studio/releases` references | Same as above |
+| `.github/workflows/release.yml` | release repository | Uses `${{ github.repository }}` — a single-repo fork needs no change (see §4) |
+| `.github/workflows/release-windows.yml` | release repository | Same as above |
 | `README.md`, `CONTRIBUTING.md`, etc. | Repo URLs, Slack invite | Your community links |
 
 > **Why the bundle identifier matters.** macOS treats two binaries with the
-> same identifier as the same app. If you ship `com.memberstack.shipstudio`,
+> same identifier as the same app. If you ship `com.fileboin.cripcode`,
 > macOS thinks your build is a corrupted Cripcode update and refuses to
 > install it. Change the identifier before your first release.
 
@@ -149,7 +149,7 @@ The upstream pipeline uses a **two-repo split**:
 
 - **Source repo** — `fileboin/cripcode` (this one). Where development
   and PRs happen.
-- **Releases repo** — `ship-studio/releases`. Where built binaries are
+- **Releases repo** — `fileboin/cripcode`. Where built binaries are
   published. The updater endpoint points here.
 
 This split keeps the source repo's release tab uncluttered and lets the
@@ -160,7 +160,7 @@ repo and drop the second repo entirely. To do that:
 1. Update `src-tauri/tauri.conf.json` → `plugins.updater.endpoints` to point
    at your *source* repo's `releases/latest/...` URL.
 2. In `.github/workflows/release.yml` and `release-windows.yml`, change
-   wherever the workflow `gh release create`s into `ship-studio/releases`
+   wherever the workflow `gh release create`s into a separate releases repo
    so it uses the current repo (`${{ github.repository }}`).
 3. Drop the `RELEASES_PAT` secret (you only needed it to write into a
    different repo).
@@ -170,7 +170,7 @@ If you want to keep the two-repo split:
 - Create `<you>/<releases-repo>`.
 - Set `RELEASES_PAT` to a Personal Access Token (classic) with `repo` scope
   that can write into that releases repo.
-- Update the workflows' hard-coded `ship-studio/releases` references to
+- Update the workflows' release-repo references to
   your releases repo's `<owner>/<name>`.
 
 ---
@@ -297,7 +297,7 @@ git fetch upstream
 git merge upstream/main  # or rebase, depending on your preference
 ```
 
-Watch the upstream [releases](https://github.com/ship-studio/releases) and
+Watch the upstream [releases](https://github.com/fileboin/cripcode/releases) and
 [release notes](../RELEASE_NOTES.md) for security-relevant fixes.
 
 If you ship a meaningful improvement, **please send a PR back to upstream**

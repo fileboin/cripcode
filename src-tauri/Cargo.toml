@@ -2,7 +2,7 @@
 name = "ship-studio"
 version = "0.18.7"
 description = "Cripcode — a desktop app for shipping web projects with AI coding agents."
-authors = ["Julian Galluzzo", "Ship Studio contributors"]
+authors = ["Julian Galluzzo", "Cripcode contributors"]
 license = "MIT"
 repository = "https://github.com/fileboin/cripcode"
 homepage = "https://github.com/fileboin/cripcode"

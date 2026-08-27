@@ -25,7 +25,7 @@ export interface Account {
   /** Unix timestamp (ms) when the workspace was created */
   createdAt: number;
   /** Folder this workspace lists/creates projects in. Null/undefined → the
-   *  built-in default (`~/ShipStudio`). Each workspace can use its own folder. */
+   *  built-in default (`~/CripCode`). Each workspace can use its own folder. */
   projectsRoot?: string | null;
 }
 

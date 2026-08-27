@@ -440,7 +440,7 @@ pub async fn create_asset_folder(
 }
 
 /// Core of `export_asset`, factored out so it can be unit-tested against a
-/// temp directory (the command wrapper requires a real ShipStudio project
+/// temp directory (the command wrapper requires a real Cripcode project
 /// path). Copies `asset_path` (relative to `root_dir`) to `destination`.
 fn export_asset_to(
     root_dir: &Path,

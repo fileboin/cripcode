@@ -82,7 +82,7 @@ pub fn set_thumbnails_enabled(enabled: bool) -> Result<(), CommandError> {
 }
 
 /// Get the projects root directory (absolute path). Falls back to the default
-/// `~/ShipStudio` when no custom root is configured.
+/// `~/CripCode` when no custom root is configured.
 #[tauri::command]
 #[tracing::instrument]
 pub fn get_projects_root() -> Result<String, CommandError> {
@@ -121,7 +121,7 @@ pub fn is_custom_projects_root() -> Result<bool, CommandError> {
 
 /// Set (or clear) the *active workspace's* projects folder.
 ///
-/// An empty string resets that workspace to the default `~/ShipStudio`. A
+/// An empty string resets that workspace to the default `~/CripCode`. A
 /// non-empty value must be an existing, writable, absolute directory. The cache
 /// is invalidated so the change takes effect immediately.
 #[tauri::command]

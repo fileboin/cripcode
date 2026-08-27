@@ -333,7 +333,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
 
   // Git-truth family roots for worktree sessions. The `.worktrees/<name>/…`
   // path guess can't locate the real parent for external projects (the repo
-  // lives outside ~/ShipStudio), so each worktree path is resolved via
+  // lives outside ~/CripCode), so each worktree path is resolved via
   // `list_worktrees` — this subscription re-renders when a resolution lands
   // and the grouping below snaps to the correct family.
   const familiesVersion = useSyncExternalStore(

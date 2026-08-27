@@ -17,7 +17,7 @@ CRIPCODE
   └── Remote Runtime (NEW)
       │
       ├── SSH Connection Layer          ← Phase 7 (SSH MVP)
-      │   ├── Server config storage     (~/.ship-studio/ssh-servers.json)
+      │   ├── Server config storage     (~/CripCode/.cripcode/ssh-servers.json)
       │   ├── Connection state registry  (in-memory, like state.rs)
       │   ├── Connection test            (ssh CLI via run_with_timeout)
       │   └── Credential storage        (keychain, like accounts.rs)
@@ -67,7 +67,7 @@ something the CLI can't provide (e.g., progress-tracked SFTP → `russh`).
 | Command exec | `external_command.rs` | `run_with_timeout` — timeout, retry, kill_on_drop, structured errors | `ssh user@host "cmd"` for connection test, git, etc. |
 | Credential vault | `commands/accounts.rs` | Keychain write/read/delete via `security` CLI | SSH key passphrase storage |
 | Settings | `commands/setup/state.rs` + `mod.rs` | `read_app_state` / `write_app_state` — JSON persistence | SSH server list in `AppState` or separate file |
-| Path validation | `utils.rs::validate_project_path()` | Constrains paths to `~/ShipStudio` or registered roots | Validate SSH key paths |
+| Path validation | `utils.rs::validate_project_path()` | Constrains paths to `~/CripCode` or registered roots | Validate SSH key paths |
 | Command builder | `utils.rs::create_command()` | Windows: `CREATE_NO_WINDOW` | SSH CLI invocation without console popup |
 | State registry | `state.rs` | In-memory `LazyLock<Mutex<HashMap>>` registries | SSH connection state registry |
 | Error types | `errors.rs::CommandError` | Structured error variants (Timeout, Validation, etc.) | SSH command errors |
@@ -128,7 +128,7 @@ SSH server configurations are persisted to a JSON file, following the same
 pattern as `app_state.json`:
 
 ```
-~/.ship-studio/ssh-servers.json
+~/CripCode/.cripcode/ssh-servers.json
 ```
 
 Structure:
@@ -153,7 +153,7 @@ Rationale for a **separate file** (not inside `app_state.json`):
 - Server configs are a self-contained domain — CRUD doesn't need to read/write
   the entire app state.
 - The file can grow independently (many servers) without bloating app_state.
-- Follows the pattern of `.shipstudio/project.json` (per-project metadata in
+- Follows the pattern of `.cripcode/project.json` (per-project metadata in
   the project folder) vs `app_state.json` (global settings).
 
 ### Connection State Registry
@@ -287,7 +287,7 @@ commands::ssh::get_ssh_connection_state,
 ### Key Passphrase
 
 - If the private key has a passphrase, store it in the keychain following the
-  `accounts.rs` pattern (`ship-studio-ssh-<server_id>` service name).
+  `accounts.rs` pattern (`cripcode-ssh-<server_id>` service name).
 - Pass via `SSH_ASKPASS` or the `ssh-askpass` mechanism — **not** as a CLI
   argument (visible via `ps`).
 - On Windows, use Windows Credential Manager (the `accounts.rs` keychain

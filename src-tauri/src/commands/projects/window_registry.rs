@@ -18,7 +18,7 @@ pub async fn open_project_in_new_window(
     project_path: String,
     project_name: String,
 ) -> Result<String, CommandError> {
-    // Validate the path is within ~/ShipStudio
+    // Validate the path is within ~/CripCode
     let validated_path = validate_project_path(&project_path)?;
     let project_path = validated_path.to_string_lossy().to_string();
 
@@ -89,7 +89,7 @@ pub async fn register_project_for_window(
     window_label: String,
     project_path: String,
 ) -> Result<(), CommandError> {
-    // Validate the path is within ~/ShipStudio
+    // Validate the path is within ~/CripCode
     let validated_path = validate_project_path(&project_path)?;
     let canonical_path = validated_path.to_string_lossy().to_string();
 
@@ -121,7 +121,7 @@ pub async fn unregister_project_from_window(window_label: String) -> Result<(), 
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
 pub async fn get_project_window(project_path: String) -> Option<String> {
-    // Validate the path is within ~/ShipStudio
+    // Validate the path is within ~/CripCode
     let validated_path = match validate_project_path(&project_path) {
         Ok(path) => path,
         Err(e) => {

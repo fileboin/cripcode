@@ -149,7 +149,7 @@ export function useAppCommands({
       .join('\n')
   );
 
-  // Full ~/ShipStudio project listing, sorted by last_opened (desc) by the
+  // Full ~/CripCode project listing, sorted by last_opened (desc) by the
   // backend. Refetched when pinnedPaths changes (proxy for pin/create/import).
   const [allProjects, setAllProjects] = useState<DashboardProject[]>([]);
   useEffect(() => {
@@ -169,7 +169,7 @@ export function useAppCommands({
   // ── Project switch commands — visible in both Home and Project contexts.
   // Order:
   //   1. Pinned (sidebar order) → ⌘1..⌘N shortcuts
-  //   2. The rest of ~/ShipStudio, sorted by last_opened (desc) — no shortcut
+  //   2. The rest of ~/CripCode, sorted by last_opened (desc) — no shortcut
   //   3. Any live external session not seen above — no shortcut
   useCommands(() => {
     const pinSet = new Set(pinnedPaths);

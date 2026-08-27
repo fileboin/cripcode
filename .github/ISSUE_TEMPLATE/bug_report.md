@@ -30,8 +30,8 @@ assignees: ""
 ## Logs
 
 <!--
-macOS: ~/Library/Logs/ShipStudio/
-Windows: %LOCALAPPDATA%\ShipStudio\logs\
+macOS: ~/Library/Logs/CripCode/
+Windows: %LOCALAPPDATA%\CripCode\logs\
 
 Paste the last ~100 lines of the most recent log file, or attach the file.
 Redact anything you don't want to share — paths, project names, branch names.

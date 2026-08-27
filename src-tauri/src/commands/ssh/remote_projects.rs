@@ -2,7 +2,7 @@
 //!
 //! Remote projects are local metadata entries that point to a project folder
 //! on a VPS, accessible via an SSH server. They're stored in
-//! `~/ShipStudio/.cripcode/remote-projects.json` so they appear on the
+//! `~/CripCode/.cripcode/remote-projects.json` so they appear on the
 //! dashboard alongside local projects. The actual file/terminal operations
 //! go through the SSH commands in `files.rs` and the PTY-based
 //! `RemoteTerminal` component.
