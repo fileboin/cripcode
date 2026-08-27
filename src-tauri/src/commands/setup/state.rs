@@ -15,21 +15,21 @@ pub(crate) fn get_app_state_path() -> std::path::PathBuf {
     {
         dirs::home_dir()
             .map(|h| h.join("Library/Application Support/CripCode/app_state.json"))
-            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ship-studio-app-state.json"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/cripcode-app-state.json"))
     }
 
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
             .map(|d| d.join("CripCode/app_state.json"))
-            .unwrap_or_else(|| std::path::PathBuf::from("C:/temp/ship-studio-app-state.json"))
+            .unwrap_or_else(|| std::path::PathBuf::from("C:/temp/cripcode-app-state.json"))
     }
 
     #[cfg(target_os = "linux")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ship-studio/app_state.json"))
-            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ship-studio-app-state.json"))
+            .map(|d| d.join("cripcode/app_state.json"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/cripcode-app-state.json"))
     }
 }
 

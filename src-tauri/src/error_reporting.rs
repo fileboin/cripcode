@@ -131,7 +131,7 @@ fn throttle_path() -> Option<PathBuf> {
 
     #[cfg(target_os = "linux")]
     {
-        dirs::data_local_dir().map(|d| d.join("ship-studio/bug-report-throttle.json"))
+        dirs::data_local_dir().map(|d| d.join("cripcode/bug-report-throttle.json"))
     }
 }
 

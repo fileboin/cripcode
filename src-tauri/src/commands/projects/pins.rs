@@ -5,9 +5,9 @@
 //! a session on next launch.
 //!
 //! Storage location matches `app_state.json`:
-//! - macOS: `~/Library/Application Support/ShipStudio/pins.json`
-//! - Windows: `%LOCALAPPDATA%/ShipStudio/pins.json`
-//! - Linux: `$XDG_DATA_HOME/ship-studio/pins.json`
+//! - macOS: `~/Library/Application Support/CripCode/pins.json`
+//! - Windows: `%LOCALAPPDATA%/CripCode/pins.json`
+//! - Linux: `$XDG_DATA_HOME/cripcode/pins.json`
 //!
 //! Read/write is serialized through `PINS_FILE_LOCK` to prevent races
 //! between multiple windows mutating the file concurrently.
@@ -60,22 +60,22 @@ pub(crate) fn get_pins_file_path() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
-            .map(|h| h.join("Library/Application Support/ShipStudio/pins.json"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/ship-studio-pins.json"))
+            .map(|h| h.join("Library/Application Support/CripCode/pins.json"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-pins.json"))
     }
 
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ShipStudio/pins.json"))
-            .unwrap_or_else(|| PathBuf::from("C:/temp/ship-studio-pins.json"))
+            .map(|d| d.join("CripCode/pins.json"))
+            .unwrap_or_else(|| PathBuf::from("C:/temp/cripcode-pins.json"))
     }
 
     #[cfg(target_os = "linux")]
     {
         dirs::data_local_dir()
-            .map(|d| d.join("ship-studio/pins.json"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/ship-studio-pins.json"))
+            .map(|d| d.join("cripcode/pins.json"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-pins.json"))
     }
 }
 
