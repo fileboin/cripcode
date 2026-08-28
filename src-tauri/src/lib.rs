@@ -453,6 +453,7 @@ pub fn run() {
             commands::projects::move_project_to_account,
             commands::projects::get_project_account_id,
             commands::projects::extract_template_zip,
+            commands::projects::create_project_from_bundled_template,
             commands::projects::export_project_as_template,
             commands::projects::open_project_in_new_window,
             commands::projects::register_project_for_window,

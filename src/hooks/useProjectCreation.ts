@@ -5,10 +5,11 @@
  * Two-step form (`formStep`): pick a source ('select-template': a built-in
  * `TEMPLATES` entry, or a .zip via browser file picker / Tauri drag-drop) →
  * 'enter-name'. Then the creation pipeline (`currentStep`, mirrored by the
- * progress UI via `getStepStatus`): clone (`git clone` through a `spawn_pty`
- * PTY; zips go through `extract_template_zip`; blank uses
- * `create_blank_project`) → init (`remove_git_history` so the project
- * detaches from the template repo, gitignore `.cripcode/`, fire-and-forget
+ * progress UI via `getStepStatus`): extract (built-in templates come from
+ * bundled local ZIPs via `create_project_from_bundled_template`; user zips go
+ * through `extract_template_zip`; blank uses `create_blank_project`) → init
+ * (`remove_git_history` so the project detaches from the template source,
+ * gitignore `.cripcode/`, fire-and-forget
  * Vercel plugin install) → install (`npm install` via PTY, gated on an npm
  * cache-permission pre-check) → done → `onComplete(projectPath)`, which the
  * caller turns into a project open. `retryInstall` re-runs just the install
@@ -62,8 +63,6 @@ export interface Template {
   name: string;
   /** Short description of what the template includes */
   description: string;
-  /** GitHub repository URL to clone */
-  repo: string;
   /** Which section of the picker this template appears under */
   category: TemplateCategory;
   /** Skip the npm install step (templates with no package.json, e.g. HTML/Flutter) */
@@ -87,42 +86,36 @@ export const TEMPLATES: Template[] = [
     id: 'nextjs-basic',
     name: 'Next.js (Tailwind)',
     description: 'The most flexible, especially for web apps. A great default if unsure.',
-    repo: 'https://github.com/fileboin/static-marketing-site-starter',
     category: 'web',
   },
   {
     id: 'nextjs-plain-css',
     name: 'Next.js (Vanilla)',
     description: 'Styled with vanilla CSS — best for people who write their own styles.',
-    repo: 'https://github.com/fileboin/nextjs-plain-css-starter',
     category: 'web',
   },
   {
     id: 'astro-html',
     name: 'Astro (Vanilla)',
     description: 'Best for visual editing — a fast site styled with plain CSS, click to edit.',
-    repo: 'https://github.com/fileboin/astro-html-starter',
     category: 'web',
   },
   {
     id: 'astro-basic',
     name: 'Astro (Tailwind)',
     description: 'Best for agent-first marketing sites, styled with Tailwind.',
-    repo: 'https://github.com/fileboin/astro-static-marketing-site-starter',
     category: 'web',
   },
   {
     id: 'sveltekit-basic',
     name: 'SvelteKit',
     description: 'Best for snappy, interactive apps with minimal JS and fast loads.',
-    repo: 'https://github.com/fileboin/sveltekit-static-marketing-site-starter',
     category: 'web',
   },
   {
     id: 'html-basic',
     name: 'HTML/CSS/JS',
     description: 'A plain site with no framework or build step — just HTML, CSS, and JS.',
-    repo: 'https://github.com/fileboin/html-starter',
     category: 'web',
     skipInstall: true,
   },
@@ -130,21 +123,18 @@ export const TEMPLATES: Template[] = [
     id: 'expo-mobile',
     name: 'Expo',
     description: 'An iOS and Android app. The easiest mobile path.',
-    repo: 'https://github.com/fileboin/expo-starter',
     category: 'mobile',
   },
   {
     id: 'react-native-mobile',
     name: 'React Native',
     description: 'An iOS and Android app with full native control.',
-    repo: 'https://github.com/fileboin/react-native-starter',
     category: 'mobile',
   },
   {
     id: 'flutter-mobile',
     name: 'Flutter',
     description: 'An iOS and Android app built with Flutter.',
-    repo: 'https://github.com/fileboin/flutter-starter',
     category: 'mobile',
     skipInstall: true,
   },
@@ -152,7 +142,6 @@ export const TEMPLATES: Template[] = [
     id: 'shopify-theme',
     name: 'Shopify Theme',
     description: 'An online store theme that previews against your real store.',
-    repo: 'https://github.com/fileboin/shopify-theme-starter',
     category: 'other',
     skipInstall: true,
   },
@@ -160,14 +149,12 @@ export const TEMPLATES: Template[] = [
     id: 'eve-agent',
     name: 'Eve Agent',
     description: "An AI agent built on Vercel's Eve framework, with a web chat UI.",
-    repo: 'https://github.com/fileboin/eve-agent-starter',
     category: 'other',
   },
   {
     id: 'blank',
     name: 'Blank Project',
     description: 'An empty folder. Start completely from scratch.',
-    repo: '',
     category: 'other',
   },
 ];
@@ -411,47 +398,29 @@ export function useProjectCreation({ onComplete, onCancel }: UseProjectCreationP
     setCurrentStep('clone');
 
     try {
-      // Ensure Cripcode directory exists
-      const shipstudioDir = await invoke<string>('ensure_shipstudio_dir');
-      const projectPath = `${shipstudioDir}/${safeName}`;
+      let projectPath: string;
 
       if (selectedTemplate.id === 'blank') {
         // Blank project: just create the directory
+        const shipstudioDir = await invoke<string>('ensure_shipstudio_dir');
+        projectPath = `${shipstudioDir}/${safeName}`;
         await invoke('create_blank_project', { projectPath });
         setCreatedProjectPath(projectPath);
         setCurrentStep('done');
       } else {
-        // Clone template
-        const cloneId = await invoke<number>('spawn_pty', {
-          options: {
-            cwd: shipstudioDir,
-            command: 'git',
-            args: ['clone', selectedTemplate.repo, safeName],
-            rows: 10,
-            cols: 80,
-          },
-          windowLabel: getWindowLabel(),
+        // Extract the bundled local template ZIP — no external repository
+        // required for the 11 built-in templates.
+        projectPath = await invoke<string>('create_project_from_bundled_template', {
+          templateId: selectedTemplate.id,
+          projectName: safeName,
         });
 
-        const cloneExitCode = await waitForPtyExit(cloneId);
-
-        // A null exit code means the clone PTY was killed (window closed,
-        // app reload) — possibly before git even created the target folder.
-        // Proceeding would run remove_git_history against a path that doesn't
-        // exist (issue #342). Unlike the install step below, a killed clone
-        // can never be treated as success.
-        if (cloneExitCode === null) {
-          throw new Error(
-            'Project creation was interrupted before the template finished downloading. Please try again.'
-          );
-        }
-
-        // Remove .git folder so project starts fresh (not connected to template repo)
+        // Remove .git folder if present (bundled templates don't carry one)
         setCurrentStep('init');
         await invoke('remove_git_history', { projectPath });
 
         // Ensure .cripcode/ is gitignored to prevent phantom changes
-        await invoke('ensure_gitignore_has_shipstudio', { projectPath: projectPath });
+        await invoke('ensure_gitignore_has_shipstudio', { projectPath });
 
         // Pre-install Vercel plugin (fire-and-forget, don't block creation)
         installPlugin(projectPath, VERCEL_PLUGIN_REPO).catch(() => {});

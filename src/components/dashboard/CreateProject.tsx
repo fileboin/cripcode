@@ -11,11 +11,8 @@
  * @module components/CreateProject
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useState } from 'react';
 import { trackEvent } from '../../lib/analytics';
-import { logger } from '../../lib/logger';
-import { asCommandError, formatCommandError } from '../../lib/errors';
 import { UploadIcon } from '../icons';
 import { Button } from '../primitives/Button';
 import { Spinner } from '../primitives/Spinner';
@@ -26,7 +23,6 @@ import {
   STEPS,
   STATUS_MESSAGES,
 } from '../../hooks/useProjectCreation';
-import { TemplateGallery, type CommunityTemplate } from './TemplateGallery';
 import { TemplateCard } from './TemplateCard';
 
 /** Props for the CreateProject component */
@@ -65,108 +61,55 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
     handleDrop,
     handleFileSelect,
     handleRemoveZip,
-    setZipPath,
-    setZipFileName,
-    setError,
     saveDefaultTemplate,
     defaultTemplateId,
   } = useProjectCreation({ onComplete, onCancel });
 
   const [setAsDefaultChecked, setSetAsDefaultChecked] = useState(false);
 
-  // Tab state: "scratch" = start from scratch, "template" = community templates
+  // Tab state: "scratch" = start from scratch, "template" = built-in templates
   const [activeTab, setActiveTab] = useState<'scratch' | 'template'>('scratch');
 
-  // Community templates from API
-  const [communityTemplates, setCommunityTemplates] = useState<CommunityTemplate[]>([]);
-  const [communityLoading, setCommunityLoading] = useState(true);
-  const [communitySearch, setCommunitySearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
-
-  // Debounce search input — hit the API server-side
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(communitySearch), 300);
-    return () => clearTimeout(timer);
-  }, [communitySearch]);
-
-  // Fetch templates from API (server-side search)
-  const fetchTemplates = useCallback(() => {
-    setCommunityLoading(true);
-    const params: Record<string, string | number> = {};
-    if (debouncedSearch) params.search = debouncedSearch;
-    invoke<string>('fetch_community_templates', params)
-      .then((raw) => {
-        const data = JSON.parse(raw) as { templates: CommunityTemplate[] };
-        setCommunityTemplates(data.templates);
-      })
-      .catch(() => {
-        // Silently fail — user sees empty state
-      })
-      .finally(() => setCommunityLoading(false));
-  }, [debouncedSearch]);
-
-  // Fetch on mount and when search changes
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
-
-  // Re-fetch every 50 minutes to keep signed zip_urls fresh (they expire after 1 hour)
-  useEffect(() => {
-    const interval = setInterval(fetchTemplates, 50 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchTemplates]);
-
-  const handleCommunitySelect = (template: CommunityTemplate) => {
-    setSelectedCommunityId(template.id === selectedCommunityId ? null : template.id);
+  const handleContinue = () => {
+    if (setAsDefaultChecked && selectedTemplate) {
+      saveDefaultTemplate(selectedTemplate.id);
+    }
+    rawHandleContinue();
   };
 
-  const selectedCommunityTemplate =
-    communityTemplates.find((t) => t.id === selectedCommunityId) ?? null;
-
-  const handleContinue = async () => {
-    if (activeTab === 'scratch') {
-      if (setAsDefaultChecked && selectedTemplate) {
-        saveDefaultTemplate(selectedTemplate.id);
-      }
-      rawHandleContinue();
-      return;
-    }
-
-    // Template tab — community template selected
-    if (selectedCommunityTemplate?.zip_url) {
-      setDownloading(true);
-      try {
-        const tempPath = await invoke<string>('download_template_zip', {
-          url: selectedCommunityTemplate.zip_url,
-        });
-        setZipPath(tempPath);
-        setZipFileName(selectedCommunityTemplate.name + '.zip');
-        rawHandleContinue();
-      } catch (err) {
-        // Surface the failure (don't block the modal) — a silent catch left the
-        // button snapping back to "Continue" with no explanation.
-        const detail = formatCommandError(asCommandError(err));
-        logger.error('Failed to download community template', {
-          template: selectedCommunityTemplate.name,
-          error: detail,
-        });
-        setError(
-          `Couldn't download "${selectedCommunityTemplate.name}": ${detail}. ` +
-            'Check your connection and try again.'
+  // The local built-in template grid, shared by both the "Start from Scratch"
+  // and "Start from Template" tabs.
+  const renderTemplateGrid = () => (
+    <>
+      {TEMPLATE_GROUPS.map((group) => {
+        const groupTemplates = TEMPLATES.filter((t) => t.category === group.id);
+        if (groupTemplates.length === 0) return null;
+        return (
+          <div key={group.id} className="stack-group">
+            <h3 className="stack-group-title">{group.label}</h3>
+            <div className="stack-grid">
+              {groupTemplates.map((template) => (
+                <TemplateCard
+                  key={template.id}
+                  name={template.name}
+                  description={template.description}
+                  selected={selectedTemplate?.id === template.id && !hasZipTemplate}
+                  onSelect={() => {
+                    handleTemplateSelect(template);
+                    void trackEvent('template_selected', {
+                      template_id: template.id,
+                      $screen_name: 'Create Project',
+                    });
+                    setSetAsDefaultChecked(false);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         );
-      } finally {
-        setDownloading(false);
-      }
-      return;
-    }
-
-    // Template tab — zip upload selected
-    if (hasZipTemplate) {
-      rawHandleContinue();
-    }
-  };
+      })}
+    </>
+  );
 
   const renderContent = () => {
     // Creating state - show progress
@@ -279,33 +222,7 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
 
           {activeTab === 'scratch' && (
             <>
-              {TEMPLATE_GROUPS.map((group) => {
-                const groupTemplates = TEMPLATES.filter((t) => t.category === group.id);
-                if (groupTemplates.length === 0) return null;
-                return (
-                  <div key={group.id} className="stack-group">
-                    <h3 className="stack-group-title">{group.label}</h3>
-                    <div className="stack-grid">
-                      {groupTemplates.map((template) => (
-                        <TemplateCard
-                          key={template.id}
-                          name={template.name}
-                          description={template.description}
-                          selected={selectedTemplate?.id === template.id && !hasZipTemplate}
-                          onSelect={() => {
-                            handleTemplateSelect(template);
-                            void trackEvent('template_selected', {
-                              template_id: template.id,
-                              $screen_name: 'Create Project',
-                            });
-                            setSetAsDefaultChecked(false);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              {renderTemplateGrid()}
 
               {selectedTemplate && selectedTemplate.id !== defaultTemplateId && !hasZipTemplate && (
                 <button
@@ -321,14 +238,7 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
 
           {activeTab === 'template' && (
             <>
-              <TemplateGallery
-                templates={communityTemplates}
-                loading={communityLoading}
-                onSelect={handleCommunitySelect}
-                selectedId={selectedCommunityId}
-                searchQuery={communitySearch}
-                onSearchChange={setCommunitySearch}
-              />
+              {renderTemplateGrid()}
 
               <div className="template-divider">
                 <span>or upload a template</span>
@@ -398,15 +308,10 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
             <Button
               variant="primary"
               type="button"
-              disabled={
-                downloading ||
-                (activeTab === 'scratch'
-                  ? !selectedTemplate && !hasZipTemplate
-                  : !selectedCommunityId && !hasZipTemplate)
-              }
-              onClick={() => void handleContinue()}
+              disabled={!selectedTemplate && !hasZipTemplate}
+              onClick={handleContinue}
             >
-              {downloading ? 'Downloading...' : 'Continue'}
+              Continue
             </Button>
           </div>
         </div>

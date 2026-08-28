@@ -1,0 +1,5 @@
+node_modules
+buck-out
+.metro-health-check
+.DS_Store
+*.log

@@ -1,0 +1,20 @@
+{
+  "name": "sveltekit-basic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "3.2.2",
+    "@sveltejs/kit": "2.5.18",
+    "autoprefixer": "10.4.19",
+    "postcss": "8.4.39",
+    "svelte": "4.2.18",
+    "tailwindcss": "3.4.6",
+    "vite": "5.3.4"
+  }
+}

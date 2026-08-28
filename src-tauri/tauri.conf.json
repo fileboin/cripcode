@@ -32,7 +32,8 @@
     ],
     "resources": {
       "fonts/*": "fonts/",
-      "resources/scrcpy-server.jar": "scrcpy-server.jar"
+      "resources/scrcpy-server.jar": "scrcpy-server.jar",
+      "resources/templates/*.zip": "templates/"
     },
     "createUpdaterArtifacts": true
   },

@@ -99,6 +99,88 @@ pub async fn extract_template_zip(
     Ok(project_path.to_string_lossy().to_string())
 }
 
+/// Create a project from a bundled local template ZIP shipped inside the app's
+/// resources (`templates/<template_id>.zip`). Unlike [`extract_template_zip`]
+/// (which handles user-supplied zips and validates project markers), bundled
+/// templates are trusted app content, so no marker validation is applied here.
+#[tauri::command]
+#[tracing::instrument(skip(app))]
+pub async fn create_project_from_bundled_template(
+    app: AppHandle,
+    template_id: String,
+    project_name: String,
+) -> Result<String, CommandError> {
+    use tauri::Manager;
+
+    // Restrict the id to a simple slug so it can only address `templates/<id>.zip`.
+    let id = template_id.trim();
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(CommandError::Validation {
+            field: "template_id".into(),
+            reason: "Template id must contain only letters, numbers, and dashes".into(),
+        });
+    }
+
+    let resource_path = app
+        .path()
+        .resolve(
+            format!("templates/{id}.zip"),
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| CommandError::Other {
+            message: format!("Failed to resolve bundled template resource: {e}"),
+        })?;
+
+    if !resource_path.is_file() {
+        return Err(CommandError::Validation {
+            field: "template_id".into(),
+            reason: format!("Bundled template '{id}' was not found"),
+        });
+    }
+
+    let bytes = std::fs::read(&resource_path).map_err(|e| CommandError::Other {
+        message: format!("Failed to read bundled template '{id}': {e}"),
+    })?;
+
+    let projects_root = crate::utils::projects_root()?;
+    if !projects_root.exists() {
+        std::fs::create_dir_all(&projects_root)
+            .map_err(|e| format!("Failed to create projects directory: {e}"))?;
+    }
+
+    let project_path = create_project_from_zip_bytes(&project_name, bytes, &projects_root)?;
+    Ok(project_path.to_string_lossy().to_string())
+}
+
+/// Shared core: scaffold a project from raw template zip bytes into `dest_root`.
+/// Sanitizes the project name and extracts the archive. Marker validation is
+/// intentionally omitted — bundled templates are trusted app content.
+fn create_project_from_zip_bytes(
+    project_name: &str,
+    zip_bytes: Vec<u8>,
+    dest_root: &std::path::Path,
+) -> Result<std::path::PathBuf, CommandError> {
+    let safe_name = project_name
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .collect::<String>();
+
+    if safe_name.is_empty() {
+        return Err(("Invalid project name".to_string()).into());
+    }
+
+    let project_path = dest_root.join(&safe_name);
+
+    if project_path.exists() {
+        return Err((format!("A project named '{safe_name}' already exists")).into());
+    }
+
+    extract_archive_to(std::io::Cursor::new(zip_bytes), &project_path)?;
+
+    Ok(project_path)
+}
+
 /// How many directory levels below the extraction root to search for project
 /// markers. Covers an unstripped wrapper dir plus common nesting like
 /// `src/index.html` or `wrapper/dist/index.html`.
@@ -435,7 +517,10 @@ pub async fn export_project_as_template(
 
 #[cfg(test)]
 mod tests {
-    use super::{contains_project_markers, extract_archive_to, is_junk_zip_entry};
+    use super::{
+        contains_project_markers, create_project_from_zip_bytes, extract_archive_to,
+        is_junk_zip_entry,
+    };
     use std::io::Write;
     use tempfile::TempDir;
     use zip::write::SimpleFileOptions;
@@ -570,5 +655,37 @@ mod tests {
     fn empty_dir_has_no_markers() {
         let tmp = TempDir::new().unwrap();
         assert!(!contains_project_markers(tmp.path(), 3));
+    }
+
+    #[test]
+    fn bundled_template_scaffolds_project_from_flat_zip() {
+        let tmp = TempDir::new().unwrap();
+        let zip = make_zip(&[
+            ("package.json", "{}"),
+            ("app/page.tsx", "export default function Home() {}"),
+        ]);
+        let bytes = zip.into_inner();
+        let path = create_project_from_zip_bytes("My-Project", bytes, tmp.path()).unwrap();
+        assert!(path.ends_with("my-project"));
+        assert!(path.join("package.json").exists());
+        assert!(path.join("app/page.tsx").exists());
+    }
+
+    #[test]
+    fn bundled_template_rejects_invalid_name() {
+        let tmp = TempDir::new().unwrap();
+        let zip = make_zip(&[("package.json", "{}")]);
+        let bytes = zip.into_inner();
+        // Sanitizes to empty → rejected before touching the filesystem.
+        assert!(create_project_from_zip_bytes("!!!", bytes, tmp.path()).is_err());
+    }
+
+    #[test]
+    fn bundled_template_rejects_duplicate_project() {
+        let tmp = TempDir::new().unwrap();
+        let zip = make_zip(&[("package.json", "{}")]);
+        let bytes = zip.into_inner();
+        create_project_from_zip_bytes("dup", bytes.clone(), tmp.path()).unwrap();
+        assert!(create_project_from_zip_bytes("dup", bytes, tmp.path()).is_err());
     }
 }
