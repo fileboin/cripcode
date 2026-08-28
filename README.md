@@ -21,7 +21,7 @@ lives on your machine, not on our servers.
 
 *Dev tools for the rest of us.*
 
-[**Download for free**](https://github.com/fileboin/cripcode/releases/latest) · [Community Slack](https://ship.studio/slack) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
+[**Download for free**](https://github.com/fileboin/cripcode/releases/latest) · [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) · [Follow @galluzzo_julian](https://x.com/galluzzo_julian) · [YouTube](https://www.youtube.com/@shipstudio_app)
 
 ---
 
@@ -194,7 +194,7 @@ Want to support the project with contributions or financially?
 ## Community
 
 - [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) — questions, ideas, show-and-tell
-- [Community Slack](https://ship.studio/slack) — real-time chat with maintainers and users
+- [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) — questions, ideas, and community chat
 - [Issues](https://github.com/fileboin/cripcode/issues) — bug reports and feature requests
 - [@galluzzo_julian](https://x.com/galluzzo_julian) — follow along on X
 - [YouTube](https://www.youtube.com/@shipstudio_app) — tutorials, demos, and walkthroughs

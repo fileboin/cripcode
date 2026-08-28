@@ -13,7 +13,7 @@ In short:
 ## Reporting
 
 If you experience or witness behavior that violates this code, please DM a
-maintainer privately in our [community Slack](https://ship.studio/slack),
+maintainer privately through [GitHub Discussions](https://github.com/fileboin/cripcode/discussions),
 or email [juliangalluzzois@gmail.com](mailto:juliangalluzzois@gmail.com).
 Reports are handled in confidence. We will not retaliate against good-faith
 reporters.

@@ -6,6 +6,6 @@ contact_links:
   - name: Question or discussion
     url: https://github.com/fileboin/cripcode/discussions
     about: For "how do I…" questions, ideas, or general discussion.
-  - name: Community Slack
-    url: https://join.slack.com/t/shipstudiocommunity/shared_invite/zt-41vbyaoo0-_pZWNPyMdvMoF6neuDYw7g
+  - name: GitHub Discussions
+    url: https://github.com/fileboin/cripcode/discussions
     about: Chat with other Cripcode users and contributors.

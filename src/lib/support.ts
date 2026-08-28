@@ -17,8 +17,14 @@ import type { Conversation, WidgetMessage } from '@cstar.help/js/chat';
 
 export type { LibraryArticle, Category, Conversation, WidgetMessage };
 
-const TEAM_SLUG = 'ship-studio';
-const BASE_URL = 'https://www.cstar.help';
+interface SupportConfig {
+  teamSlug: string;
+  baseUrl: string;
+}
+
+// No CripCode support tenant exists yet. Keep the integration optional instead
+// of routing support traffic to the former Ship Studio tenant.
+const SUPPORT_CONFIG: SupportConfig | null = null;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,7 +68,8 @@ let _library: LibraryClient | null = null;
 
 function getLibrary(): LibraryClient {
   if (!_library) {
-    _library = new LibraryClient({ teamSlug: TEAM_SLUG, baseUrl: BASE_URL });
+    if (!SUPPORT_CONFIG) throw new Error('Support integration is not configured');
+    _library = new LibraryClient(SUPPORT_CONFIG);
   }
   return _library;
 }
@@ -127,7 +134,8 @@ export async function getChatClient(): Promise<ChatClient> {
   if (_identifyPromise) return _identifyPromise;
 
   _identifyPromise = (async () => {
-    const client = new ChatClient({ teamSlug: TEAM_SLUG, baseUrl: BASE_URL });
+    if (!SUPPORT_CONFIG) throw new Error('Support integration is not configured');
+    const client = new ChatClient(SUPPORT_CONFIG);
     const identity = await invoke<SupportIdentity>('get_support_identity');
 
     await client.identify(

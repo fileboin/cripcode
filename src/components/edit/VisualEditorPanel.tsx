@@ -45,7 +45,7 @@ import type {
 } from '../../lib/edit';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import type { Selection } from '../../hooks/useVisualEditor';
-import { SLACK_INVITE_URL } from '../../lib/links';
+import { COMMUNITY_URL } from '../../lib/links';
 
 /** Build a ready-to-paste request for the coding agent to change text that's rendered
  *  from code/data (so it can't be edited inline). The user pastes it into the terminal
@@ -692,11 +692,11 @@ export function VisualEditorPanel({
         <button
           type="button"
           className="ss-edit-panel__slack"
-          onClick={() => void openUrl(SLACK_INVITE_URL)}
-          title="Join the Cripcode community on Slack"
+          onClick={() => void openUrl(COMMUNITY_URL)}
+          title="Open the Cripcode community discussions"
         >
           <SlackIcon size={12} />
-          Join the Slack
+          Open Discussions
         </button>
       </div>
 

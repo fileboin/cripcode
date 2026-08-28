@@ -242,10 +242,10 @@ Requirements:
 installed commit (`git ls-remote`) and offers a re-clone.
 
 **Plugin library**: the in-app library is driven by
-[`ship-studio/plugin-registry`](https://github.com/ship-studio/plugin-registry)
+[`fileboin/cripcode-plugin-registry`](https://github.com/fileboin/cripcode-plugin-registry)
 (`registry.json` with `{ id, name, description, repo, author, category }`
 entries). Open a PR there to list your plugin. The
-[Vercel plugin](https://github.com/ship-studio/plugin-vercel) is a full
+[Vercel plugin](https://github.com/fileboin/cripcode-plugin-vercel) is a full
 real-world reference.
 
 ## Walkthrough: hello-world

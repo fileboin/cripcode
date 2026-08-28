@@ -531,15 +531,15 @@ describe('OnboardingScreen', () => {
     vi.useRealTimers();
   });
 
-  // ============ Slack CTA ============
+  // ============ Community CTA ============
 
-  it('shows Slack CTA link on wizard screen', async () => {
+  it('shows the community discussions CTA on the wizard screen', async () => {
     mockInvoke('get_full_setup_status', FRESH_STATUS);
 
     render(<OnboardingScreen onComplete={onComplete} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Join Slack')).toBeInTheDocument();
+      expect(screen.getByText('Open Discussions')).toBeInTheDocument();
     });
   });
 

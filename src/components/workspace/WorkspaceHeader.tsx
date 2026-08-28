@@ -27,7 +27,7 @@ import { ImageIcon, SlackIcon, PanelLeftIcon } from '../icons';
 // intentionally kept around so we can bring the panel back later.
 import { SupportPanel } from '../support/SupportPanel';
 
-import { SLACK_INVITE_URL } from '../../lib/links';
+import { COMMUNITY_URL } from '../../lib/links';
 import type { IntegrationState } from '../../hooks/useIntegrationStatus';
 import type { LoadedPlugin } from '../../hooks/usePlugins';
 import type { PluginThemeData } from '../../contexts/PluginContext';
@@ -210,8 +210,8 @@ export function WorkspaceHeader({
         </button>
         <button
           className="toolbar-icon-btn"
-          onClick={() => void openUrl(SLACK_INVITE_URL)}
-          title="Join the Cripcode community on Slack"
+          onClick={() => void openUrl(COMMUNITY_URL)}
+          title="Open the Cripcode community discussions"
           data-education-id="support-button"
         >
           <SlackIcon size={12} />

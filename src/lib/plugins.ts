@@ -64,10 +64,10 @@ export interface PluginRegistryEntry {
 }
 
 /** Official Vercel plugin repository URL */
-export const VERCEL_PLUGIN_REPO = 'https://github.com/ship-studio/plugin-vercel';
+export const VERCEL_PLUGIN_REPO = 'https://github.com/fileboin/cripcode-plugin-vercel';
 
 const REGISTRY_URL =
-  'https://raw.githubusercontent.com/ship-studio/plugin-registry/main/registry.json';
+  'https://raw.githubusercontent.com/fileboin/cripcode-plugin-registry/main/registry.json';
 
 /** Cached registry to avoid re-fetching */
 let registryCache: { plugins: PluginRegistryEntry[]; fetchedAt: number } | null = null;

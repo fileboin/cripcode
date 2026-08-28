@@ -398,7 +398,7 @@ See `CLAUDE.md` → **Onboarding / Setup Wizard Testing** for `SHIPSTUDIO_FORCE_
 
 - Check existing [issues](https://github.com/fileboin/cripcode/issues) for similar problems.
 - Open a [discussion](https://github.com/fileboin/cripcode/discussions) for "how do I…" questions.
-- Drop into the [community Slack](https://ship.studio/slack).
+- Join the [GitHub Discussions](https://github.com/fileboin/cripcode/discussions).
 - Read the code comments and the docs in [docs/](docs/).
 
 ## FAQ

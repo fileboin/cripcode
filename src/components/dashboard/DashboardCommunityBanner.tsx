@@ -7,7 +7,7 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { EyeOffIcon, SlackIcon } from '../icons';
 import { Button } from '../primitives/Button';
-import { SLACK_INVITE_URL } from '../../lib/links';
+import { COMMUNITY_URL } from '../../lib/links';
 
 interface DashboardCommunityBannerProps {
   onHide: () => void;
@@ -23,17 +23,17 @@ export function DashboardCommunityBanner({ onHide }: DashboardCommunityBannerPro
       <div className="slack-cta-content">
         <SlackIcon />
         <span>
-          <strong>Join the Slack</strong> — suggest features, share what you're building, and shape
-          the future of how we build for the web.
+          <strong>Join the Cripcode discussions</strong> — suggest features, share what you're
+          building, and shape the future of how we build for the web.
         </span>
       </div>
       <Button
         variant="secondary"
         size="sm"
         className="slack-cta-join"
-        onClick={() => void openUrl(SLACK_INVITE_URL)}
+        onClick={() => void openUrl(COMMUNITY_URL)}
       >
-        Join Slack
+        Open Discussions
       </Button>
       <Button
         variant="ghost"

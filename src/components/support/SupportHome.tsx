@@ -9,7 +9,7 @@ import type { LibraryArticle } from '@cstar.help/js/library';
 import type { SupportView } from './SupportPanel';
 import { trackEvent } from '../../lib/analytics';
 import { SlackIcon } from '../icons';
-import { SLACK_INVITE_URL } from '../../lib/links';
+import { COMMUNITY_URL } from '../../lib/links';
 
 interface SupportHomeProps {
   onNavigate: (view: SupportView) => void;
@@ -89,17 +89,17 @@ export function SupportHome({ onNavigate }: SupportHomeProps) {
 
   return (
     <div className="support-home">
-      {/* Slack community CTA */}
+      {/* Community discussions CTA */}
       <button
         className="support-slack-cta"
         onClick={() => {
-          void openUrl(SLACK_INVITE_URL);
-          void trackEvent('support_slack_cta_clicked');
+          void openUrl(COMMUNITY_URL);
+          void trackEvent('support_community_cta_clicked');
         }}
       >
         <SlackIcon size={18} />
         <span className="support-slack-cta-text">
-          <strong>Join the Slack</strong> — chat with the team and other builders.
+          <strong>Open the Cripcode discussions</strong> — chat with the team and other builders.
         </span>
         <span className="support-slack-cta-arrow">→</span>
       </button>

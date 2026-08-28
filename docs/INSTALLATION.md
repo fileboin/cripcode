@@ -168,5 +168,5 @@ This is optional — the rest of the app works without it.
 
 - [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) for questions.
 - [GitHub Issues](https://github.com/fileboin/cripcode/issues) for bug reports — please use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md).
-- [Community Slack](https://ship.studio/slack) for real-time chat.
+- [GitHub Discussions](https://github.com/fileboin/cripcode/discussions) for community chat.
 - Security issues → [SECURITY.md](../SECURITY.md).

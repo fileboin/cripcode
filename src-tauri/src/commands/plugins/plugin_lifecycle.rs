@@ -13,6 +13,11 @@ use super::{
     PluginInfo, PluginUpdateCheck, RegistryEntry,
 };
 
+const LEGACY_VERCEL_PLUGIN_REPO: &str = "https://github.com/ship-studio/plugin-vercel";
+const CANONICAL_VERCEL_PLUGIN_REPO: &str = "https://github.com/fileboin/cripcode-plugin-vercel";
+// TODO(independence): remove the legacy matcher after the global source_url
+// migration and its compatibility window are complete.
+
 /// Validate a git URL before passing it to `git clone`.
 ///
 /// Blocks two classes of attack:
@@ -197,6 +202,16 @@ fn repo_urls_match(a: &str, b: &str) -> bool {
     !na.is_empty() && na == normalize_repo_url(b)
 }
 
+/// Route the legacy Vercel plugin source to the CripCode-owned repository.
+/// Unknown third-party plugin sources are intentionally returned unchanged.
+fn canonical_plugin_source_url(url: &str) -> String {
+    if repo_urls_match(url, LEGACY_VERCEL_PLUGIN_REPO) {
+        CANONICAL_VERCEL_PLUGIN_REPO.to_string()
+    } else {
+        url.to_string()
+    }
+}
+
 /// List all installed plugins for a project
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
@@ -239,6 +254,7 @@ pub async fn install_plugin(
     project_path: String,
     repo_url: String,
 ) -> Result<PluginInfo, CommandError> {
+    let repo_url = canonical_plugin_source_url(&repo_url);
     validate_clone_url(&repo_url)?;
 
     let plugins_dir = get_plugins_dir(&project_path)?;
@@ -446,17 +462,30 @@ pub async fn update_plugin(
     plugin_id: String,
 ) -> Result<PluginInfo, CommandError> {
     validate_plugin_id(&plugin_id)?;
-    let registry = read_registry(&project_path)?;
+    let mut registry = read_registry(&project_path)?;
     let entry = registry
         .plugins
         .iter()
         .find(|e| e.plugin_id == plugin_id)
         .ok_or_else(|| format!("Plugin '{plugin_id}' not found in registry"))?;
 
-    let source_url = entry.source_url.clone();
+    let source_url = canonical_plugin_source_url(&entry.source_url);
     let was_enabled = entry.enabled;
 
     validate_clone_url(&source_url)?;
+
+    // Persist the canonical source before cloning so a legacy Vercel install
+    // cannot keep routing future update or self-heal operations to Ship Studio.
+    if entry.source_url != source_url {
+        if let Some(entry) = registry
+            .plugins
+            .iter_mut()
+            .find(|e| e.plugin_id == plugin_id)
+        {
+            entry.source_url = source_url.clone();
+        }
+        write_registry(&project_path, &registry)?;
+    }
 
     let git = resolve_git()?;
 
@@ -528,6 +557,7 @@ pub async fn update_plugin(
         .find(|e| e.plugin_id == plugin_id)
     {
         entry.enabled = was_enabled;
+        entry.source_url = source_url.clone();
         entry.installed_commit = commit_hash;
     }
     write_registry(&project_path, &registry)?;
@@ -549,7 +579,7 @@ pub async fn check_plugin_update(
     project_path: String,
     plugin_id: String,
 ) -> Result<PluginUpdateCheck, CommandError> {
-    let registry = read_registry(&project_path)?;
+    let mut registry = read_registry(&project_path)?;
     let entry = registry
         .plugins
         .iter()
@@ -564,13 +594,26 @@ pub async fn check_plugin_update(
         );
     }
 
-    let source_url = entry.source_url.clone();
+    let source_url = canonical_plugin_source_url(&entry.source_url);
     let installed_commit = entry.installed_commit.clone();
 
     // Get installed version from manifest
     let plugins_dir = get_plugins_dir(&project_path)?;
     let plugin_dir = plugins_dir.join(&plugin_id);
     let manifest = read_manifest(&plugin_dir)?;
+
+    // Persist the migration during the first update check as well. This keeps
+    // later checks and self-heal independent even when no update is available.
+    if entry.source_url != source_url {
+        if let Some(entry) = registry
+            .plugins
+            .iter_mut()
+            .find(|e| e.plugin_id == plugin_id)
+        {
+            entry.source_url = source_url.clone();
+        }
+        write_registry(&project_path, &registry)?;
+    }
     let installed_version = manifest.version.clone();
 
     // Get remote HEAD commit via git ls-remote
@@ -637,8 +680,9 @@ pub fn toggle_plugin(
 mod tests {
     use super::{
         normalize_repo_url, remove_dir_all_relaxed, rename_with_retry, repo_urls_match,
-        validate_clone_url,
+        validate_clone_url, CANONICAL_VERCEL_PLUGIN_REPO, LEGACY_VERCEL_PLUGIN_REPO,
     };
+    use crate::commands::plugins::Registry;
     use std::fs;
 
     #[test]
@@ -709,6 +753,99 @@ mod tests {
         // Dev plugins have empty source URLs — never match
         assert!(!repo_urls_match("", ""));
         assert!(!repo_urls_match("", "https://github.com/a/b"));
+    }
+
+    #[test]
+    fn canonicalizes_legacy_vercel_source() {
+        assert_eq!(
+            super::canonical_plugin_source_url(LEGACY_VERCEL_PLUGIN_REPO),
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+        assert_eq!(
+            super::canonical_plugin_source_url("https://github.com/ship-studio/plugin-vercel.git/"),
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+    }
+
+    #[test]
+    fn keeps_canonical_vercel_source() {
+        assert_eq!(
+            super::canonical_plugin_source_url(CANONICAL_VERCEL_PLUGIN_REPO),
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+    }
+
+    #[test]
+    fn keeps_unknown_plugin_source() {
+        let source = "https://github.com/example/plugin-coolify";
+        assert_eq!(super::canonical_plugin_source_url(source), source);
+    }
+
+    #[test]
+    fn persisted_registry_lifecycle_stays_on_canonical_vercel_source() {
+        // This fixture mirrors the persisted project registry format, not the
+        // remote catalog format. It represents an install from the legacy Ship
+        // Studio Vercel repository.
+        let mut registry: Registry = serde_json::from_str(
+            r#"{
+                "plugins": [{
+                    "plugin_id": "vercel",
+                    "enabled": true,
+                    "installed_at": 0,
+                    "source_url": "https://github.com/ship-studio/plugin-vercel",
+                    "installed_commit": "legacy-vercel-commit",
+                    "is_dev": false,
+                    "local_path": ""
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        // This fixture mirrors the actual CripCode registry.json entry.
+        let catalog: serde_json::Value = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "plugins": [{
+                    "id": "vercel",
+                    "name": "Vercel",
+                    "description": "Deploy projects to Vercel from CripCode.",
+                    "repo": "https://github.com/fileboin/cripcode-plugin-vercel",
+                    "author": "CripCode",
+                    "category": "deployment",
+                    "icon": "vercel"
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(catalog["plugins"][0]["repo"], CANONICAL_VERCEL_PLUGIN_REPO);
+
+        let entry = registry.plugins.first_mut().unwrap();
+        assert_eq!(entry.source_url, LEGACY_VERCEL_PLUGIN_REPO);
+
+        // update-check migrates the persisted source before querying the
+        // remote commit, so the check never uses the legacy Ship URL.
+        let update_check_source = super::canonical_plugin_source_url(&entry.source_url);
+        assert_eq!(update_check_source, CANONICAL_VERCEL_PLUGIN_REPO);
+        entry.source_url = update_check_source;
+
+        // update uses the migrated source and records the current CripCode
+        // plugin commit after a successful replacement.
+        let update_source = super::canonical_plugin_source_url(&entry.source_url);
+        assert_eq!(update_source, CANONICAL_VERCEL_PLUGIN_REPO);
+        entry.source_url = update_source;
+        entry.installed_commit = "fe55f1862d83b3dad6dd28fe7c7853ecd9f8b32b".to_string();
+
+        // A missing bundle routes self-heal through update_plugin. Re-running
+        // the same canonicalization proves the self-heal source remains stable.
+        let self_heal_source = super::canonical_plugin_source_url(&entry.source_url);
+        assert_eq!(self_heal_source, CANONICAL_VERCEL_PLUGIN_REPO);
+        entry.source_url = self_heal_source;
+
+        let persisted = serde_json::to_string(&registry).unwrap();
+        assert!(!persisted.contains("ship-studio/plugin-vercel"));
+        assert!(persisted.contains(CANONICAL_VERCEL_PLUGIN_REPO));
+        assert!(persisted.contains("fe55f1862d83b3dad6dd28fe7c7853ecd9f8b32b"));
     }
 
     #[test]

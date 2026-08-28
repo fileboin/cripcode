@@ -49,7 +49,7 @@ import { checkGitHubCliStatus } from '../../lib/github';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import { withTimeout, TimeoutError } from '../../lib/withTimeout';
 import { stripAnsi } from '../../lib/ansi';
-import { SLACK_INVITE_URL } from '../../lib/links';
+import { COMMUNITY_URL } from '../../lib/links';
 import {
   detectAlreadyLoggedIn,
   extractTerminalError,
@@ -788,10 +788,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         <div className="onboarding-slack-cta">
           <SlackIcon size={18} />
           <span>
-            <strong>Having problems getting set up?</strong> Join the Slack channel and we'll help
-            you out!
+            <strong>Having problems getting set up?</strong> Join the Cripcode discussions and we'll
+            help you out!
           </span>
-          <button onClick={() => void openUrl(SLACK_INVITE_URL)}>Join Slack</button>
+          <button onClick={() => void openUrl(COMMUNITY_URL)}>Open Discussions</button>
         </div>
       </div>
     </div>
