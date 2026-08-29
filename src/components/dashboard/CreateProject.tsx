@@ -11,8 +11,13 @@
  * @module components/CreateProject
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { trackEvent } from '../../lib/analytics';
+import {
+  downloadTemplateZip,
+  fetchCommunityTemplates,
+  templateDownloadUrl,
+} from '../../lib/templates';
 import { UploadIcon } from '../icons';
 import { Button } from '../primitives/Button';
 import { Spinner } from '../primitives/Spinner';
@@ -23,6 +28,7 @@ import {
   STEPS,
   STATUS_MESSAGES,
 } from '../../hooks/useProjectCreation';
+import { TemplateGallery, type CommunityTemplate } from './TemplateGallery';
 import { TemplateCard } from './TemplateCard';
 
 /** Props for the CreateProject component */
@@ -61,22 +67,92 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
     handleDrop,
     handleFileSelect,
     handleRemoveZip,
+    setZipPath,
+    setZipFileName,
+    setError,
     saveDefaultTemplate,
     defaultTemplateId,
   } = useProjectCreation({ onComplete, onCancel });
 
   const [setAsDefaultChecked, setSetAsDefaultChecked] = useState(false);
 
-  // Tab state: bundled templates or a blank project.
-  const [activeTab, setActiveTab] = useState<'template' | 'blank'>(
-    selectedTemplate?.id === 'blank' ? 'blank' : 'template'
-  );
+  // Tab state: bundled templates or community templates.
+  const [activeTab, setActiveTab] = useState<'scratch' | 'template'>('scratch');
 
-  const handleContinue = () => {
-    if (setAsDefaultChecked && selectedTemplate) {
-      saveDefaultTemplate(selectedTemplate.id);
+  const [communityTemplates, setCommunityTemplates] = useState<CommunityTemplate[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(true);
+  const [communitySearch, setCommunitySearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(communitySearch), 300);
+    return () => clearTimeout(timer);
+  }, [communitySearch]);
+
+  const fetchTemplates = useCallback(async () => {
+    setCommunityLoading(true);
+    try {
+      const result = await fetchCommunityTemplates(
+        debouncedSearch ? { search: debouncedSearch } : {}
+      );
+      setCommunityTemplates(result.templates);
+    } catch {
+      setCommunityTemplates([]);
+    } finally {
+      setCommunityLoading(false);
     }
-    rawHandleContinue();
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    void fetchTemplates();
+  }, [fetchTemplates]);
+
+  useEffect(() => {
+    const interval = setInterval(() => void fetchTemplates(), 50 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchTemplates]);
+
+  const selectedCommunityTemplate =
+    communityTemplates.find((template) => template.id === selectedCommunityId) ?? null;
+
+  const handleCommunitySelect = (template: CommunityTemplate) => {
+    setSelectedCommunityId(template.id === selectedCommunityId ? null : template.id);
+  };
+
+  const handleContinue = async () => {
+    if (activeTab === 'scratch') {
+      if (setAsDefaultChecked && selectedTemplate) {
+        saveDefaultTemplate(selectedTemplate.id);
+      }
+      rawHandleContinue();
+      return;
+    }
+
+    // A manually uploaded ZIP takes precedence over a selected gallery card.
+    if (hasZipTemplate) {
+      rawHandleContinue();
+      return;
+    }
+
+    if (!selectedCommunityTemplate) return;
+
+    setDownloading(true);
+    try {
+      const tempPath = await downloadTemplateZip(templateDownloadUrl(selectedCommunityTemplate));
+      setZipPath(tempPath);
+      setZipFileName(`${selectedCommunityTemplate.name}.zip`);
+      rawHandleContinue();
+    } catch (error) {
+      setError(
+        `Couldn't download "${selectedCommunityTemplate.name}": ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    } finally {
+      setDownloading(false);
+    }
   };
 
   // The bundled template gallery, excluding the separate blank-project flow.
@@ -207,35 +283,62 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
           <div className="create-tabs">
             <button
               type="button"
-              className={`create-tab ${activeTab === 'template' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('template');
-                if (selectedTemplate?.id === 'blank') {
-                  const defaultTemplate = TEMPLATES.find((template) => template.id !== 'blank');
-                  if (defaultTemplate) handleTemplateSelect(defaultTemplate);
-                }
-                setSetAsDefaultChecked(false);
-              }}
+              className={`create-tab ${activeTab === 'scratch' ? 'active' : ''}`}
+              onClick={() => setActiveTab('scratch')}
             >
-              Start from Template
+              Start from Scratch
             </button>
             <button
               type="button"
-              className={`create-tab ${activeTab === 'blank' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('blank');
-                const blankTemplate = TEMPLATES.find((template) => template.id === 'blank');
-                if (blankTemplate) handleTemplateSelect(blankTemplate);
-                setSetAsDefaultChecked(false);
-              }}
+              className={`create-tab ${activeTab === 'template' ? 'active' : ''}`}
+              onClick={() => setActiveTab('template')}
             >
-              Blank Project
+              Start from Template
             </button>
           </div>
 
-          {activeTab === 'template' && (
+          {activeTab === 'scratch' && (
             <>
               {renderTemplateGrid()}
+              {TEMPLATES.filter((template) => template.id === 'blank').map((template) => (
+                <div key={template.id} className="stack-group">
+                  <h3 className="stack-group-title">Blank project</h3>
+                  <div className="stack-grid">
+                    <TemplateCard
+                      name={template.name}
+                      description={template.description}
+                      selected={selectedTemplate?.id === template.id && !hasZipTemplate}
+                      onSelect={() => {
+                        handleTemplateSelect(template);
+                        setSetAsDefaultChecked(false);
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {selectedTemplate && selectedTemplate.id !== defaultTemplateId && !hasZipTemplate && (
+                <button
+                  type="button"
+                  className={`template-default-toggle ${setAsDefaultChecked ? 'active' : ''}`}
+                  onClick={() => setSetAsDefaultChecked(!setAsDefaultChecked)}
+                >
+                  {setAsDefaultChecked ? 'Will be your default' : 'Set as default?'}
+                </button>
+              )}
+            </>
+          )}
+
+          {activeTab === 'template' && (
+            <>
+              <TemplateGallery
+                templates={communityTemplates}
+                loading={communityLoading}
+                onSelect={handleCommunitySelect}
+                selectedId={selectedCommunityId}
+                searchQuery={communitySearch}
+                onSearchChange={setCommunitySearch}
+              />
 
               <div className="template-divider">
                 <span>or upload a template</span>
@@ -293,38 +396,6 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
                   </button>
                 </div>
               )}
-
-              {selectedTemplate && selectedTemplate.id !== defaultTemplateId && !hasZipTemplate && (
-                <button
-                  type="button"
-                  className={`template-default-toggle ${setAsDefaultChecked ? 'active' : ''}`}
-                  onClick={() => setSetAsDefaultChecked(!setAsDefaultChecked)}
-                >
-                  {setAsDefaultChecked ? 'Will be your default' : 'Set as default?'}
-                </button>
-              )}
-            </>
-          )}
-
-          {activeTab === 'blank' && (
-            <>
-              <div className="stack-group">
-                <h3 className="stack-group-title">Blank project</h3>
-                <div className="stack-grid">
-                  {TEMPLATES.filter((template) => template.id === 'blank').map((template) => (
-                    <TemplateCard
-                      key={template.id}
-                      name={template.name}
-                      description={template.description}
-                      selected={selectedTemplate?.id === template.id && !hasZipTemplate}
-                      onSelect={() => {
-                        handleTemplateSelect(template);
-                        setSetAsDefaultChecked(false);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
             </>
           )}
 
@@ -337,10 +408,15 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
             <Button
               variant="primary"
               type="button"
-              disabled={!selectedTemplate && !hasZipTemplate}
-              onClick={handleContinue}
+              disabled={
+                downloading ||
+                (activeTab === 'scratch'
+                  ? !selectedTemplate && !hasZipTemplate
+                  : !selectedCommunityId && !hasZipTemplate)
+              }
+              onClick={() => void handleContinue()}
             >
-              Continue
+              {downloading ? 'Downloading...' : 'Continue'}
             </Button>
           </div>
         </div>

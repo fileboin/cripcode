@@ -1,17 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
+import type { CommunityTemplate } from '../../lib/templates';
 
-/** Shape of a community template from the API */
-export interface CommunityTemplate {
-  id: string;
-  name: string;
-  tagline: string;
-  category: string;
-  thumbnail_url: string | null;
-  zip_url: string | null;
-  creator: {
-    display_name: string;
-  };
-}
+export type { CommunityTemplate } from '../../lib/templates';
 
 interface TemplateGalleryProps {
   templates: CommunityTemplate[];
@@ -51,8 +41,8 @@ function TemplateCard({
       onClick={onSelect}
     >
       <div className="tg-card-thumb">
-        {template.thumbnail_url ? (
-          <img src={template.thumbnail_url} alt={template.name} draggable={false} />
+        {template.thumbnail ? (
+          <img src={template.thumbnail} alt={template.name} draggable={false} />
         ) : (
           <div className="tg-card-thumb-placeholder">
             <svg
@@ -72,8 +62,8 @@ function TemplateCard({
       </div>
       <div className="tg-card-body">
         <span className="tg-card-name">{template.name}</span>
-        <span className="tg-card-desc">{template.tagline}</span>
-        <span className="tg-card-author">by {template.creator.display_name}</span>
+        <span className="tg-card-desc">{template.description}</span>
+        <span className="tg-card-author">by {template.author}</span>
       </div>
       {selected && (
         <div className="tg-card-check">

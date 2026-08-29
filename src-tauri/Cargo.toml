@@ -7,6 +7,7 @@ license = "MIT"
 repository = "https://github.com/fileboin/cripcode"
 homepage = "https://github.com/fileboin/cripcode"
 edition = "2021"
+default-run = "ship-studio"
 
 # Pattern enforcement lints — see also src-tauri/clippy.toml for disallowed-methods.
 # unwrap/expect are WARN (not deny) because the existing codebase has many sites

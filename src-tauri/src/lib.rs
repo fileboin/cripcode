@@ -21,6 +21,7 @@ pub mod logging;
 pub mod proxy;
 pub mod state;
 pub mod static_server;
+pub mod template_api;
 pub mod types;
 pub mod utils;
 pub mod webview_scripts;
@@ -671,6 +672,7 @@ pub fn run() {
             commands::pty_session::pty_session_list,
             // Community Templates
             commands::templates::fetch_community_templates,
+            commands::templates::fetch_template_details,
             commands::templates::download_template_zip,
             // Setup/Onboarding
             commands::setup::get_full_setup_status,
