@@ -67,8 +67,10 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
 
   const [setAsDefaultChecked, setSetAsDefaultChecked] = useState(false);
 
-  // Tab state: "scratch" = start from scratch, "template" = built-in templates
-  const [activeTab, setActiveTab] = useState<'scratch' | 'template'>('scratch');
+  // Tab state: bundled templates or a blank project.
+  const [activeTab, setActiveTab] = useState<'template' | 'blank'>(
+    selectedTemplate?.id === 'blank' ? 'blank' : 'template'
+  );
 
   const handleContinue = () => {
     if (setAsDefaultChecked && selectedTemplate) {
@@ -77,12 +79,11 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
     rawHandleContinue();
   };
 
-  // The local built-in template grid, shared by both the "Start from Scratch"
-  // and "Start from Template" tabs.
+  // The bundled template gallery, excluding the separate blank-project flow.
   const renderTemplateGrid = () => (
     <>
       {TEMPLATE_GROUPS.map((group) => {
-        const groupTemplates = TEMPLATES.filter((t) => t.category === group.id);
+        const groupTemplates = TEMPLATES.filter((t) => t.category === group.id && t.id !== 'blank');
         if (groupTemplates.length === 0) return null;
         return (
           <div key={group.id} className="stack-group">
@@ -206,35 +207,31 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
           <div className="create-tabs">
             <button
               type="button"
-              className={`create-tab ${activeTab === 'scratch' ? 'active' : ''}`}
-              onClick={() => setActiveTab('scratch')}
-            >
-              Start from Scratch
-            </button>
-            <button
-              type="button"
               className={`create-tab ${activeTab === 'template' ? 'active' : ''}`}
-              onClick={() => setActiveTab('template')}
+              onClick={() => {
+                setActiveTab('template');
+                if (selectedTemplate?.id === 'blank') {
+                  const defaultTemplate = TEMPLATES.find((template) => template.id !== 'blank');
+                  if (defaultTemplate) handleTemplateSelect(defaultTemplate);
+                }
+                setSetAsDefaultChecked(false);
+              }}
             >
               Start from Template
             </button>
+            <button
+              type="button"
+              className={`create-tab ${activeTab === 'blank' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('blank');
+                const blankTemplate = TEMPLATES.find((template) => template.id === 'blank');
+                if (blankTemplate) handleTemplateSelect(blankTemplate);
+                setSetAsDefaultChecked(false);
+              }}
+            >
+              Blank Project
+            </button>
           </div>
-
-          {activeTab === 'scratch' && (
-            <>
-              {renderTemplateGrid()}
-
-              {selectedTemplate && selectedTemplate.id !== defaultTemplateId && !hasZipTemplate && (
-                <button
-                  type="button"
-                  className={`template-default-toggle ${setAsDefaultChecked ? 'active' : ''}`}
-                  onClick={() => setSetAsDefaultChecked(!setAsDefaultChecked)}
-                >
-                  {setAsDefaultChecked ? 'Will be your default' : 'Set as default?'}
-                </button>
-              )}
-            </>
-          )}
 
           {activeTab === 'template' && (
             <>
@@ -296,6 +293,38 @@ export function CreateProject({ onComplete, onCancel }: CreateProjectProps) {
                   </button>
                 </div>
               )}
+
+              {selectedTemplate && selectedTemplate.id !== defaultTemplateId && !hasZipTemplate && (
+                <button
+                  type="button"
+                  className={`template-default-toggle ${setAsDefaultChecked ? 'active' : ''}`}
+                  onClick={() => setSetAsDefaultChecked(!setAsDefaultChecked)}
+                >
+                  {setAsDefaultChecked ? 'Will be your default' : 'Set as default?'}
+                </button>
+              )}
+            </>
+          )}
+
+          {activeTab === 'blank' && (
+            <>
+              <div className="stack-group">
+                <h3 className="stack-group-title">Blank project</h3>
+                <div className="stack-grid">
+                  {TEMPLATES.filter((template) => template.id === 'blank').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      name={template.name}
+                      description={template.description}
+                      selected={selectedTemplate?.id === template.id && !hasZipTemplate}
+                      onSelect={() => {
+                        handleTemplateSelect(template);
+                        setSetAsDefaultChecked(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
