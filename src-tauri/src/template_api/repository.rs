@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+/// One template's metadata as stored by a repository.
+///
+/// `object_size` is optional so the file-based registry (which sizes objects
+/// from the filesystem) stays byte-compatible with existing `templates.json`
+/// files; the PostgreSQL repository always populates it so listing never
+/// needs a network round-trip per object.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TemplateRecord {
     pub id: String,
@@ -13,8 +19,38 @@ pub struct TemplateRecord {
     pub thumbnail_key: Option<String>,
     pub zip_key: String,
     pub version: String,
+    #[serde(default)]
+    pub object_size: Option<u64>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// The metadata abstraction behind the API: a JSON file for development and
+/// tests, PostgreSQL for production. Enum dispatch — both variants are known
+/// at startup and expose the same in-memory record view.
+#[derive(Debug, Clone)]
+pub enum TemplateRepository {
+    File(FileTemplateRepository),
+    #[cfg(feature = "template-postgres")]
+    Postgres(super::postgres::PostgresTemplateRepository),
+}
+
+impl TemplateRepository {
+    pub fn records(&self) -> &[TemplateRecord] {
+        match self {
+            Self::File(repository) => repository.records(),
+            #[cfg(feature = "template-postgres")]
+            Self::Postgres(repository) => repository.records(),
+        }
+    }
+
+    pub fn find(&self, id: &str) -> Option<&TemplateRecord> {
+        match self {
+            Self::File(repository) => repository.find(id),
+            #[cfg(feature = "template-postgres")]
+            Self::Postgres(repository) => repository.find(id),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +90,7 @@ impl FileTemplateRepository {
             framework: "HTML".into(),
             thumbnail_key: Some("cripcode-test-starter.svg".into()),
             zip_key: "cripcode-test-starter.zip".into(),
+            object_size: None,
             version: "0.0.1-dev".into(),
             created_at: "2026-08-29T00:00:00Z".into(),
             updated_at: "2026-08-29T00:00:00Z".into(),
@@ -164,6 +201,7 @@ mod tests {
             framework: "HTML".into(),
             thumbnail_key: None,
             zip_key: "one.zip".into(),
+            object_size: None,
             version: "1.0.0".into(),
             created_at: "2026-08-29".into(),
             updated_at: "2026-08-29".into(),
@@ -184,6 +222,7 @@ mod tests {
             framework: "HTML".into(),
             thumbnail_key: None,
             zip_key: "two.zip".into(),
+            object_size: None,
             version: "1.0.0".into(),
             created_at: "2026-08-29".into(),
             updated_at: "2026-08-29".into(),
@@ -207,6 +246,7 @@ mod tests {
             framework: "HTML".into(),
             thumbnail_key: None,
             zip_key: "one.zip".into(),
+            object_size: None,
             version: "1.0.0".into(),
             created_at: "2026-08-29".into(),
             updated_at: "2026-08-29".into(),

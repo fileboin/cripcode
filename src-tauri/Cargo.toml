@@ -21,6 +21,12 @@ expect_used = "warn"
 name = "ship_studio_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Production backend for the standalone CripCode Template API binary
+# (PostgreSQL metadata). Optional so the desktop app build never links sqlx.
+# Build with: cargo build --bin cripcode-template-api --features template-postgres
+template-postgres = ["dep:sqlx"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -74,8 +80,12 @@ sha2 = "0.10"
 hex = "0.4"
 thiserror = "1"
 # Native clipboard read for Windows terminal paste (WebView2 gates keyboard
-# paste behind an async permission wait — see commands/clipboard.rs).
+# paste behind an async permission wait - see commands/clipboard.rs).
 arboard = "3"
+# PostgreSQL metadata repository for the standalone Template API binary.
+# Optional (see the `template-postgres` feature) — the desktop app never
+# links it. No `macros` feature: the schema is applied via raw_sql.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"

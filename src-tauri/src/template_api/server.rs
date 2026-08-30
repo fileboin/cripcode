@@ -1,6 +1,7 @@
+use super::config::TemplateApiConfig;
 use super::model::{TemplateDownloadInfo, TemplateListResponse, TemplateMetadata};
-use super::repository::{FileTemplateRepository, TemplateRecord};
-use super::storage::LocalTemplateStorage;
+use super::repository::{FileTemplateRepository, TemplateRecord, TemplateRepository};
+use super::storage::{unix_seconds, LocalTemplateStorage, TemplateStorage, SIGNED_URL_TTL_SECONDS};
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
@@ -11,7 +12,6 @@ use hyper_util::rt::TokioIo;
 use std::cmp::Ordering;
 use std::convert::Infallible;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::net::TcpListener;
 use url::form_urlencoded;
 
@@ -19,41 +19,59 @@ type ServerBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
 #[derive(Clone)]
 struct AppState {
-    repository: Arc<FileTemplateRepository>,
-    storage: Arc<LocalTemplateStorage>,
+    repository: Arc<TemplateRepository>,
+    storage: Arc<TemplateStorage>,
     public_base_url: String,
 }
 
 pub async fn serve_from_env() -> Result<(), String> {
-    let bind =
-        std::env::var("CRIPCODE_TEMPLATE_API_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into());
-    let public_base_url = std::env::var("CRIPCODE_TEMPLATE_API_PUBLIC_BASE_URL")
-        .unwrap_or_else(|_| format!("http://{bind}"));
-    validate_public_base_url(&public_base_url)?;
-    let data_dir = std::env::var("CRIPCODE_TEMPLATE_API_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .map_err(|_| {
-            "CRIPCODE_TEMPLATE_API_DATA_DIR is required for the local adapter".to_string()
-        })?;
-    let secret = std::env::var("CRIPCODE_TEMPLATE_API_SIGNING_SECRET")
-        .unwrap_or_else(|_| "cripcode-development-only-secret".into());
+    let config = TemplateApiConfig::from_env()?;
+    serve(config).await
+}
 
-    let repository = FileTemplateRepository::load_or_seed(data_dir.join("templates.json"))?;
-    let storage = LocalTemplateStorage::new(data_dir.join("objects"), secret);
-    std::fs::create_dir_all(storage.root())
-        .map_err(|e| format!("Failed to create local template storage: {e}"))?;
-    seed_development_objects(&repository, &storage)?;
+pub async fn serve(config: TemplateApiConfig) -> Result<(), String> {
+    let storage = TemplateStorage::from_config(&config.storage)?;
+    if let Some(root) = storage.local_root() {
+        std::fs::create_dir_all(root)
+            .map_err(|e| format!("Failed to create local template storage: {e}"))?;
+    }
 
-    let listener = TcpListener::bind(&bind)
+    let repository = match &config.repository {
+        super::config::RepositoryConfig::File { data_dir } => {
+            let repository = FileTemplateRepository::load_or_seed(data_dir.join("templates.json"))?;
+            seed_development_objects(&repository, &config.storage)?;
+            TemplateRepository::File(repository)
+        }
+        super::config::RepositoryConfig::Postgres { database_url } => {
+            #[cfg(feature = "template-postgres")]
+            {
+                TemplateRepository::Postgres(
+                    super::postgres::PostgresTemplateRepository::connect(database_url).await?,
+                )
+            }
+            #[cfg(not(feature = "template-postgres"))]
+            {
+                let _ = database_url;
+                return Err(
+                    "CRIPCODE_TEMPLATE_API_DATABASE_URL is set but this build lacks the \
+                     template-postgres feature — rebuild with --features template-postgres"
+                        .into(),
+                );
+            }
+        }
+    };
+
+    guard_s3_storage_with_file_repository(&repository, &storage)?;
+    let listener = TcpListener::bind(&config.bind)
         .await
-        .map_err(|e| format!("Failed to bind template API at {bind}: {e}"))?;
+        .map_err(|e| format!("Failed to bind template API at {}: {e}", config.bind))?;
     let state = AppState {
         repository: Arc::new(repository),
         storage: Arc::new(storage),
-        public_base_url,
+        public_base_url: config.public_base_url.clone(),
     };
 
-    tracing::info!("CripCode template API listening on {bind}");
+    tracing::info!("CripCode template API listening on {}", config.bind);
     serve_listener(listener, state).await
 }
 
@@ -72,6 +90,39 @@ async fn serve_listener(listener: TcpListener, state: AppState) -> Result<(), St
             }
         });
     }
+}
+
+/// S3 object storage cannot be sized from the filesystem, so the file-based
+/// registry (whose records may omit `object_size`) would 500 every listing.
+/// Refuse that misconfiguration at startup, while still allowing it when the
+/// operator's registry explicitly carries sizes for every record.
+fn guard_s3_storage_with_file_repository(
+    repository: &TemplateRepository,
+    storage: &TemplateStorage,
+) -> Result<(), String> {
+    let (TemplateRepository::File(registry), TemplateStorage::S3(_)) = (repository, storage) else {
+        return Ok(());
+    };
+    let missing_sizes: Vec<String> = registry
+        .records()
+        .iter()
+        .filter(|record| record.object_size.is_none())
+        .map(|record| record.id.clone())
+        .collect();
+    if missing_sizes.is_empty() {
+        tracing::warn!(
+            "File-based template registry with S3 storage: upload objects with \
+             'cripcode-template-api migrate' before serving."
+        );
+        return Ok(());
+    }
+    Err(format!(
+        "S3 object storage with the file-based registry requires every record to \
+         carry object_size (remote objects cannot be sized). Records without \
+         object_size: {missing_sizes:?}. Use PostgreSQL metadata (set \
+         CRIPCODE_TEMPLATE_API_DATABASE_URL) or set \
+         CRIPCODE_TEMPLATES_STORAGE_PROVIDER=local."
+    ))
 }
 
 async fn handle_request(
@@ -152,18 +203,24 @@ fn template_details(id: &str, state: &AppState) -> Response<ServerBody> {
 }
 
 fn metadata(record: &TemplateRecord, state: &AppState) -> Result<TemplateMetadata, String> {
-    let size_bytes = state.storage.size(&record.zip_key)?;
-    let expires = unix_seconds().saturating_add(900);
-    let url = state
-        .storage
-        .signed_url(&state.public_base_url, &record.zip_key, expires)?;
-    let thumbnail = record.thumbnail_key.as_ref().map(|key| {
-        format!(
-            "{}/thumbnails/{}",
-            state.public_base_url.trim_end_matches('/'),
-            key
-        )
-    });
+    // Size comes from the record when the repository knows it (PostgreSQL),
+    // otherwise from the local filesystem — S3-backed listings never make a
+    // per-object network call.
+    let size_bytes = match record.object_size {
+        Some(size) => size,
+        None => state.storage.size(&record.zip_key)?,
+    };
+    let expires = unix_seconds().saturating_add(SIGNED_URL_TTL_SECONDS);
+    let url =
+        state
+            .storage
+            .signed_download_url(&state.public_base_url, &record.zip_key, expires)?;
+    let thumbnail = record
+        .thumbnail_key
+        .as_ref()
+        .map(|key| state.storage.thumbnail_url(&state.public_base_url, key))
+        .transpose()?
+        .map(|url| url);
     Ok(TemplateMetadata {
         id: record.id.clone(),
         name: record.name.clone(),
@@ -183,21 +240,33 @@ fn metadata(record: &TemplateRecord, state: &AppState) -> Result<TemplateMetadat
 }
 
 fn storage_object(key: &str, query: Option<&str>, state: &AppState) -> Response<ServerBody> {
-    if state
-        .storage
-        .verify_query(key, query, unix_seconds())
-        .is_err()
-    {
+    // S3-backed deployments never hit this route: their download URLs point
+    // straight at the provider.
+    let TemplateStorage::Local(storage) = state.storage.as_ref() else {
+        return response(
+            StatusCode::NOT_FOUND,
+            "objects are served by the storage provider",
+            "text/plain",
+        );
+    };
+    if storage.verify_query(key, query, unix_seconds()).is_err() {
         return response(StatusCode::FORBIDDEN, "invalid signed URL", "text/plain");
     }
-    match state.storage.read(key) {
+    match storage.read(key) {
         Ok(bytes) => bytes_response(StatusCode::OK, bytes, "application/zip"),
         Err(error) => response(StatusCode::NOT_FOUND, &error, "text/plain"),
     }
 }
 
 fn thumbnail_object(key: &str, state: &AppState) -> Response<ServerBody> {
-    match state.storage.read(key) {
+    let TemplateStorage::Local(storage) = state.storage.as_ref() else {
+        return response(
+            StatusCode::NOT_FOUND,
+            "thumbnails are served by the storage provider",
+            "text/plain",
+        );
+    };
+    match storage.read(key) {
         Ok(bytes) => bytes_response(StatusCode::OK, bytes, "image/svg+xml"),
         Err(error) => response(StatusCode::NOT_FOUND, &error, "text/plain"),
     }
@@ -205,8 +274,14 @@ fn thumbnail_object(key: &str, state: &AppState) -> Response<ServerBody> {
 
 fn seed_development_objects(
     repository: &FileTemplateRepository,
-    storage: &LocalTemplateStorage,
+    storage: &super::config::StorageConfig,
 ) -> Result<(), String> {
+    // Seeding is a local-storage development affordance only — production
+    // (S3) objects arrive via the migration tool.
+    let super::config::StorageConfig::Local { data_dir, .. } = storage else {
+        return Ok(());
+    };
+    let storage = LocalTemplateStorage::new(data_dir.join("objects"), "");
     for record in repository.records() {
         let zip_path = storage.object_path(&record.zip_key)?;
         if !zip_path.exists() {
@@ -278,24 +353,6 @@ fn sort_records(records: &mut Vec<&TemplateRecord>, sort: Option<&str>) {
     });
 }
 
-fn validate_public_base_url(value: &str) -> Result<(), String> {
-    let url =
-        url::Url::parse(value).map_err(|_| "Invalid template API public base URL".to_string())?;
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
-        return Err(
-            "Template API public base URL must use http or https and include a host".into(),
-        );
-    }
-    Ok(())
-}
-
-fn unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
 fn json_response<T: serde::Serialize>(value: &T) -> Response<ServerBody> {
     match serde_json::to_vec(value) {
         Ok(body) => bytes_response(StatusCode::OK, body, "application/json"),
@@ -332,6 +389,7 @@ fn bytes_response(status: StatusCode, body: Vec<u8>, content_type: &str) -> Resp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::template_api::s3::S3CompatibleStorage;
 
     fn state() -> AppState {
         let root = std::env::temp_dir().join(format!(
@@ -341,14 +399,128 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let registry = root.join("templates.json");
         let repository = FileTemplateRepository::load_or_seed(registry).unwrap();
-        let storage = LocalTemplateStorage::new(root.join("objects"), "test-secret");
-        std::fs::create_dir_all(storage.root()).unwrap();
-        seed_development_objects(&repository, &storage).unwrap();
+        let local = LocalTemplateStorage::new(root.join("objects"), "test-secret");
+        std::fs::create_dir_all(local.root()).unwrap();
+        let storage_config = super::super::config::StorageConfig::Local {
+            data_dir: root.clone(),
+            signing_secret: "test-secret".into(),
+        };
+        seed_development_objects(&repository, &storage_config).unwrap();
         AppState {
-            repository: Arc::new(repository),
+            repository: Arc::new(TemplateRepository::File(repository)),
+            storage: Arc::new(TemplateStorage::Local(local)),
+            public_base_url: "http://127.0.0.1:8787".into(),
+        }
+    }
+
+    /// An S3-backed state whose registry record carries `object_size`, so the
+    /// metadata path never touches the filesystem or the network.
+    fn s3_state(public_base_url: Option<&str>) -> AppState {
+        let root = std::env::temp_dir().join(format!(
+            "cripcode-template-api-s3-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let registry_json = r#"[{"id":"one","name":"One","description":"One","author":"CripCode","category":"development","framework":"HTML","thumbnail_key":"one.svg","zip_key":"one.zip","object_size":183,"version":"1.0.0","created_at":"2026-08-29T00:00:00Z","updated_at":"2026-08-29T00:00:00Z"}]"#;
+        let repository =
+            FileTemplateRepository::from_json(root.join("templates.json"), registry_json).unwrap();
+        let storage = TemplateStorage::S3(
+            S3CompatibleStorage::new(
+                "http://127.0.0.1:9000",
+                "us-east-1",
+                "cripcode-templates",
+                "AKIDEXAMPLE",
+                "secret",
+            )
+            .unwrap()
+            .with_public_base_url(public_base_url),
+        );
+        AppState {
+            repository: Arc::new(TemplateRepository::File(repository)),
             storage: Arc::new(storage),
             public_base_url: "http://127.0.0.1:8787".into(),
         }
+    }
+
+    #[tokio::test]
+    async fn s3_backed_details_serve_presigned_urls_with_record_sizes() {
+        let state = s3_state(None);
+        let response = template_details("one", &state);
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let template: TemplateMetadata = serde_json::from_slice(&body).unwrap();
+
+        // Size comes straight from the record — no filesystem, no network.
+        assert_eq!(template.download.size_bytes, Some(183));
+        let download_url = template.download.url.unwrap();
+        assert!(
+            download_url.starts_with("http://127.0.0.1:9000/cripcode-templates/one.zip?"),
+            "{download_url}"
+        );
+        assert!(download_url.contains("X-Amz-Signature="), "{download_url}");
+        let thumbnail = template.thumbnail.unwrap();
+        assert!(
+            thumbnail.starts_with("http://127.0.0.1:9000/cripcode-templates/one.svg?"),
+            "{thumbnail}"
+        );
+        assert!(thumbnail.contains("X-Amz-Signature="), "{thumbnail}");
+    }
+
+    #[tokio::test]
+    async fn s3_public_base_url_replaces_presigned_urls() {
+        let state = s3_state(Some("https://cdn.example.com/"));
+        let response = template_details("one", &state);
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let template: TemplateMetadata = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            template.download.url.unwrap(),
+            "https://cdn.example.com/one.zip"
+        );
+        assert_eq!(
+            template.thumbnail.unwrap(),
+            "https://cdn.example.com/one.svg"
+        );
+    }
+
+    #[test]
+    fn s3_storage_with_file_registry_requires_record_sizes() {
+        let sized = s3_state(None);
+        assert!(
+            guard_s3_storage_with_file_repository(&sized.repository, &sized.storage).is_ok(),
+            "a registry whose records all carry object_size is allowed"
+        );
+
+        let root = std::env::temp_dir().join(format!(
+            "cripcode-template-api-s3-guard-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let registry_json = r#"[{"id":"one","name":"One","description":"One","author":"CripCode","category":"development","framework":"HTML","thumbnail_key":null,"zip_key":"one.zip","version":"1.0.0","created_at":"2026-08-29T00:00:00Z","updated_at":"2026-08-29T00:00:00Z"}]"#;
+        let repository = TemplateRepository::File(
+            FileTemplateRepository::from_json(root.join("templates.json"), registry_json).unwrap(),
+        );
+        let storage = TemplateStorage::S3(
+            S3CompatibleStorage::new(
+                "http://127.0.0.1:9000",
+                "us-east-1",
+                "bucket",
+                "AKIDEXAMPLE",
+                "secret",
+            )
+            .unwrap(),
+        );
+        let error = guard_s3_storage_with_file_repository(&repository, &storage).unwrap_err();
+        assert!(error.contains("one"), "{error}");
+        assert!(error.contains("object_size"), "{error}");
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn local_storage_is_never_guarded() {
+        let state = state();
+        assert!(guard_s3_storage_with_file_repository(&state.repository, &state.storage).is_ok());
     }
 
     #[tokio::test]
