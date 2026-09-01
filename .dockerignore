@@ -1,0 +1,18 @@
+# Rust/tauri build artifacts
+**/target
+
+# Frontend (the API build never needs it)
+node_modules
+dist
+src
+
+# Repo-only material
+.git
+.github
+docs
+scripts
+*.md
+
+# Secrets must never enter the image
+.env
+.env.*
