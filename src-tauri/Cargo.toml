@@ -63,6 +63,7 @@ zip = "2"
 tauri-plugin-dialog = "2"
 walkdir = "2"
 ignore = "0.4"
+libc = "0.2.180"
 dunce = "1"
 urlencoding = "2"
 hyper = { version = "1", features = ["http1", "server", "client"] }
