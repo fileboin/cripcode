@@ -1,0 +1,14 @@
+{
+  "id": "vercel",
+  "name": "Vercel",
+  "version": "0.1.0",
+  "description": "Deploy projects to Vercel from CripCode.",
+  "slots": ["toolbar"],
+  "author": "CripCode",
+  "repository": "",
+  "setup": [],
+  "min_app_version": "0.18.7",
+  "icon": "vercel",
+  "api_version": 1,
+  "required_commands": []
+}

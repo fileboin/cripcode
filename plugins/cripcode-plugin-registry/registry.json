@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "description": "Deploy projects to Vercel from CripCode.",
+      "repo": "https://github.com/fileboin/cripcode-plugin-vercel",
+      "author": "CripCode",
+      "category": "deployment",
+      "icon": "vercel"
+    }
+  ]
+}
