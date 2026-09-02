@@ -4,7 +4,7 @@
 # those headers and the runtime stage their shared libraries — the API itself
 # never touches them.
 
-FROM rust:1.85-slim AS build
+FROM rust:1.88-slim-bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential pkg-config file \
