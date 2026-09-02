@@ -212,6 +212,30 @@ fn canonical_plugin_source_url(url: &str) -> String {
     }
 }
 
+/// Prepare a persisted plugin source for a remote operation.
+///
+/// The migration is deliberately shared by update and update-check so a
+/// legacy source can never reach either `git clone` or `git ls-remote`.
+fn canonicalize_registry_source(
+    registry: &mut super::Registry,
+    plugin_id: &str,
+) -> Result<(String, bool), CommandError> {
+    let entry = registry
+        .plugins
+        .iter_mut()
+        .find(|e| e.plugin_id == plugin_id)
+        .ok_or_else(|| format!("Plugin '{plugin_id}' not found in registry"))?;
+
+    let source_url = canonical_plugin_source_url(&entry.source_url);
+    let migrated = entry.source_url != source_url;
+    if migrated {
+        entry.source_url = source_url.clone();
+    }
+
+    validate_clone_url(&source_url)?;
+    Ok((source_url, migrated))
+}
+
 /// List all installed plugins for a project
 #[tauri::command]
 #[tracing::instrument(fields(project = %project_path))]
@@ -461,29 +485,29 @@ pub async fn update_plugin(
     project_path: String,
     plugin_id: String,
 ) -> Result<PluginInfo, CommandError> {
+    let app_version = app.package_info().version.to_string();
+    update_plugin_inner(&app_version, project_path, plugin_id).await
+}
+
+async fn update_plugin_inner(
+    app_version: &str,
+    project_path: String,
+    plugin_id: String,
+) -> Result<PluginInfo, CommandError> {
     validate_plugin_id(&plugin_id)?;
     let mut registry = read_registry(&project_path)?;
-    let entry = registry
+    let was_enabled = registry
         .plugins
         .iter()
         .find(|e| e.plugin_id == plugin_id)
+        .map(|entry| entry.enabled)
         .ok_or_else(|| format!("Plugin '{plugin_id}' not found in registry"))?;
 
-    let source_url = canonical_plugin_source_url(&entry.source_url);
-    let was_enabled = entry.enabled;
-
-    validate_clone_url(&source_url)?;
+    let (source_url, migrated) = canonicalize_registry_source(&mut registry, &plugin_id)?;
 
     // Persist the canonical source before cloning so a legacy Vercel install
     // cannot keep routing future update or self-heal operations to Ship Studio.
-    if entry.source_url != source_url {
-        if let Some(entry) = registry
-            .plugins
-            .iter_mut()
-            .find(|e| e.plugin_id == plugin_id)
-        {
-            entry.source_url = source_url.clone();
-        }
+    if migrated {
         write_registry(&project_path, &registry)?;
     }
 
@@ -544,7 +568,7 @@ pub async fn update_plugin(
     warn_on_setup_items(&manifest);
 
     // Check min_app_version compatibility
-    check_min_app_version(&manifest, &app)?;
+    super::check_min_app_version_for(&manifest, app_version)?;
 
     // Validate required_commands are all in the allowed set
     validate_required_commands(&manifest)?;
@@ -580,13 +604,14 @@ pub async fn check_plugin_update(
     plugin_id: String,
 ) -> Result<PluginUpdateCheck, CommandError> {
     let mut registry = read_registry(&project_path)?;
-    let entry = registry
+    let (is_dev, installed_commit) = registry
         .plugins
         .iter()
         .find(|e| e.plugin_id == plugin_id)
+        .map(|entry| (entry.is_dev, entry.installed_commit.clone()))
         .ok_or_else(|| format!("Plugin '{plugin_id}' not found in registry"))?;
 
-    if entry.is_dev {
+    if is_dev {
         return Err(
             "Dev plugins do not support remote update checks. Use Reload instead."
                 .to_string()
@@ -594,26 +619,20 @@ pub async fn check_plugin_update(
         );
     }
 
-    let source_url = canonical_plugin_source_url(&entry.source_url);
-    let installed_commit = entry.installed_commit.clone();
+    let (source_url, migrated) = canonicalize_registry_source(&mut registry, &plugin_id)?;
+
+    // Persist the migration before reading the plugin manifest. A legacy
+    // source must not remain in the registry just because an old install has
+    // a missing or malformed manifest.
+    if migrated {
+        write_registry(&project_path, &registry)?;
+    }
 
     // Get installed version from manifest
     let plugins_dir = get_plugins_dir(&project_path)?;
     let plugin_dir = plugins_dir.join(&plugin_id);
     let manifest = read_manifest(&plugin_dir)?;
 
-    // Persist the migration during the first update check as well. This keeps
-    // later checks and self-heal independent even when no update is available.
-    if entry.source_url != source_url {
-        if let Some(entry) = registry
-            .plugins
-            .iter_mut()
-            .find(|e| e.plugin_id == plugin_id)
-        {
-            entry.source_url = source_url.clone();
-        }
-        write_registry(&project_path, &registry)?;
-    }
     let installed_version = manifest.version.clone();
 
     // Get remote HEAD commit via git ls-remote
@@ -679,11 +698,200 @@ pub fn toggle_plugin(
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_repo_url, remove_dir_all_relaxed, rename_with_retry, repo_urls_match,
+        canonicalize_registry_source, check_plugin_update, normalize_repo_url,
+        remove_dir_all_relaxed, rename_with_retry, repo_urls_match, update_plugin_inner,
         validate_clone_url, CANONICAL_VERCEL_PLUGIN_REPO, LEGACY_VERCEL_PLUGIN_REPO,
     };
-    use crate::commands::plugins::Registry;
+    use crate::commands::plugins::{Registry, RegistryEntry};
+    use std::ffi::{OsStr, OsString};
     use std::fs;
+    use std::path::Path;
+    use std::process::{Command, Output};
+    use std::sync::{Mutex, OnceLock};
+
+    static GIT_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    struct EnvironmentGuard {
+        previous: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvironmentGuard {
+        fn new() -> Self {
+            Self {
+                previous: Vec::new(),
+            }
+        }
+
+        fn set(&mut self, key: &'static str, value: impl AsRef<OsStr>) {
+            self.previous.push((key, std::env::var_os(key)));
+            std::env::set_var(key, value);
+        }
+    }
+
+    impl Drop for EnvironmentGuard {
+        fn drop(&mut self) {
+            for (key, value) in self.previous.drain(..).rev() {
+                if let Some(value) = value {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
+
+    fn run_git(cwd: &Path, args: &[&str]) -> Output {
+        Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .expect("git must be installed for integration tests")
+    }
+
+    fn assert_git_success(output: Output, args: &[&str]) {
+        assert!(
+            output.status.success(),
+            "git {:?} failed:\n{}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn file_url(path: &Path) -> String {
+        let path = path.to_string_lossy().replace('\\', "/");
+        if path.starts_with('/') {
+            format!("file://{path}")
+        } else {
+            format!("file:///{path}")
+        }
+    }
+
+    fn create_local_plugin_repo() -> (tempfile::TempDir, String) {
+        let repo = tempfile::tempdir().unwrap();
+        fs::write(
+            repo.path().join("plugin.json"),
+            r#"{
+                "id": "vercel",
+                "name": "Vercel",
+                "version": "1.0.0",
+                "description": "Test Vercel plugin",
+                "slots": [],
+                "author": "test",
+                "repository": "",
+                "setup": [],
+                "min_app_version": "",
+                "icon": "",
+                "required_commands": [],
+                "api_version": 1
+            }"#,
+        )
+        .unwrap();
+        fs::create_dir_all(repo.path().join("dist")).unwrap();
+        fs::write(
+            repo.path().join("dist/index.js"),
+            "export const name = 'Vercel';",
+        )
+        .unwrap();
+
+        assert_git_success(run_git(repo.path(), &["init", "-q"]), &["init", "-q"]);
+        assert_git_success(
+            run_git(
+                repo.path(),
+                &[
+                    "-c",
+                    "user.email=test@example.com",
+                    "-c",
+                    "user.name=Test",
+                    "add",
+                    ".",
+                ],
+            ),
+            &["add", "."],
+        );
+        assert_git_success(
+            run_git(
+                repo.path(),
+                &[
+                    "-c",
+                    "user.email=test@example.com",
+                    "-c",
+                    "user.name=Test",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "initial plugin",
+                ],
+            ),
+            &["commit", "initial plugin"],
+        );
+        let head = String::from_utf8_lossy(&run_git(repo.path(), &["rev-parse", "HEAD"]).stdout)
+            .trim()
+            .to_string();
+        assert!(!head.is_empty());
+        (repo, head)
+    }
+
+    fn configure_local_git_remote(repo: &Path, trace_path: &Path) -> EnvironmentGuard {
+        let config_path = trace_path.with_file_name("gitconfig");
+        let canonical_local = file_url(repo);
+        let legacy_failure = file_url(&trace_path.with_file_name("legacy-source-do-not-use"));
+        let config = format!(
+            "[url \"{canonical_local}\"]\n\t insteadOf = {CANONICAL_VERCEL_PLUGIN_REPO}\n[url \"{legacy_failure}\"]\n\t insteadOf = https://github.com/ship-studio/plugin-vercel\n"
+        );
+        fs::write(&config_path, config).unwrap();
+
+        let mut env = EnvironmentGuard::new();
+        env.set("GIT_CONFIG_GLOBAL", &config_path);
+        env.set("GIT_CONFIG_NOSYSTEM", "1");
+        env.set("GIT_TERMINAL_PROMPT", "0");
+        env.set("GIT_TRACE2_EVENT", trace_path);
+        env
+    }
+
+    fn test_project() -> tempfile::TempDir {
+        let root = crate::utils::default_projects_root().unwrap();
+        fs::create_dir_all(&root).unwrap();
+        tempfile::tempdir_in(root).unwrap()
+    }
+
+    fn write_legacy_registry(project: &Path, installed_commit: &str) {
+        let plugins_dir = project.join(".cripcode/plugins");
+        fs::create_dir_all(plugins_dir.join("vercel")).unwrap();
+        let registry = Registry {
+            plugins: vec![RegistryEntry {
+                plugin_id: "vercel".into(),
+                enabled: true,
+                installed_at: 0,
+                source_url: LEGACY_VERCEL_PLUGIN_REPO.into(),
+                installed_commit: installed_commit.into(),
+                is_dev: false,
+                local_path: String::new(),
+            }],
+        };
+        fs::write(
+            plugins_dir.join("registry.json"),
+            serde_json::to_string_pretty(&registry).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            project.join(".cripcode/plugins/vercel/plugin.json"),
+            r#"{
+                "id": "vercel",
+                "name": "Vercel",
+                "version": "0.1.0",
+                "description": "Legacy installed plugin",
+                "slots": [],
+                "author": "test",
+                "repository": "",
+                "setup": [],
+                "min_app_version": "",
+                "icon": "",
+                "required_commands": [],
+                "api_version": 1
+            }"#,
+        )
+        .unwrap();
+    }
 
     #[test]
     fn accepts_normal_remotes() {
@@ -765,6 +973,214 @@ mod tests {
             super::canonical_plugin_source_url("https://github.com/ship-studio/plugin-vercel.git/"),
             CANONICAL_VERCEL_PLUGIN_REPO
         );
+    }
+
+    #[test]
+    fn canonicalizes_all_supported_legacy_vercel_url_variants() {
+        let sources = [
+            "https://github.com/ship-studio/plugin-vercel",
+            "https://github.com/ship-studio/plugin-vercel.git",
+            "https://github.com/ship-studio/plugin-vercel/",
+            "https://github.com/ship-studio/plugin-vercel.git/",
+            "HTTPS://GITHUB.com/ship-studio/plugin-vercel.git/",
+            "ssh://git@github.com/ship-studio/plugin-vercel.git",
+            "git@github.com:ship-studio/plugin-vercel.git",
+            "git://github.com/ship-studio/plugin-vercel",
+        ];
+
+        for source in sources {
+            let mut registry = Registry {
+                plugins: vec![RegistryEntry {
+                    plugin_id: "vercel".into(),
+                    enabled: true,
+                    installed_at: 0,
+                    source_url: source.into(),
+                    installed_commit: "legacy".into(),
+                    is_dev: false,
+                    local_path: String::new(),
+                }],
+            };
+
+            let (canonical, migrated) =
+                canonicalize_registry_source(&mut registry, "vercel").unwrap();
+            assert!(migrated, "legacy source was not migrated: {source}");
+            assert_eq!(canonical, CANONICAL_VERCEL_PLUGIN_REPO);
+            assert_eq!(registry.plugins[0].source_url, CANONICAL_VERCEL_PLUGIN_REPO);
+        }
+    }
+
+    #[test]
+    fn migrates_persisted_legacy_source_before_remote_operations() {
+        let operations = [
+            "update",
+            "update-check",
+            "missing-bundle self-heal via update",
+        ];
+        let tmp = tempfile::tempdir().unwrap();
+        let registry_path = tmp.path().join("registry.json");
+        let registry = Registry {
+            plugins: vec![RegistryEntry {
+                plugin_id: "vercel".into(),
+                enabled: true,
+                installed_at: 0,
+                source_url: LEGACY_VERCEL_PLUGIN_REPO.into(),
+                installed_commit: "legacy-vercel-commit".into(),
+                is_dev: false,
+                local_path: String::new(),
+            }],
+        };
+
+        for operation in operations {
+            fs::write(
+                &registry_path,
+                serde_json::to_string_pretty(&registry).unwrap(),
+            )
+            .unwrap();
+            let raw = fs::read_to_string(&registry_path).unwrap();
+            let mut persisted: Registry = serde_json::from_str(&raw).unwrap();
+            let (source_url, migrated) =
+                canonicalize_registry_source(&mut persisted, "vercel").unwrap();
+
+            assert_eq!(
+                source_url, CANONICAL_VERCEL_PLUGIN_REPO,
+                "operation: {operation}"
+            );
+            assert!(migrated, "operation: {operation}");
+            fs::write(
+                &registry_path,
+                serde_json::to_string_pretty(&persisted).unwrap(),
+            )
+            .unwrap();
+
+            let reloaded: Registry =
+                serde_json::from_str(&fs::read_to_string(&registry_path).unwrap()).unwrap();
+            assert_eq!(reloaded.plugins[0].source_url, CANONICAL_VERCEL_PLUGIN_REPO);
+            assert!(!serde_json::to_string(&reloaded)
+                .unwrap()
+                .contains("github.com/ship-studio"));
+        }
+    }
+
+    #[test]
+    fn update_plugin_uses_canonical_remote_and_persists_new_commit() {
+        let _lock = GIT_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+        let (source_repo, remote_commit) = create_local_plugin_repo();
+        let project = test_project();
+        write_legacy_registry(project.path(), "legacy-vercel-commit");
+        let trace_path = source_repo.path().join("update-trace.json");
+        let _env = configure_local_git_remote(source_repo.path(), &trace_path);
+
+        let result = tauri::async_runtime::block_on(update_plugin_inner(
+            "0.18.7",
+            project.path().to_string_lossy().into_owned(),
+            "vercel".into(),
+        ))
+        .unwrap();
+
+        assert_eq!(result.source_url, CANONICAL_VERCEL_PLUGIN_REPO);
+        let persisted = super::read_registry(&project.path().to_string_lossy()).unwrap();
+        let entry = persisted.plugins.first().unwrap();
+        assert_eq!(entry.source_url, CANONICAL_VERCEL_PLUGIN_REPO);
+        assert_eq!(entry.installed_commit, remote_commit);
+
+        let trace = fs::read_to_string(trace_path).unwrap();
+        assert!(trace.contains(CANONICAL_VERCEL_PLUGIN_REPO));
+        assert!(!trace.contains("github.com/ship-studio"));
+    }
+
+    #[test]
+    fn check_plugin_update_uses_canonical_remote_and_migrates_registry() {
+        let _lock = GIT_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+        let (source_repo, remote_commit) = create_local_plugin_repo();
+        let project = test_project();
+        write_legacy_registry(project.path(), "legacy-vercel-commit");
+        let trace_path = source_repo.path().join("update-check-trace.json");
+        let _env = configure_local_git_remote(source_repo.path(), &trace_path);
+
+        let result = tauri::async_runtime::block_on(check_plugin_update(
+            project.path().to_string_lossy().into_owned(),
+            "vercel".into(),
+        ))
+        .unwrap();
+
+        assert!(result.has_update);
+        assert_eq!(result.installed_commit, "legacy-vercel-commit");
+        assert_eq!(result.remote_commit, remote_commit);
+        let persisted = super::read_registry(&project.path().to_string_lossy()).unwrap();
+        assert_eq!(
+            persisted.plugins.first().unwrap().source_url,
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+
+        let trace = fs::read_to_string(trace_path).unwrap();
+        assert!(trace.contains(CANONICAL_VERCEL_PLUGIN_REPO));
+        assert!(!trace.contains("github.com/ship-studio"));
+    }
+
+    #[test]
+    fn check_plugin_update_migrates_before_missing_manifest_failure() {
+        let project = test_project();
+        write_legacy_registry(project.path(), "legacy-vercel-commit");
+        let plugin_dir = project.path().join(".cripcode/plugins/vercel");
+        fs::remove_file(plugin_dir.join("plugin.json")).unwrap();
+        fs::create_dir_all(plugin_dir.join("dist")).unwrap();
+        fs::write(plugin_dir.join("dist/index.js"), "existing bundle").unwrap();
+
+        let result = tauri::async_runtime::block_on(check_plugin_update(
+            project.path().to_string_lossy().into_owned(),
+            "vercel".into(),
+        ));
+
+        let error = format!("{:?}", result.unwrap_err());
+        assert!(
+            error.contains("No plugin.json found"),
+            "unexpected error: {error}"
+        );
+        let persisted = super::read_registry(&project.path().to_string_lossy()).unwrap();
+        assert_eq!(
+            persisted.plugins.first().unwrap().source_url,
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+        assert!(!serde_json::to_string(&persisted)
+            .unwrap()
+            .contains("github.com/ship-studio"));
+        assert!(plugin_dir.exists());
+        assert!(plugin_dir.join("dist/index.js").exists());
+    }
+
+    #[test]
+    fn check_plugin_update_migrates_before_malformed_manifest_failure() {
+        let project = test_project();
+        write_legacy_registry(project.path(), "legacy-vercel-commit");
+        let plugin_dir = project.path().join(".cripcode/plugins/vercel");
+        fs::write(plugin_dir.join("plugin.json"), "{ malformed").unwrap();
+        fs::create_dir_all(plugin_dir.join("dist")).unwrap();
+        fs::write(plugin_dir.join("dist/index.js"), "existing bundle").unwrap();
+
+        let result = tauri::async_runtime::block_on(check_plugin_update(
+            project.path().to_string_lossy().into_owned(),
+            "vercel".into(),
+        ));
+
+        let error = format!("{:?}", result.unwrap_err());
+        assert!(
+            error.contains("Failed to parse plugin.json"),
+            "unexpected error: {error}"
+        );
+        let persisted = super::read_registry(&project.path().to_string_lossy()).unwrap();
+        assert_eq!(
+            persisted.plugins.first().unwrap().source_url,
+            CANONICAL_VERCEL_PLUGIN_REPO
+        );
+        assert!(!serde_json::to_string(&persisted)
+            .unwrap()
+            .contains("github.com/ship-studio"));
+        assert!(plugin_dir.join("plugin.json").exists());
+        assert_eq!(
+            fs::read_to_string(plugin_dir.join("plugin.json")).unwrap(),
+            "{ malformed"
+        );
+        assert!(plugin_dir.join("dist/index.js").exists());
     }
 
     #[test]
