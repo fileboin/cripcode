@@ -11,6 +11,7 @@
 
 use super::config;
 use super::connection::build_ssh_args;
+use super::shell_quote;
 use crate::errors::CommandError;
 use crate::types::{BranchInfo, ChangedFile, FileDiff};
 use serde::Serialize;
@@ -60,7 +61,9 @@ async fn run_remote_git(
     timeout_secs: u64,
 ) -> Result<std::process::Output, CommandError> {
     let server = get_server(server_id)?;
-    let remote_cmd = format!("cd {} && git {}", remote_path, git_args);
+    // remote_path is frontend-supplied: quote it so it can't terminate the
+    // `cd` and inject shell operators. git_args is a fixed internal literal.
+    let remote_cmd = format!("cd {} && git {}", shell_quote(remote_path), git_args);
     let mut args = build_ssh_args(&server);
     args.push(remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");

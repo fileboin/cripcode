@@ -10,6 +10,7 @@
 
 use super::config;
 use super::connection::build_ssh_args;
+use super::shell_quote;
 use crate::commands::code::{infer_language, FileContent, FileEntry};
 use crate::errors::CommandError;
 use crate::types::SshServer;
@@ -165,7 +166,7 @@ pub async fn list_remote_files(
     // Linux) supports -printf; the format is: type\tsize\tname\n
     let remote_cmd = format!(
         "find {} -maxdepth 1 -mindepth 1 -printf '%y\\t%s\\t%f\\n' 2>/dev/null",
-        path
+        shell_quote(&path)
     );
 
     let label = format!("ssh list {}", server.name);
@@ -205,7 +206,7 @@ pub async fn read_remote_file(
     let server = get_server(&server_id)?;
 
     // First, get the file size via stat
-    let stat_cmd = format!("stat -c '%s' {} 2>/dev/null", file_path);
+    let stat_cmd = format!("stat -c '%s' {} 2>/dev/null", shell_quote(&file_path));
     let stat_label = format!("ssh stat {}", server.name);
     let stat_output = run_ssh_exec(&server, &stat_cmd, &stat_label).await?;
 
@@ -223,7 +224,7 @@ pub async fn read_remote_file(
     }
 
     // Read the file content
-    let cat_cmd = format!("cat {}", file_path);
+    let cat_cmd = format!("cat {}", shell_quote(&file_path));
     let cat_label = format!("ssh read {}", server.name);
     let output = run_ssh_exec(&server, &cat_cmd, &cat_label).await?;
 
@@ -264,7 +265,11 @@ pub async fn save_remote_file(
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|| "/".to_string());
 
-    let remote_cmd = format!("mkdir -p {} && cat > {}", parent, file_path);
+    let remote_cmd = format!(
+        "mkdir -p {} && cat > {}",
+        shell_quote(&parent),
+        shell_quote(&file_path)
+    );
     let label = format!("ssh write {}", server.name);
     let output = run_ssh_exec_with_stdin(&server, &remote_cmd, content.as_bytes(), &label).await?;
 
@@ -290,7 +295,7 @@ pub async fn create_remote_directory(
     validate_remote_path(&dir_path)?;
     let server = get_server(&server_id)?;
 
-    let remote_cmd = format!("mkdir -p {}", dir_path);
+    let remote_cmd = format!("mkdir -p {}", shell_quote(&dir_path));
     let label = format!("ssh mkdir {}", server.name);
     let output = run_ssh_exec(&server, &remote_cmd, &label).await?;
 
@@ -315,7 +320,7 @@ pub async fn delete_remote_file(server_id: String, path: String) -> Result<(), C
     validate_destructive_path(&path)?;
     let server = get_server(&server_id)?;
 
-    let remote_cmd = format!("rm -rf {}", path);
+    let remote_cmd = format!("rm -rf {}", shell_quote(&path));
     let label = format!("ssh delete {}", server.name);
     let output = run_ssh_exec(&server, &remote_cmd, &label).await?;
 
@@ -343,7 +348,7 @@ pub async fn rename_remote_file(
     validate_remote_path(&new_path)?;
     let server = get_server(&server_id)?;
 
-    let remote_cmd = format!("mv {} {}", old_path, new_path);
+    let remote_cmd = format!("mv {} {}", shell_quote(&old_path), shell_quote(&new_path));
     let label = format!("ssh rename {}", server.name);
     let output = run_ssh_exec(&server, &remote_cmd, &label).await?;
 
