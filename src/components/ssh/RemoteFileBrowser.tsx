@@ -46,6 +46,8 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -156,8 +158,10 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
 
   const handleSave = async () => {
     const filePath = selectedFilePath;
-    if (!filePath || !selectedFile || selectedFile.isBinary || selectedFile.isTruncated) return;
+    if (isSaving || !filePath || !selectedFile || selectedFile.isBinary || selectedFile.isTruncated)
+      return;
 
+    setIsSaving(true);
     try {
       await saveRemoteFile(server.id, filePath, editedContent);
       setSelectedFile((current) =>
@@ -173,6 +177,8 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
       showToast('File saved', 'success');
     } catch (err) {
       showToast(formatCommandError(asCommandError(err)), 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -184,7 +190,7 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const handleRename = async () => {
     const oldPath = selectedFilePath;
     const oldName = selectedFileName;
-    if (!oldPath || !oldName) return;
+    if (isRenaming || !oldPath || !oldName) return;
 
     const nextName = window.prompt('New file name:', oldName)?.trim();
     if (!nextName || nextName === oldName) return;
@@ -193,6 +199,7 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
     const parentPath = lastSlash <= 0 ? '/' : oldPath.slice(0, lastSlash);
     const newPath = parentPath === '/' ? `/${nextName}` : `${parentPath}/${nextName}`;
 
+    setIsRenaming(true);
     try {
       await renameRemoteFile(server.id, oldPath, newPath);
       const list = await listRemoteFiles(server.id, currentPath);
@@ -203,6 +210,8 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
       showToast('File renamed', 'success');
     } catch (err) {
       showToast(formatCommandError(asCommandError(err)), 'error');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -350,8 +359,13 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
                       </span>
                     </div>
                     <div>
-                      <Button variant="ghost" size="sm" onClick={() => void handleRename()}>
-                        Rename
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleRename()}
+                        disabled={isSaving || isRenaming}
+                      >
+                        {isRenaming ? 'Renaming...' : 'Rename'}
                       </Button>
                       {!selectedFile.isBinary && !selectedFile.isTruncated && !isEditing && (
                         <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
@@ -360,8 +374,13 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
                       )}
                       {isEditing && (
                         <>
-                          <Button variant="primary" size="sm" onClick={() => void handleSave()}>
-                            Save
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => void handleSave()}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? 'Saving...' : 'Save'}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={handleCancel}>
                             Cancel

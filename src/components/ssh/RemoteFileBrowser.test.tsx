@@ -345,3 +345,83 @@ describe('RemoteFileBrowser error handling', () => {
     expect(await screen.findByText('console.log("hello");')).toBeInTheDocument();
   });
 });
+
+describe('RemoteFileBrowser busy state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(listRemoteFiles).mockResolvedValue(entries);
+    vi.mocked(readRemoteFile).mockResolvedValue(fileContent);
+    vi.mocked(saveRemoteFile).mockResolvedValue(undefined);
+    vi.mocked(renameRemoteFile).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('disables Save and shows Saving... while the save is in flight', async () => {
+    vi.mocked(saveRemoteFile).mockImplementation(() => new Promise<void>(() => {}));
+    await openAppJs();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const busy = await screen.findByRole('button', { name: 'Saving...' });
+    expect(busy).toBeDisabled();
+    // Rename can't start mid-save either.
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeDisabled();
+
+    // Busy clears in-flight completion would need the deferred promise; here
+    // the promise never resolves, so just assert the state persists.
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+  });
+
+  it('ignores double clicks while a save is in flight', async () => {
+    vi.mocked(saveRemoteFile).mockImplementation(() => new Promise<void>(() => {}));
+    await openAppJs();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('button', { name: 'Saving...' });
+    // Second click on the busy (disabled) button must not queue another save.
+    fireEvent.click(screen.getByRole('button', { name: 'Saving...' }));
+
+    expect(saveRemoteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Rename while a rename is in flight and ignores repeat clicks', async () => {
+    vi.stubGlobal('prompt', vi.fn().mockReturnValue('renamed.js'));
+    vi.mocked(renameRemoteFile).mockImplementation(() => new Promise<void>(() => {}));
+    await openAppJs();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const busy = await screen.findByRole('button', { name: 'Renaming...' });
+    expect(busy).toBeDisabled();
+    fireEvent.click(busy);
+
+    expect(renameRemoteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-enables Save after a failure and allows a retry', async () => {
+    vi.mocked(saveRemoteFile)
+      .mockRejectedValueOnce(new Error('ssh write failed'))
+      .mockResolvedValueOnce(undefined);
+    await openAppJs();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    // In-flight: busy and disabled.
+    await screen.findByRole('button', { name: 'Saving...' });
+    // Failure clears the busy state (finally) and surfaces the error.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+    expect(document.querySelector('.toast-error')).not.toBeNull();
+
+    // Retry succeeds.
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(saveRemoteFile).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText('File saved')).toBeInTheDocument();
+  });
+});
