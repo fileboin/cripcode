@@ -13,6 +13,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { usePlugins } from './usePlugins';
 import type { PluginInfo } from '../lib/plugins';
 import type { PluginModule } from '../lib/plugin-loader';
+import legacyRegistryFixture from './fixtures/legacy-plugin-registry.json';
 
 vi.mock('../lib/plugins', () => ({
   listPlugins: vi.fn(),
@@ -133,5 +134,33 @@ describe('usePlugins missing-bundle self-heal', () => {
     await waitFor(() => expect(result.current.failures).toHaveLength(1));
     expect(mockUpdatePlugin).not.toHaveBeenCalled();
     expect(result.current.failures[0].reason).toContain('Plugin must export a name');
+  });
+
+  it('self-heals a persisted legacy Vercel registry through the canonical source', async () => {
+    let persistedSource = legacyRegistryFixture.plugins[0].source_url;
+    mockListPlugins.mockResolvedValue([
+      makeInfo({
+        source_url: persistedSource,
+        manifest: { ...makeInfo().manifest, id: 'vercel', name: 'Vercel' },
+      }),
+    ]);
+    mockLoadPluginModule
+      .mockRejectedValueOnce(missingBundleError)
+      .mockResolvedValueOnce(workingModule);
+    mockUpdatePlugin.mockImplementation((projectPath, pluginId) => {
+      expect(projectPath).toBe('/projects/e2e-canonical-heal');
+      expect(pluginId).toBe('vercel');
+      expect(persistedSource).toBe('https://github.com/ship-studio/plugin-vercel');
+      persistedSource = 'https://github.com/fileboin/cripcode-plugin-vercel';
+      return Promise.resolve(makeInfo({ source_url: persistedSource }));
+    });
+
+    const { result } = renderHook(() => usePlugins('/projects/e2e-canonical-heal'));
+
+    await waitFor(() => expect(result.current.plugins).toHaveLength(1));
+    expect(mockUpdatePlugin).toHaveBeenCalledTimes(1);
+    expect(persistedSource).toBe('https://github.com/fileboin/cripcode-plugin-vercel');
+    expect(persistedSource).not.toContain('github.com/ship-studio');
+    expect(result.current.failures).toHaveLength(0);
   });
 });

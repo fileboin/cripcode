@@ -1,0 +1,13 @@
+{
+  "plugins": [
+    {
+      "plugin_id": "vercel",
+      "enabled": true,
+      "installed_at": 0,
+      "source_url": "https://github.com/ship-studio/plugin-vercel",
+      "installed_commit": "legacy-vercel-commit",
+      "is_dev": false,
+      "local_path": ""
+    }
+  ]
+}
