@@ -19,8 +19,10 @@ import type { FileEntry, FileContent } from '../../lib/code';
 import {
   listRemoteFiles,
   readRemoteFile,
+  saveRemoteFile,
   createRemoteDirectory,
   deleteRemoteFile,
+  renameRemoteFile,
 } from '../../lib/remoteFiles';
 import type { SshServer } from '../../lib/ssh';
 import { RemoteGitPanel } from './RemoteGitPanel';
@@ -41,15 +43,23 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileContent | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'files' | 'git' | 'dev' | 'preview' | 'agent' | 'build'>('files');
+  const [activeTab, setActiveTab] = useState<
+    'files' | 'git' | 'dev' | 'preview' | 'agent' | 'build'
+  >('files');
 
   const loadFiles = useCallback(
     async (path: string) => {
       setIsLoading(true);
       setSelectedFile(null);
       setSelectedFileName(null);
+      setSelectedFilePath(null);
+      setEditedContent('');
+      setIsEditing(false);
       try {
         const list = await listRemoteFiles(server.id, path);
         setEntries(list);
@@ -92,6 +102,9 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         const content = await readRemoteFile(server.id, filePath);
         setSelectedFile(content);
         setSelectedFileName(entry.name);
+        setSelectedFilePath(filePath);
+        setEditedContent(content.content);
+        setIsEditing(false);
       } catch (err) {
         showToast(formatCommandError(asCommandError(err)), 'error');
       } finally {
@@ -136,6 +149,58 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
       await deleteRemoteFile(server.id, path);
       showToast('Deleted', 'info');
       void loadFiles(currentPath);
+    } catch (err) {
+      showToast(formatCommandError(asCommandError(err)), 'error');
+    }
+  };
+
+  const handleSave = async () => {
+    const filePath = selectedFilePath;
+    if (!filePath || !selectedFile || selectedFile.isBinary || selectedFile.isTruncated) return;
+
+    try {
+      await saveRemoteFile(server.id, filePath, editedContent);
+      setSelectedFile((current) =>
+        current
+          ? {
+              ...current,
+              content: editedContent,
+              size: new TextEncoder().encode(editedContent).length,
+            }
+          : current
+      );
+      setIsEditing(false);
+      showToast('File saved', 'success');
+    } catch (err) {
+      showToast(formatCommandError(asCommandError(err)), 'error');
+    }
+  };
+
+  const handleCancel = () => {
+    setEditedContent(selectedFile?.content ?? '');
+    setIsEditing(false);
+  };
+
+  const handleRename = async () => {
+    const oldPath = selectedFilePath;
+    const oldName = selectedFileName;
+    if (!oldPath || !oldName) return;
+
+    const nextName = window.prompt('New file name:', oldName)?.trim();
+    if (!nextName || nextName === oldName) return;
+
+    const lastSlash = oldPath.lastIndexOf('/');
+    const parentPath = lastSlash <= 0 ? '/' : oldPath.slice(0, lastSlash);
+    const newPath = parentPath === '/' ? `/${nextName}` : `${parentPath}/${nextName}`;
+
+    try {
+      await renameRemoteFile(server.id, oldPath, newPath);
+      const list = await listRemoteFiles(server.id, currentPath);
+      setEntries(list);
+      setSelectedFilePath(newPath);
+      setSelectedFileName(nextName);
+      setIsEditing(false);
+      showToast('File renamed', 'success');
     } catch (err) {
       showToast(formatCommandError(asCommandError(err)), 'error');
     }
@@ -278,10 +343,32 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
               ) : selectedFile ? (
                 <div className="ssh-file-content">
                   <div className="ssh-file-content-header">
-                    {selectedFileName}
-                    <span className="ssh-file-content-meta">
-                      {selectedFile.language} · {formatSize(selectedFile.size)}
-                    </span>
+                    <div>
+                      {selectedFileName}
+                      <span className="ssh-file-content-meta">
+                        {selectedFile.language} · {formatSize(selectedFile.size)}
+                      </span>
+                    </div>
+                    <div>
+                      <Button variant="ghost" size="sm" onClick={() => void handleRename()}>
+                        Rename
+                      </Button>
+                      {!selectedFile.isBinary && !selectedFile.isTruncated && !isEditing && (
+                        <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+                          Edit
+                        </Button>
+                      )}
+                      {isEditing && (
+                        <>
+                          <Button variant="primary" size="sm" onClick={() => void handleSave()}>
+                            Save
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={handleCancel}>
+                            Cancel
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   {selectedFile.isBinary ? (
                     <p className="ssh-empty-state">Binary file — cannot display.</p>
@@ -289,6 +376,13 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
                     <p className="ssh-empty-state">
                       File is too large ({formatSize(selectedFile.size)}).
                     </p>
+                  ) : isEditing ? (
+                    <textarea
+                      className="ssh-file-content-pre"
+                      value={editedContent}
+                      onChange={(event) => setEditedContent(event.target.value)}
+                      aria-label={`Editing ${selectedFileName ?? 'remote file'}`}
+                    />
                   ) : (
                     <pre className="ssh-file-content-pre">
                       <code>{selectedFile.content}</code>
