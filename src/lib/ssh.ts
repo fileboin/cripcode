@@ -62,6 +62,21 @@ export async function getSshConnectionState(id: string): Promise<SshConnectionSt
   return invoke<SshConnectionState>('get_ssh_connection_state', { id });
 }
 
+const REMOTE_AGENT_BINARIES = new Set(['claude', 'codex', 'opencode', 'cursor-agent']);
+
+/** Quote one value for the POSIX shell used by the remote SSH host. */
+export function quoteRemoteShellValue(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+/** Build the remote agent shell program without changing its command semantics. */
+export function buildRemoteAgentCommand(remotePath: string, binaryName: string): string {
+  if (!REMOTE_AGENT_BINARIES.has(binaryName)) {
+    throw new Error(`Unsupported remote agent binary: ${binaryName}`);
+  }
+  return `cd ${quoteRemoteShellValue(remotePath)} && ${quoteRemoteShellValue(binaryName)}`;
+}
+
 /**
  * Build the SSH CLI argument list for an interactive terminal session.
  * Uses keepalive (ServerAliveInterval) so a dropped connection is detected,

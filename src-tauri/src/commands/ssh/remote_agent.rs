@@ -5,12 +5,13 @@
 //! VPS — the local machine only needs SSH access, not the agent CLI.
 
 use super::config;
-use super::connection::build_ssh_args;
+use super::{build_remote_ssh_args, shell_quote};
 use crate::errors::CommandError;
 use serde::Serialize;
 
 /// Timeout for the agent detection check.
 const SSH_AGENT_TIMEOUT_SECS: u64 = 10;
+const ALLOWED_AGENT_BINARIES: &[&str] = &["claude", "codex", "opencode", "cursor-agent"];
 
 /// Look up a server by ID.
 fn get_server(server_id: &str) -> Result<crate::types::SshServer, CommandError> {
@@ -23,6 +24,25 @@ fn get_server(server_id: &str) -> Result<crate::types::SshServer, CommandError> 
             field: "server_id".into(),
             reason: format!("No SSH server found with id `{server_id}`"),
         })
+}
+
+fn validate_agent_binary(binary_name: &str) -> Result<&str, CommandError> {
+    let trimmed = binary_name.trim();
+    if ALLOWED_AGENT_BINARIES.contains(&trimmed) {
+        Ok(trimmed)
+    } else {
+        Err(CommandError::Validation {
+            field: "binary_name".into(),
+            reason: "Unsupported remote agent binary".into(),
+        })
+    }
+}
+
+fn build_agent_check_command(binary_name: &str) -> String {
+    format!(
+        "which {} 2>/dev/null || echo '__NOT_FOUND__'",
+        shell_quote(binary_name)
+    )
 }
 
 /// Agent installation status on a remote VPS.
@@ -51,20 +71,11 @@ pub async fn check_remote_agent_installed(
 ) -> Result<RemoteAgentStatus, CommandError> {
     let server = get_server(&server_id)?;
 
-    let binary_trimmed = binary_name.trim();
-    if binary_trimmed.is_empty() {
-        return Err(CommandError::Validation {
-            field: "binary_name".into(),
-            reason: "Binary name must not be empty".into(),
-        });
-    }
+    let binary_trimmed = validate_agent_binary(&binary_name)?;
 
-    let args = build_ssh_args(&server);
+    let args = build_remote_ssh_args(&server, &build_agent_check_command(binary_trimmed));
     let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&args).arg(format!(
-        "which {} 2>/dev/null || echo '__NOT_FOUND__'",
-        binary_trimmed
-    ));
+    cmd.args(&args);
 
     let label = format!("ssh check-agent {}", server.name);
     let output =
@@ -122,5 +133,26 @@ mod tests {
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("\"installed\":false"));
         assert!(json.contains("\"path\":null"));
+    }
+
+    #[test]
+    fn agent_binary_allowlist_accepts_supported_agents() {
+        for binary in ["claude", "codex", "opencode", "cursor-agent"] {
+            assert_eq!(validate_agent_binary(binary).unwrap(), binary);
+        }
+    }
+
+    #[test]
+    fn agent_binary_allowlist_rejects_shell_input() {
+        assert!(validate_agent_binary("claude; touch /tmp/injected").is_err());
+        assert!(validate_agent_binary("$(touch /tmp/injected)").is_err());
+    }
+
+    #[test]
+    fn agent_check_command_quotes_the_binary_argument() {
+        assert_eq!(
+            build_agent_check_command("claude"),
+            "which 'claude' 2>/dev/null || echo '__NOT_FOUND__'"
+        );
     }
 }

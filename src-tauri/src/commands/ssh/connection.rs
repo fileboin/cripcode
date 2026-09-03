@@ -30,11 +30,9 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
-/// Build the SSH CLI argument list for a non-interactive connection test.
-/// Uses `BatchMode=yes` (never prompt for password), `ConnectTimeout=10`
-/// (10s TCP+handshake), and `StrictHostKeyChecking=accept-new` (auto-accept
-/// first connection, reject host key changes after that).
-pub(crate) fn build_ssh_args(server: &SshServer) -> Vec<String> {
+/// Build the shared SSH connection arguments without a remote command.
+/// Callers append their own remote command when using SSH exec.
+pub(crate) fn build_ssh_connection_args(server: &SshServer) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "-o".into(),
         "BatchMode=yes".into(),
@@ -58,6 +56,15 @@ pub(crate) fn build_ssh_args(server: &SshServer) -> Vec<String> {
     }
 
     args.push(format!("{}@{}", server.username, server.host));
+    args
+}
+
+/// Build the SSH CLI argument list for a non-interactive connection test.
+/// Uses `BatchMode=yes` (never prompt for password), `ConnectTimeout=10`
+/// (10s TCP+handshake), and `StrictHostKeyChecking=accept-new` (auto-accept
+/// first connection, reject host key changes after that).
+pub(crate) fn build_ssh_args(server: &SshServer) -> Vec<String> {
+    let mut args = build_ssh_connection_args(server);
     args.push("echo".into());
     args.push("__cripcode_ssh_ok__".into());
 

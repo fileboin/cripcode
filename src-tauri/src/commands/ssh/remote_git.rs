@@ -10,8 +10,7 @@
 //! since they need more careful state management over SSH.
 
 use super::config;
-use super::connection::build_ssh_args;
-use super::shell_quote;
+use super::{build_remote_ssh_args, shell_quote};
 use crate::errors::CommandError;
 use crate::types::{BranchInfo, ChangedFile, FileDiff};
 use serde::Serialize;
@@ -63,13 +62,40 @@ async fn run_remote_git(
     let server = get_server(server_id)?;
     // remote_path is frontend-supplied: quote it so it can't terminate the
     // `cd` and inject shell operators. git_args is a fixed internal literal.
-    let remote_cmd = format!("cd {} && git {}", shell_quote(remote_path), git_args);
-    let mut args = build_ssh_args(&server);
-    args.push(remote_cmd);
+    let remote_cmd = build_remote_git_command(remote_path, git_args);
+    let args = build_remote_ssh_args(&server, &remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
     let label = format!("ssh git {} {}", server.name, git_args);
     crate::external_command::run_with_timeout(cmd, &label, timeout_secs).await
+}
+
+fn build_remote_git_command(remote_path: &str, git_args: &str) -> String {
+    format!("cd {} && git {}", shell_quote(remote_path), git_args)
+}
+
+fn build_git_push_args(branch_name: &str) -> String {
+    format!("push -u origin -- {}", shell_quote(branch_name))
+}
+
+fn build_git_diff_args(file_path: &str) -> String {
+    format!("diff -- {}", shell_quote(file_path))
+}
+
+fn build_git_file_probe_args(file_path: &str) -> String {
+    format!("ls-files --error-unmatch -- {}", shell_quote(file_path))
+}
+
+fn build_git_commit_args(message: &str) -> String {
+    format!("add -A && git commit -m {}", shell_quote(message))
+}
+
+fn build_untracked_file_command(remote_path: &str, file_path: &str) -> String {
+    format!(
+        "cd {} && cat -- {}",
+        shell_quote(remote_path),
+        shell_quote(file_path)
+    )
 }
 
 /// Simple branch info for remote listing. Reuses `BranchInfo` but with
@@ -137,7 +163,10 @@ pub async fn remote_git_list_branches(
     let output = run_remote_git(
         &server_id,
         &remote_path,
-        "branch -a --format=%(refname:short)|%(committerdate:unix)|%(authorname)|%(HEAD)",
+        &format!(
+            "branch -a --format={}",
+            shell_quote("%(refname:short)|%(committerdate:unix)|%(authorname)|%(HEAD)")
+        ),
         SSH_GIT_TIMEOUT_SECS,
     )
     .await?;
@@ -239,9 +268,9 @@ pub async fn remote_git_commit(
         });
     }
 
-    // Stage all tracked changes, then commit. Escape single quotes in the message.
-    let escaped_message = message_trimmed.replace('\'', "'\\''");
-    let git_args = format!("add -A && git commit -m '{}'", escaped_message);
+    // Stage all tracked changes, then commit. The message is one Git argument;
+    // the surrounding `&&` remains intentional command structure.
+    let git_args = build_git_commit_args(message_trimmed);
     let output = run_remote_git(&server_id, &remote_path, &git_args, SSH_GIT_TIMEOUT_SECS).await?;
 
     // Exit code 0 = committed, exit code 1 = nothing to commit
@@ -285,7 +314,7 @@ pub async fn remote_git_push(
         });
     }
 
-    let git_args = format!("push -u origin {}", branch_trimmed);
+    let git_args = build_git_push_args(branch_trimmed);
     let output = run_remote_git(
         &server_id,
         &remote_path,
@@ -320,7 +349,7 @@ pub async fn remote_git_diff(
         && run_remote_git(
             &server_id,
             &remote_path,
-            &format!("ls-files --error-unmatch {}", file_path),
+            &build_git_file_probe_args(&file_path),
             SSH_GIT_TIMEOUT_SECS,
         )
         .await
@@ -329,10 +358,12 @@ pub async fn remote_git_diff(
 
     if is_new {
         // For new files, return the full content as the diff
-        let content_cmd = format!("cat {}", file_path);
+        let content_cmd = format!("cat -- {}", shell_quote(&file_path));
         let server = get_server(&server_id)?;
-        let mut ssh_args = build_ssh_args(&server);
-        ssh_args.push(format!("cd {} && {}", remote_path, content_cmd));
+        let ssh_args = build_remote_ssh_args(
+            &server,
+            &format!("cd {} && {}", shell_quote(&remote_path), content_cmd),
+        );
         let mut cmd = tokio::process::Command::new("ssh");
         cmd.args(&ssh_args);
         let label = format!("ssh git cat {}", server.name);
@@ -352,7 +383,7 @@ pub async fn remote_git_diff(
     }
 
     // For tracked files, get the diff
-    let git_args = format!("diff -- {}", file_path);
+    let git_args = build_git_diff_args(&file_path);
     let output = run_remote_git(&server_id, &remote_path, &git_args, SSH_GIT_TIMEOUT_SECS).await?;
 
     let content = String::from_utf8_lossy(&output.stdout).to_string();
@@ -396,5 +427,53 @@ mod tests {
     #[test]
     fn validate_path_accepts_absolute() {
         assert!(validate_path("/home/user/myproject").is_ok());
+    }
+
+    #[test]
+    fn remote_git_command_quotes_path_and_keeps_git_command_structure() {
+        let command = build_remote_git_command(
+            "/tmp/project; touch /tmp/injected",
+            "status --porcelain -uno",
+        );
+        assert_eq!(
+            command,
+            "cd '/tmp/project; touch /tmp/injected' && git status --porcelain -uno"
+        );
+    }
+
+    #[test]
+    fn git_user_arguments_are_quoted_and_option_safe() {
+        assert_eq!(
+            build_git_push_args("feature/one; touch /tmp/injected"),
+            "push -u origin -- 'feature/one; touch /tmp/injected'"
+        );
+        assert_eq!(
+            build_git_diff_args("src/$(touch /tmp/injected).ts"),
+            "diff -- 'src/$(touch /tmp/injected).ts'"
+        );
+        assert_eq!(
+            build_git_file_probe_args("--help; touch /tmp/injected"),
+            "ls-files --error-unmatch -- '--help; touch /tmp/injected'"
+        );
+    }
+
+    #[test]
+    fn commit_message_is_one_git_argument() {
+        assert_eq!(
+            build_git_commit_args("message'; touch /tmp/injected"),
+            "add -A && git commit -m 'message'\\''; touch /tmp/injected'"
+        );
+    }
+
+    #[test]
+    fn untracked_file_command_quotes_remote_and_file_paths() {
+        let command = build_untracked_file_command(
+            "/tmp/project; touch /tmp/injected",
+            "src/`touch /tmp/injected`.ts",
+        );
+        assert_eq!(
+            command,
+            "cd '/tmp/project; touch /tmp/injected' && cat -- 'src/`touch /tmp/injected`.ts'"
+        );
     }
 }

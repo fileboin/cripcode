@@ -9,8 +9,7 @@
 //! frontend can use the same types for local and remote files.
 
 use super::config;
-use super::connection::build_ssh_args;
-use super::shell_quote;
+use super::{build_remote_ssh_args, shell_quote};
 use crate::commands::code::{infer_language, FileContent, FileEntry};
 use crate::errors::CommandError;
 use crate::types::SshServer;
@@ -25,12 +24,10 @@ const MAX_REMOTE_FILE_SIZE: u64 = 500 * 1024;
 /// than a simple echo test).
 const SSH_FILE_TIMEOUT_SECS: u64 = 30;
 
-/// Build SSH exec args: the connection args from `build_ssh_args` + the remote
+/// Build SSH exec args: the connection args from `build_remote_ssh_args` + the remote
 /// command appended as the last argument (the SSH CLI convention).
 fn build_ssh_exec_args(server: &SshServer, remote_cmd: &str) -> Vec<String> {
-    let mut args = build_ssh_args(server);
-    args.push(remote_cmd.to_string());
-    args
+    build_remote_ssh_args(server, remote_cmd)
 }
 
 /// Look up a server by ID from the config file.

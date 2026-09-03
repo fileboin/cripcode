@@ -6,6 +6,8 @@
 //!
 //! See `docs/ssh-architecture.md` for the full architecture.
 
+use crate::types::SshServer;
+
 mod ai_provider;
 mod config;
 mod connection;
@@ -40,9 +42,25 @@ pub(crate) fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+/// Quote a complete shell program as the single argument to `bash -c`.
+/// Shell operators inside the program remain executable by that inner shell;
+/// they cannot alter the outer SSH command structure.
+pub(crate) fn shell_program_arg(program: &str) -> String {
+    shell_quote(program)
+}
+
+/// Build SSH argv for a remote command. The command is the final argument;
+/// unlike `build_ssh_args`, this does not append the connection-test command.
+pub(crate) fn build_remote_ssh_args(server: &SshServer, remote_command: &str) -> Vec<String> {
+    let mut args = connection::build_ssh_connection_args(server);
+    args.push(remote_command.to_string());
+    args
+}
+
 #[cfg(test)]
 mod shell_quote_tests {
-    use super::shell_quote;
+    use super::{build_remote_ssh_args, shell_program_arg, shell_quote};
+    use crate::types::SshServer;
 
     #[test]
     fn plain_path_is_single_quoted() {
@@ -80,5 +98,32 @@ mod shell_quote_tests {
         // A leading `'` used to close the opening quote and break out:
         // the escaped form keeps the `; rm -rf /` literal inside one word.
         assert_eq!(shell_quote("'; rm -rf /"), "''\\''; rm -rf /'");
+    }
+
+    #[test]
+    fn shell_program_preserves_inner_shell_operators() {
+        let program = "printf '%s' 'safe' && printf '%s' \"$HOME\"";
+        assert_eq!(shell_program_arg(program), shell_quote(program));
+        assert!(shell_program_arg(program).contains("&&"));
+    }
+
+    #[test]
+    fn remote_ssh_args_send_only_the_requested_remote_command() {
+        let server = SshServer {
+            id: "test".into(),
+            name: "Test".into(),
+            host: "example.com".into(),
+            port: Some(22),
+            username: "deploy".into(),
+            key_path: None,
+            created_at: 0,
+            last_connected_at: None,
+        };
+        let args = build_remote_ssh_args(&server, "printf '%s' 'remote'");
+        assert_eq!(
+            args.last().map(String::as_str),
+            Some("printf '%s' 'remote'")
+        );
+        assert!(!args.contains(&"__cripcode_ssh_ok__".to_string()));
     }
 }

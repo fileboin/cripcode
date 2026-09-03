@@ -7,7 +7,7 @@
 //! Supported operations: start, status, logs, stop.
 
 use super::config;
-use super::connection::build_ssh_args;
+use super::{build_remote_ssh_args, shell_program_arg, shell_quote};
 use crate::errors::CommandError;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -78,11 +78,27 @@ async fn run_remote(
     timeout_secs: u64,
 ) -> Result<std::process::Output, CommandError> {
     let server = get_server(server_id)?;
-    let mut args = build_ssh_args(&server);
-    args.push(remote_cmd.to_string());
+    let args = build_remote_ssh_args(&server, remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
     crate::external_command::run_with_timeout(cmd, label, timeout_secs).await
+}
+
+fn build_start_command(
+    remote_path: &str,
+    command: &str,
+    log_file: &str,
+    pid_file: &str,
+    exit_file: &str,
+) -> String {
+    let shell_program = format!("{}; echo $? > {}", command, shell_quote(exit_file));
+    format!(
+        "cd {} && nohup bash -c {} > {} 2>&1 & echo $! > {}",
+        shell_quote(remote_path),
+        shell_program_arg(&shell_program),
+        shell_quote(log_file),
+        shell_quote(pid_file)
+    )
 }
 
 /// Build status.
@@ -136,15 +152,12 @@ pub async fn start_remote_build(
     let exit_file = exit_file_path(&remote_path);
 
     // Clean up any previous exit file
-    let cleanup_cmd = format!("rm -f {exit_file} 2>/dev/null");
+    let cleanup_cmd = format!("rm -f {} 2>/dev/null", shell_quote(&exit_file));
     let _ = run_remote(&server_id, &cleanup_cmd, "ssh build-cleanup", 10).await;
 
     // Build command: cd to project, run nohup with the build command,
     // save PID, capture output, write exit code on completion.
-    let escaped_cmd = command.replace('\'', "'\\''");
-    let remote_cmd = format!(
-        "cd {remote_path} && nohup bash -c '{escaped_cmd}; echo $? > {exit_file}' > {log_file} 2>&1 & echo $! > {pid_file}"
-    );
+    let remote_cmd = build_start_command(&remote_path, &command, &log_file, &pid_file, &exit_file);
 
     let label = format!("ssh build-start {}", remote_path);
     let output = run_remote(&server_id, &remote_cmd, &label, 30).await?;
@@ -183,14 +196,17 @@ pub async fn stop_remote_build(server_id: String, remote_path: String) -> Result
     let pid_file = pid_file_path(&remote_path);
 
     let remote_cmd = format!(
-        "if [ -f {pid_file} ]; then \
-            PID=$(cat {pid_file}); \
+        "if [ -f {} ]; then \
+            PID=$(cat {}); \
             kill $PID 2>/dev/null; \
             sleep 1; \
             kill -9 $PID 2>/dev/null; \
-            rm -f {pid_file}; \
+            rm -f {}; \
             echo 'stopped'; \
-         else echo 'not running'; fi"
+         else echo 'not running'; fi",
+        shell_quote(&pid_file),
+        shell_quote(&pid_file),
+        shell_quote(&pid_file)
     );
 
     let label = format!("ssh build-stop {}", remote_path);
@@ -219,20 +235,26 @@ async fn check_remote_build_status_impl(server_id: &str, remote_path: &str) -> R
     let exit_file = exit_file_path(remote_path);
 
     let remote_cmd = format!(
-        "if [ -f {pid_file} ]; then \
-            PID=$(cat {pid_file}); \
+        "if [ -f {} ]; then \
+            PID=$(cat {}); \
             if kill -0 $PID 2>/dev/null; then \
                 echo 'RUNNING'; \
-                LOG_LINES=$(wc -l < {log_file} 2>/dev/null || echo 0); \
+                LOG_LINES=$(wc -l < {} 2>/dev/null || echo 0); \
                 echo \"LOGS $LOG_LINES\"; \
             else \
-                rm -f {pid_file}; \
-                EXIT_CODE=$(cat {exit_file} 2>/dev/null || echo '?'); \
+                rm -f {}; \
+                EXIT_CODE=$(cat {} 2>/dev/null || echo '?'); \
                 echo \"DONE $EXIT_CODE\"; \
-                LOG_LINES=$(wc -l < {log_file} 2>/dev/null || echo 0); \
+                LOG_LINES=$(wc -l < {} 2>/dev/null || echo 0); \
                 echo \"LOGS $LOG_LINES\"; \
             fi; \
-         else echo 'NOTSTARTED'; fi"
+         else echo 'NOTSTARTED'; fi",
+        shell_quote(&pid_file),
+        shell_quote(&pid_file),
+        shell_quote(&log_file),
+        shell_quote(&pid_file),
+        shell_quote(&exit_file),
+        shell_quote(&log_file)
     );
 
     let label = format!("ssh build-status {}", remote_path);
@@ -325,7 +347,8 @@ pub async fn get_remote_build_logs(
 
     let remote_cmd = format!(
         "tail -n {} {} 2>/dev/null || echo '(no logs yet)'",
-        n, log_file
+        n,
+        shell_quote(&log_file)
     );
     let label = format!("ssh build-logs {}", remote_path);
     let output = run_remote(&server_id, &remote_cmd, &label, 15).await?;
@@ -383,5 +406,23 @@ mod tests {
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("\"running\":true"));
+    }
+
+    #[test]
+    fn start_command_quotes_path_and_preserves_shell_program() {
+        let command = build_start_command(
+            "/tmp/project; touch /tmp/injected",
+            "printf '%s' 'safe' && echo \"$HOME\"",
+            "/tmp/cripcode-build-1.log",
+            "/tmp/cripcode-build-1.pid",
+            "/tmp/cripcode-build-1.exit",
+        );
+        assert!(command.starts_with("cd '/tmp/project; touch /tmp/injected' && nohup bash -c "));
+        let shell_program = format!(
+            "printf '%s' 'safe' && echo \"$HOME\"; echo $? > {}",
+            shell_quote("/tmp/cripcode-build-1.exit")
+        );
+        assert!(command.contains(&shell_program_arg(&shell_program)));
+        assert!(command.ends_with("> '/tmp/cripcode-build-1.pid'"));
     }
 }

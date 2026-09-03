@@ -8,7 +8,7 @@
 //! Supported operations: start, stop, restart, status, logs, port detection.
 
 use super::config;
-use super::connection::build_ssh_args;
+use super::{build_remote_ssh_args, shell_program_arg, shell_quote};
 use crate::errors::CommandError;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -78,11 +78,28 @@ async fn run_remote(
     label: &str,
 ) -> Result<std::process::Output, CommandError> {
     let server = get_server(server_id)?;
-    let mut args = build_ssh_args(&server);
-    args.push(remote_cmd.to_string());
+    let args = build_remote_ssh_args(&server, remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
     crate::external_command::run_with_timeout(cmd, label, SSH_DEV_TIMEOUT_SECS).await
+}
+
+fn build_start_command(
+    remote_path: &str,
+    command: &str,
+    port: Option<u16>,
+    log_file: &str,
+    pid_file: &str,
+) -> String {
+    let port_env = port.map(|p| format!("PORT={} ", p)).unwrap_or_default();
+    let shell_program = format!("{}{}", port_env, command);
+    format!(
+        "cd {} && nohup bash -c {} > {} 2>&1 & echo $! > {}",
+        shell_quote(remote_path),
+        shell_program_arg(&shell_program),
+        shell_quote(log_file),
+        shell_quote(pid_file)
+    )
 }
 
 /// Dev server status.
@@ -136,13 +153,9 @@ pub async fn start_remote_dev_server(
     let pid_file = pid_file_path(&remote_path);
     let log_file = log_file_path(&remote_path);
 
-    // Build the command: cd to project, run nohup with the dev command
-    let port_env = port.map(|p| format!("PORT={} ", p)).unwrap_or_default();
-
-    let remote_cmd = format!(
-        "cd {} && nohup bash -c '{}{}' > {} 2>&1 & echo $! > {}",
-        remote_path, port_env, command, log_file, pid_file
-    );
+    // The command remains a complete shell program for the inner bash; only
+    // its outer SSH argument boundary is quoted.
+    let remote_cmd = build_start_command(&remote_path, &command, port, &log_file, &pid_file);
 
     let label = format!("ssh dev-start {}", remote_path);
     let output = run_remote(&server_id, &remote_cmd, &label).await?;
@@ -190,14 +203,17 @@ pub async fn stop_remote_dev_server(
     let pid_file = pid_file_path(&remote_path);
 
     let remote_cmd = format!(
-        "if [ -f {pid_file} ]; then \
-            PID=$(cat {pid_file}); \
+        "if [ -f {} ]; then \
+            PID=$(cat {}); \
             kill $PID 2>/dev/null; \
             sleep 2; \
             kill -9 $PID 2>/dev/null; \
-            rm -f {pid_file}; \
+            rm -f {}; \
             echo 'stopped'; \
-         else echo 'not running'; fi"
+         else echo 'not running'; fi",
+        shell_quote(&pid_file),
+        shell_quote(&pid_file),
+        shell_quote(&pid_file)
     );
 
     let label = format!("ssh dev-stop {}", remote_path);
@@ -251,17 +267,21 @@ async fn check_remote_dev_server_status_impl(
 
     // Check if the PID file exists and the process is still alive
     let remote_cmd = format!(
-        "if [ -f {pid_file} ]; then \
-            PID=$(cat {pid_file}); \
+        "if [ -f {} ]; then \
+            PID=$(cat {}); \
             if kill -0 $PID 2>/dev/null; then \
                 echo \"RUNNING $PID\"; \
-                LOG_LINES=$(wc -l < {log_file} 2>/dev/null || echo 0); \
+                LOG_LINES=$(wc -l < {} 2>/dev/null || echo 0); \
                 echo \"LOGS $LOG_LINES\"; \
             else \
-                rm -f {pid_file}; \
+                rm -f {}; \
                 echo 'DEAD'; \
             fi; \
-         else echo 'NOTSTARTED'; fi"
+         else echo 'NOTSTARTED'; fi",
+        shell_quote(&pid_file),
+        shell_quote(&pid_file),
+        shell_quote(&log_file),
+        shell_quote(&pid_file)
     );
 
     let label = format!("ssh dev-status {}", remote_path);
@@ -352,7 +372,8 @@ pub async fn get_remote_dev_server_logs(
 
     let remote_cmd = format!(
         "tail -n {} {} 2>/dev/null || echo '(no logs yet)'",
-        n, log_file
+        n,
+        shell_quote(&log_file)
     );
     let label = format!("ssh dev-logs {}", remote_path);
     let output = run_remote(&server_id, &remote_cmd, &label).await?;
@@ -404,5 +425,20 @@ mod tests {
         let path = log_file_path("/home/user/app");
         assert!(path.starts_with("/tmp/cripcode-devserver-"));
         assert!(path.ends_with(".log"));
+    }
+
+    #[test]
+    fn start_command_quotes_path_and_preserves_shell_program() {
+        let command = build_start_command(
+            "/tmp/project; touch /tmp/injected",
+            "printf '%s' 'safe' && echo \"$HOME\"",
+            Some(3000),
+            "/tmp/cripcode-devserver-1.log",
+            "/tmp/cripcode-devserver-1.pid",
+        );
+        assert_eq!(
+            command,
+            "cd '/tmp/project; touch /tmp/injected' && nohup bash -c 'PORT=3000 printf '\\''%s'\\'' '\\''safe'\\'' && echo \"$HOME\"' > '/tmp/cripcode-devserver-1.log' 2>&1 & echo $! > '/tmp/cripcode-devserver-1.pid'"
+        );
     }
 }

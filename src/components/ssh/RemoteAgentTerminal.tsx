@@ -31,7 +31,7 @@ import { getTerminalGpuEnabled } from '../../lib/settings';
 import { loadNerdFonts } from '../../lib/fonts';
 import { logger } from '../../lib/logger';
 import { asCommandError, formatCommandError } from '../../lib/errors';
-import { buildSshTerminalArgs, type SshServer } from '../../lib/ssh';
+import { buildRemoteAgentCommand, buildSshTerminalArgs, type SshServer } from '../../lib/ssh';
 import type { AgentConfig } from '../../lib/agent';
 import { Button } from '../primitives/Button';
 import '@xterm/xterm/css/xterm.css';
@@ -130,7 +130,6 @@ export function RemoteAgentTerminal({
     const sshArgs = buildSshTerminalArgs(server);
     // Remove the trailing "user@host" — we need to append the remote command
     const connArgs = sshArgs.slice(0, -1);
-    const remoteCmd = `cd ${remotePath} && ${agent.binaryName}`;
 
     term.writeln(
       `\x1b[2mStarting ${agent.displayName} on ${server.username}@${server.host}:${remotePath}...\x1b[0m`
@@ -138,6 +137,7 @@ export function RemoteAgentTerminal({
 
     void (async () => {
       try {
+        const remoteCmd = buildRemoteAgentCommand(remotePath, agent.binaryName);
         await openPtySession({
           sessionId,
           command: 'ssh',

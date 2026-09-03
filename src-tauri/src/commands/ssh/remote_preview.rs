@@ -10,7 +10,7 @@
 //! serving HTTP (i.e., the remote dev server is up).
 
 use super::config;
-use super::connection::build_ssh_args;
+use super::connection::build_ssh_connection_args;
 use crate::errors::CommandError;
 use crate::utils::create_command;
 use serde::Serialize;
@@ -103,21 +103,9 @@ pub async fn start_remote_preview_tunnel(
         "-N".into(),
     ];
 
-    // Add the standard connection args (port, key, etc.) except the trailing
-    // command that build_ssh_args would add — -N replaces it.
-    let mut conn_args = build_ssh_args(&server);
-    // Remove any trailing command argument (build_ssh_args appends "echo __cripcode_ssh_ok__")
-    if conn_args.last().map(|s| s.as_str()) == Some("echo") || conn_args.len() >= 2 {
-        // The last two args are "echo" and "__cripcode_ssh_ok__"
-        if conn_args.len() >= 2
-            && conn_args[conn_args.len() - 2] == "echo"
-            && conn_args[conn_args.len() - 1] == "__cripcode_ssh_ok__"
-        {
-            conn_args.truncate(conn_args.len() - 2);
-        }
-    }
-    // Also remove the BatchMode=yes for tunnels — we want them to stay alive
-    // without prompting, but some setups need password auth.
+    // Add the standard connection args (port, key, etc.) without a remote
+    // command. The tunnel itself uses -N.
+    let conn_args = build_ssh_connection_args(&server);
     args.extend(conn_args);
 
     // Spawn the SSH tunnel process

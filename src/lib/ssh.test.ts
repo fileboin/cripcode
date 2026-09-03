@@ -9,6 +9,7 @@ import {
   connectSsh,
   disconnectSsh,
   getSshConnectionState,
+  buildRemoteAgentCommand,
   buildSshTerminalArgs,
   type SshServer,
 } from './ssh';
@@ -198,5 +199,19 @@ describe('buildSshTerminalArgs', () => {
   it('ends with user@host', () => {
     const args = buildSshTerminalArgs(server);
     expect(args[args.length - 1]).toBe('deploy@example.com');
+  });
+});
+
+describe('buildRemoteAgentCommand', () => {
+  it('quotes the remote path while preserving the agent command', () => {
+    expect(buildRemoteAgentCommand('/srv/app; touch /tmp/injected', 'claude')).toBe(
+      "cd '/srv/app; touch /tmp/injected' && 'claude'"
+    );
+  });
+
+  it('rejects unsupported agent binaries', () => {
+    expect(() => buildRemoteAgentCommand('/srv/app', 'claude; touch /tmp/injected')).toThrow(
+      'Unsupported remote agent binary'
+    );
   });
 });
