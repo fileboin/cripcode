@@ -18,6 +18,7 @@
 //! project's terminal would otherwise look empty when switched back in.
 
 use crate::errors::CommandError;
+use crate::utils::validate_project_path;
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtySize};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -39,6 +40,33 @@ const MIN_PTY_DIMENSION: u16 = 2;
 /// Clamp a requested PTY size to the minimum ConPTY tolerates.
 fn clamp_pty_size(rows: u16, cols: u16) -> (u16, u16) {
     (rows.max(MIN_PTY_DIMENSION), cols.max(MIN_PTY_DIMENSION))
+}
+
+/// Constrain a session's working directory the same way `spawn_pty` does (see
+/// `commands/pty/spawn.rs`): a compromised webview must not be able to spawn a
+/// terminal process anywhere on disk. `None` is legitimate — SSH remote
+/// terminals run `ssh` with no local cwd.
+fn validated_session_cwd(cwd: Option<String>) -> Result<Option<String>, CommandError> {
+    match cwd {
+        None => Ok(None),
+        Some(c) => Ok(Some(
+            validate_project_path(&c)?.to_string_lossy().to_string(),
+        )),
+    }
+}
+
+/// Same containment for the project path that keys the session and drives
+/// server-side workspace credential injection — it must name a real
+/// Cripcode/registered project.
+fn validated_session_project_path(
+    project_path: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    match project_path {
+        None => Ok(None),
+        Some(p) => Ok(Some(
+            validate_project_path(&p)?.to_string_lossy().to_string(),
+        )),
+    }
 }
 
 /// Ring buffer + cumulative-offset accounting, guarded by ONE mutex so that
@@ -248,6 +276,12 @@ pub async fn pty_session_open(
             map.remove(&session_id);
         }
     }
+
+    // Same containment as `spawn_pty` (see commands/pty/spawn.rs): a
+    // compromised webview must not be able to spawn a terminal process
+    // anywhere on disk. Validate before allocating any PTY resources.
+    let cwd = validated_session_cwd(cwd)?;
+    let project_path = validated_session_project_path(project_path)?;
 
     let (rows, cols) = clamp_pty_size(rows, cols);
     let pty_system = native_pty_system();
@@ -1167,5 +1201,65 @@ mod tests {
              the quoted argument did not reach PowerShell intact.\n\
              timed_out: {timed_out}\nExit status: {status:?}\nCaptured PTY output:\n{output}"
         );
+    }
+
+    /// Security: the webview-supplied session cwd must pass the same
+    /// containment as `spawn_pty` (mirrors utils.rs validate_project_path_tests).
+    mod session_path_validation_tests {
+        use super::*;
+
+        #[test]
+        fn session_cwd_none_passes_validation() {
+            assert!(validated_session_cwd(None).unwrap().is_none());
+        }
+
+        #[test]
+        fn session_project_path_none_passes_validation() {
+            assert!(validated_session_project_path(None).unwrap().is_none());
+        }
+
+        #[test]
+        fn session_cwd_rejects_parent_dir_traversal() {
+            let result = validated_session_cwd(Some("../../../../etc".to_string()));
+            assert!(result.is_err(), "traversal cwd must be rejected");
+        }
+
+        #[test]
+        fn session_project_path_rejects_parent_dir_traversal() {
+            let result = validated_session_project_path(Some("../../../../etc".to_string()));
+            assert!(result.is_err(), "traversal project path must be rejected");
+        }
+
+        #[test]
+        fn session_cwd_rejects_windows_system_dir() {
+            // Absolute outside the project roots on Windows; a relative,
+            // non-existent path everywhere else — both must be rejected.
+            let result = validated_session_cwd(Some("C:\\Windows".to_string()));
+            assert!(
+                result.is_err(),
+                "C:\\Windows is outside the project roots, must be rejected"
+            );
+        }
+
+        #[test]
+        fn session_project_path_accepts_registered_root_path() {
+            let root = dirs::home_dir().expect("home dir").join("CripCode");
+            if std::fs::create_dir_all(&root).is_err() {
+                eprintln!("skipping: couldn't create ~/CripCode");
+                return;
+            }
+            let test_dir = root.join(".pty-session-validate-test");
+            if std::fs::create_dir_all(&test_dir).is_err() {
+                eprintln!("skipping: couldn't create test dir");
+                return;
+            }
+            let result =
+                validated_session_project_path(Some(test_dir.to_string_lossy().to_string()));
+            let _ = std::fs::remove_dir(&test_dir); // best-effort cleanup
+            assert!(
+                result.is_ok(),
+                "path inside ~/CripCode should validate, got {result:?}"
+            );
+        }
     }
 }
