@@ -36,7 +36,22 @@ fn load_config() -> Result<SshServersConfig, String> {
     serde_json::from_str(&contents).map_err(|e| format!("Failed to parse SSH servers config: {e}"))
 }
 
+/// Temporary file used while persisting the config, in the same directory so
+/// the final `rename` stays on one filesystem (and therefore atomic).
+fn temp_config_path(config_path: &std::path::Path) -> PathBuf {
+    let file_name = config_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("ssh-servers.json");
+    config_path.with_file_name(format!(".{file_name}.tmp"))
+}
+
 /// Save the SSH servers config to disk, creating the parent directory if needed.
+///
+/// Atomic write: write to a temp file in the same directory, then rename over
+/// the real file — `rename` is atomic on the same filesystem, so a reader can
+/// never observe a half-written config and an interrupted write leaves the
+/// previous `ssh-servers.json` intact instead of truncated.
 fn save_config(config: &SshServersConfig) -> Result<(), String> {
     let config_path = get_config_path()?;
 
@@ -50,8 +65,14 @@ fn save_config(config: &SshServersConfig) -> Result<(), String> {
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| format!("Failed to serialize SSH servers config: {e}"))?;
 
-    std::fs::write(&config_path, json)
-        .map_err(|e| format!("Failed to write SSH servers config: {e}"))
+    let temp_path = temp_config_path(&config_path);
+    std::fs::write(&temp_path, &json)
+        .map_err(|e| format!("Failed to write SSH servers config: {e}"))?;
+
+    std::fs::rename(&temp_path, &config_path).map_err(|e| {
+        let _ = std::fs::remove_file(&temp_path);
+        format!("Failed to replace SSH servers config: {e}")
+    })
 }
 
 /// Validate a server name: non-empty, at most 100 chars.
@@ -114,26 +135,73 @@ fn validate_username(username: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
-/// Validate a key path: if provided, must be an absolute filesystem path.
-/// The key file itself is never read by Cripcode — only its path is stored.
-fn validate_key_path(key_path: &Option<String>) -> Result<(), CommandError> {
-    if let Some(path) = key_path {
-        let trimmed = path.trim();
-        if trimmed.is_empty() {
-            return Err(CommandError::Validation {
-                field: "keyPath".into(),
-                reason: "Key path must not be empty when provided".into(),
-            });
-        }
-        let pb = std::path::Path::new(trimmed);
-        if !pb.is_absolute() {
-            return Err(CommandError::Validation {
-                field: "keyPath".into(),
-                reason: "Key path must be an absolute filesystem path".into(),
-            });
-        }
+/// Expand a leading `~` to the user's home directory so the stored key path is
+/// absolute everywhere (the ssh CLI's own tilde handling differs per platform).
+fn expand_home(path: &str) -> Result<String, CommandError> {
+    if path != "~" && !path.starts_with("~/") && !path.starts_with("~\\") {
+        return Ok(path.to_string());
     }
-    Ok(())
+    let home = dirs::home_dir().ok_or_else(|| CommandError::Validation {
+        field: "keyPath".into(),
+        reason: "Could not resolve the home directory".into(),
+    })?;
+    if path == "~" {
+        return Ok(home.to_string_lossy().to_string());
+    }
+    Ok(home.join(&path[2..]).to_string_lossy().to_string())
+}
+
+/// Normalize and validate a key path: expand a leading `~`, then require an
+/// absolute path inside the user's home directory. The key file itself is
+/// never read by Cripcode — only the normalized path is stored and handed to
+/// the ssh CLI. Returns the path to persist, or None when no key is configured.
+fn normalize_key_path(key_path: &Option<String>) -> Result<Option<String>, CommandError> {
+    let Some(path) = key_path else {
+        return Ok(None);
+    };
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Key path must not be empty when provided".into(),
+        });
+    }
+
+    let expanded = expand_home(trimmed)?;
+    let pb = std::path::Path::new(&expanded);
+    if !pb.is_absolute() {
+        return Err(CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Key path must be an absolute filesystem path".into(),
+        });
+    }
+    if pb
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Key path must not contain ..".into(),
+        });
+    }
+
+    // Keys live under the user's home in every normal setup (any subfolder —
+    // no fixed `.ssh` assumption); paths outside it are rejected so a
+    // compromised webview can't point `-i` at arbitrary system files.
+    let canonical = dunce::canonicalize(pb).unwrap_or_else(|_| pb.to_path_buf());
+    let home = dirs::home_dir().ok_or_else(|| CommandError::Validation {
+        field: "keyPath".into(),
+        reason: "Could not resolve the home directory".into(),
+    })?;
+    let home_canonical = dunce::canonicalize(&home).unwrap_or(home);
+    if !canonical.starts_with(&home_canonical) {
+        return Err(CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Key path must be inside your home directory".into(),
+        });
+    }
+
+    Ok(Some(expanded))
 }
 
 /// List all saved SSH server configurations.
@@ -157,7 +225,7 @@ pub fn add_ssh_server(
     validate_name(&name)?;
     validate_host(&host)?;
     validate_username(&username)?;
-    validate_key_path(&key_path)?;
+    let key_path = normalize_key_path(&key_path)?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -170,14 +238,7 @@ pub fn add_ssh_server(
         host: host.trim().to_string(),
         port: port.or(Some(22)),
         username: username.trim().to_string(),
-        key_path: key_path.and_then(|p| {
-            let t = p.trim();
-            if t.is_empty() {
-                None
-            } else {
-                Some(t.to_string())
-            }
-        }),
+        key_path,
         created_at: now,
         last_connected_at: None,
     };
@@ -202,7 +263,7 @@ pub fn update_ssh_server(
     validate_name(&name)?;
     validate_host(&host)?;
     validate_username(&username)?;
-    validate_key_path(&key_path)?;
+    let key_path = normalize_key_path(&key_path)?;
 
     let mut config = load_config().map_err(CommandError::from)?;
     let server = config
@@ -218,14 +279,7 @@ pub fn update_ssh_server(
     server.host = host.trim().to_string();
     server.port = port.or(Some(22));
     server.username = username.trim().to_string();
-    server.key_path = key_path.and_then(|p| {
-        let t = p.trim();
-        if t.is_empty() {
-            None
-        } else {
-            Some(t.to_string())
-        }
-    });
+    server.key_path = key_path;
 
     let updated = server.clone();
     save_config(&config).map_err(CommandError::from)?;
@@ -301,17 +355,62 @@ mod tests {
     }
 
     #[test]
-    fn validate_key_path_accepts_none() {
-        assert!(validate_key_path(&None).is_ok());
+    fn normalize_key_path_accepts_none() {
+        assert!(normalize_key_path(&None).unwrap().is_none());
     }
 
     #[test]
-    fn validate_key_path_rejects_relative() {
-        assert!(validate_key_path(&Some("relative/path".into())).is_err());
+    fn normalize_key_path_rejects_empty() {
+        assert!(normalize_key_path(&Some("   ".into())).is_err());
     }
 
     #[test]
-    fn validate_key_path_accepts_absolute() {
-        assert!(validate_key_path(&Some("/Users/me/.ssh/id_ed25519".into())).is_ok());
+    fn normalize_key_path_rejects_relative() {
+        assert!(normalize_key_path(&Some("relative/path".into())).is_err());
+    }
+
+    #[test]
+    fn normalize_key_path_accepts_paths_inside_home() {
+        let home = dirs::home_dir().expect("home dir");
+        let path = home.join(".ssh").join("id_ed25519");
+        let normalized = normalize_key_path(&Some(path.to_string_lossy().to_string()))
+            .unwrap()
+            .expect("normalized path");
+        assert!(normalized.ends_with("id_ed25519"));
+    }
+
+    #[test]
+    fn normalize_key_path_expands_tilde_into_home() {
+        let home = dirs::home_dir().expect("home dir");
+        let normalized = normalize_key_path(&Some("~/.ssh/id_ed25519".into()))
+            .unwrap()
+            .expect("expanded path");
+        assert!(normalized.starts_with(&home.to_string_lossy().to_string()));
+        assert!(normalized.ends_with("id_ed25519"));
+    }
+
+    #[test]
+    fn normalize_key_path_rejects_paths_outside_home() {
+        let home = dirs::home_dir().expect("home dir");
+        let outside = home
+            .parent()
+            .expect("home has a parent")
+            .join("key-outside-home");
+        assert!(normalize_key_path(&Some(outside.to_string_lossy().to_string())).is_err());
+    }
+
+    #[test]
+    fn normalize_key_path_rejects_parent_dir_traversal() {
+        let home = dirs::home_dir().expect("home dir");
+        let traversal = home.join("..").join("etc").join("id_ed25519");
+        assert!(normalize_key_path(&Some(traversal.to_string_lossy().to_string())).is_err());
+    }
+
+    #[test]
+    fn temp_config_path_is_hidden_tmp_sibling_of_the_real_file() {
+        let real = std::path::Path::new("/home/user/.cripcode/ssh-servers.json");
+        let temp = temp_config_path(real);
+        assert_eq!(temp.parent(), real.parent());
+        assert_eq!(temp.file_name().unwrap(), ".ssh-servers.json.tmp");
     }
 }
