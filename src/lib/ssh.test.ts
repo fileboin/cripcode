@@ -11,6 +11,9 @@ import {
   getSshConnectionState,
   buildRemoteAgentCommand,
   buildSshTerminalArgs,
+  checkRemoteHostKey,
+  acceptRemoteHostKey,
+  resolveHostKeyAction,
   type SshServer,
 } from './ssh';
 
@@ -213,5 +216,40 @@ describe('buildRemoteAgentCommand', () => {
     expect(() => buildRemoteAgentCommand('/srv/app', 'claude; touch /tmp/injected')).toThrow(
       'Unsupported remote agent binary'
     );
+  });
+});
+
+describe('host key confirmation', () => {
+  it('checkRemoteHostKey passes the server id', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'check_remote_host_key') {
+        expect(args).toMatchObject({ serverId: 'abc-123' });
+        return { state: 'unknown', fingerprint: 'SHA256:AbC', keyType: 'ed25519' };
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(checkRemoteHostKey('abc-123')).resolves.toEqual({
+      state: 'unknown',
+      fingerprint: 'SHA256:AbC',
+      keyType: 'ed25519',
+    });
+  });
+
+  it('acceptRemoteHostKey passes the server id', async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === 'accept_remote_host_key') {
+        expect(args).toMatchObject({ serverId: 'abc-123' });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    await expect(acceptRemoteHostKey('abc-123')).resolves.toBeNull();
+  });
+
+  it('resolveHostKeyAction maps states to UI actions', () => {
+    expect(resolveHostKeyAction('known')).toBe('proceed');
+    expect(resolveHostKeyAction('probe-unavailable')).toBe('proceed');
+    expect(resolveHostKeyAction('unknown')).toBe('prompt');
+    expect(resolveHostKeyAction('changed')).toBe('block');
   });
 });

@@ -20,9 +20,21 @@ interface AddServerModalProps {
   onSaved: () => void;
   /** When set, the modal operates in edit mode with pre-filled values. */
   editServer?: SshServer | null;
+  /**
+   * Explicit host-key confirmation gate. When provided, "Test" runs it after
+   * the server is persisted (the probe needs a server id) and before the
+   * connection test — unknown hosts must be confirmed, changed blocked.
+   */
+  ensureHostKeyAccepted?: (server: SshServer) => Promise<boolean>;
 }
 
-export function AddServerModal({ isOpen, onClose, onSaved, editServer }: AddServerModalProps) {
+export function AddServerModal({
+  isOpen,
+  onClose,
+  onSaved,
+  editServer,
+  ensureHostKeyAccepted,
+}: AddServerModalProps) {
   const isEdit = !!editServer;
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
@@ -72,10 +84,15 @@ export function AddServerModal({ isOpen, onClose, onSaved, editServer }: AddServ
     setTestResult(null);
     try {
       let serverId = editServer?.id;
+      let target = editServer ?? undefined;
       if (!serverId) {
         const saved = await addSshServer(buildConfig());
         serverId = saved.id;
+        target = saved;
         setTestResult('Server saved. Testing connection...');
+      }
+      if (serverId && ensureHostKeyAccepted) {
+        if (target && !(await ensureHostKeyAccepted(target))) return;
       }
       if (serverId) {
         await testSshConnection(serverId);

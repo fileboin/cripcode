@@ -14,6 +14,7 @@ import { Button } from '../primitives/Button';
 import { Spinner } from '../primitives/Spinner';
 import { useAsyncState } from '../../hooks/useAsyncState';
 import { usePolling } from '../../hooks/usePolling';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
 import { useOptionalToast } from '../../contexts/ToastContext';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import {
@@ -42,6 +43,7 @@ export function ServerList() {
   const [filesServer, setFilesServer] = useState<SshServer | null>(null);
   const [ollamaServer, setOllamaServer] = useState<SshServer | null>(null);
   const [showLocalOllama, setShowLocalOllama] = useState(false);
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
 
   const loadServers = useCallback(async () => {
     try {
@@ -94,6 +96,7 @@ export function ServerList() {
   };
 
   const handleConnect = async (server: SshServer) => {
+    if (!(await ensureHostKeyAccepted(server))) return;
     try {
       await connectSsh(server.id);
       await refreshStates();
@@ -113,7 +116,23 @@ export function ServerList() {
     }
   };
 
+  const handleOpenTerminal = async (server: SshServer) => {
+    if (!(await ensureHostKeyAccepted(server))) return;
+    setTerminalServer(server);
+  };
+
+  const handleOpenFiles = async (server: SshServer) => {
+    if (!(await ensureHostKeyAccepted(server))) return;
+    setFilesServer(server);
+  };
+
+  const handleOpenOllama = async (server: SshServer) => {
+    if (!(await ensureHostKeyAccepted(server))) return;
+    setOllamaServer(server);
+  };
+
   const handleTest = async (server: SshServer) => {
+    if (!(await ensureHostKeyAccepted(server))) return;
     try {
       await testSshConnection(server.id);
       await refreshStates();
@@ -213,13 +232,13 @@ export function ServerList() {
                   </span>
                 </div>
                 <div className="ssh-server-actions">
-                  <Button variant="ghost" size="sm" onClick={() => setTerminalServer(server)}>
+                  <Button variant="ghost" size="sm" onClick={() => void handleOpenTerminal(server)}>
                     Terminal
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setFilesServer(server)}>
+                  <Button variant="ghost" size="sm" onClick={() => void handleOpenFiles(server)}>
                     Files
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setOllamaServer(server)}>
+                  <Button variant="ghost" size="sm" onClick={() => void handleOpenOllama(server)}>
                     Ollama
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => void handleTest(server)}>
@@ -260,7 +279,10 @@ export function ServerList() {
         onClose={() => setModalOpen(false)}
         onSaved={handleSaved}
         editServer={editServer}
+        ensureHostKeyAccepted={ensureHostKeyAccepted}
       />
+
+      {hostKeyModal}
     </div>
   );
 }

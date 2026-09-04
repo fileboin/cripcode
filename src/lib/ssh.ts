@@ -62,6 +62,37 @@ export async function getSshConnectionState(id: string): Promise<SshConnectionSt
   return invoke<SshConnectionState>('get_ssh_connection_state', { id });
 }
 
+export type RemoteHostKeyState = 'known' | 'unknown' | 'changed' | 'probe-unavailable';
+
+export interface HostKeyStatus {
+  state: RemoteHostKeyState;
+  fingerprint: string | null;
+  keyType: string | null;
+}
+
+/** Probe the host's key and compare it against the user's known_hosts. */
+export async function checkRemoteHostKey(serverId: string): Promise<HostKeyStatus> {
+  return invoke<HostKeyStatus>('check_remote_host_key', { serverId });
+}
+
+/** Record the user's explicit trust decision in the user's known_hosts. */
+export async function acceptRemoteHostKey(serverId: string): Promise<void> {
+  return invoke<void>('accept_remote_host_key', { serverId });
+}
+
+/** What the UI should do for a probed host key. */
+export function resolveHostKeyAction(state: RemoteHostKeyState): 'proceed' | 'prompt' | 'block' {
+  switch (state) {
+    case 'known':
+    case 'probe-unavailable':
+      return 'proceed';
+    case 'changed':
+      return 'block';
+    default:
+      return 'prompt';
+  }
+}
+
 const REMOTE_AGENT_BINARIES = new Set(['claude', 'codex', 'opencode', 'cursor-agent']);
 
 /** Quote one value for the POSIX shell used by the remote SSH host. */

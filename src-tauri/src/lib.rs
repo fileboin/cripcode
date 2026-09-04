@@ -785,6 +785,9 @@ pub fn run() {
             commands::ssh::connect_ssh,
             commands::ssh::disconnect_ssh,
             commands::ssh::get_ssh_connection_state,
+            // Host-key fingerprint confirmation
+            commands::ssh::check_remote_host_key,
+            commands::ssh::accept_remote_host_key,
             // Remote Filesystem
             commands::ssh::list_remote_files,
             commands::ssh::read_remote_file,

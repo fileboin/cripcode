@@ -10,6 +10,7 @@ import { useState, useCallback } from 'react';
 import { Button } from '../primitives/Button';
 import { Spinner } from '../primitives/Spinner';
 import { useAsyncState } from '../../hooks/useAsyncState';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
 import { useOptionalToast } from '../../contexts/ToastContext';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import {
@@ -29,6 +30,7 @@ interface RemoteProjectListProps {
 
 export function RemoteProjectList({ onOpenRemoteProject }: RemoteProjectListProps) {
   const { showToast } = useOptionalToast();
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
   const [projects, setProjects] = useState<RemoteProject[]>([]);
   const [servers, setServers] = useState<SshServer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +60,7 @@ export function RemoteProjectList({ onOpenRemoteProject }: RemoteProjectListProp
       showToast('SSH server not found for this project', 'error');
       return;
     }
+    if (!(await ensureHostKeyAccepted(server))) return;
     try {
       await markRemoteProjectOpened(project.id);
       if (onOpenRemoteProject) {
@@ -107,6 +110,7 @@ export function RemoteProjectList({ onOpenRemoteProject }: RemoteProjectListProp
 
   return (
     <div className="ssh-remote-project-section">
+      {hostKeyModal}
       <div
         style={{
           display: 'flex',
