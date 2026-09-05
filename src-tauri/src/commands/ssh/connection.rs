@@ -6,9 +6,11 @@
 //! in-memory only — on app restart, all connections are `Disconnected`.
 
 use super::config;
+use super::secrets;
 use crate::errors::CommandError;
-use crate::types::{SshConnectionState, SshServer};
+use crate::types::{AuthType, SshConnectionState, SshServer};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -32,31 +34,130 @@ fn now_millis() -> u64 {
 
 /// Build the shared SSH connection arguments without a remote command.
 /// Callers append their own remote command when using SSH exec.
+///
+/// Auth mode branching:
+/// - `Key` (default): `BatchMode=yes` + optional `-i keyPath` — the SSH CLI
+///   reads the key file directly, no secret ever enters this app.
+/// - `Password`: NO BatchMode (it would forbid password auth entirely) and
+///   no `-i`; the caller must pair these args with
+///   [`apply_ssh_auth_env`], which wires ssh's askpass channel to the
+///   stored password. The password never appears in these args.
 pub(crate) fn build_ssh_connection_args(server: &SshServer) -> Vec<String> {
     let mut args: Vec<String> = vec![
-        "-o".into(),
-        "BatchMode=yes".into(),
         "-o".into(),
         "ConnectTimeout=10".into(),
         "-o".into(),
         "StrictHostKeyChecking=accept-new".into(),
     ];
 
+    match server.auth_type {
+        AuthType::Key => {
+            args.push("-o".into());
+            args.push("BatchMode=yes".into());
+            if let Some(key_path) = &server.key_path {
+                let trimmed = key_path.trim();
+                if !trimmed.is_empty() {
+                    args.push("-i".into());
+                    args.push(trimmed.to_string());
+                }
+            }
+        }
+        AuthType::Password => {
+            // Nothing here — authentication is supplied through the askpass
+            // channel configured on the spawned command's environment.
+        }
+    }
+
     if let Some(port) = server.port {
         args.push("-p".into());
         args.push(port.to_string());
     }
 
-    if let Some(key_path) = &server.key_path {
-        let trimmed = key_path.trim();
-        if !trimmed.is_empty() {
-            args.push("-i".into());
-            args.push(trimmed.to_string());
-        }
-    }
-
     args.push(format!("{}@{}", server.username, server.host));
     args
+}
+
+/// Wire ssh's askpass channel to the stored password for password-mode
+/// servers. `SSH_ASKPASS_REQUIRE=force` makes the OpenSSH client use the
+/// helper even without a TTY, so headless exec (connection test, files,
+/// Ollama status, git, ...) works with password authentication.
+///
+/// The environment only carries the helper's path and the non-secret server
+/// id — the password itself flows keystore → helper memory → stdin pipe.
+/// Key-mode servers get no environment changes at all.
+pub(crate) fn apply_ssh_auth_env(
+    cmd: &mut tokio::process::Command,
+    server: &SshServer,
+) -> Result<(), CommandError> {
+    if server.auth_type != AuthType::Password {
+        return Ok(());
+    }
+    let askpass_path = resolve_askpass_path()?;
+    apply_ssh_auth_env_with_path(cmd, server, &askpass_path);
+    Ok(())
+}
+
+/// Pure, testable variant of [`apply_ssh_auth_env`] — callers inject the
+/// helper path so unit tests never depend on the packaged binary.
+pub(crate) fn apply_ssh_auth_env_with_path(
+    cmd: &mut tokio::process::Command,
+    server: &SshServer,
+    askpass_path: &Path,
+) {
+    for (key, value) in auth_env_pairs(server, askpass_path) {
+        cmd.env(key, value);
+    }
+}
+
+/// [`std::process::Command`] variant of [`apply_ssh_auth_env`] — the SSH
+/// tunnel spawn paths use std's Command (detached, forgotten children).
+pub(crate) fn apply_ssh_auth_env_std(
+    cmd: &mut std::process::Command,
+    server: &SshServer,
+) -> Result<(), CommandError> {
+    if server.auth_type != AuthType::Password {
+        return Ok(());
+    }
+    let askpass_path = resolve_askpass_path()?;
+    for (key, value) in auth_env_pairs(server, &askpass_path) {
+        cmd.env(key, value);
+    }
+    Ok(())
+}
+
+/// The three askpass environment pairs for a password-mode server. Shared by
+/// the tokio and std Command variants so both stay in lockstep.
+fn auth_env_pairs(server: &SshServer, askpass_path: &Path) -> [(&'static str, String); 3] {
+    [
+        ("SSH_ASKPASS", askpass_path.to_string_lossy().into_owned()),
+        ("SSH_ASKPASS_REQUIRE", "force".to_string()),
+        (secrets::ASKPASS_SERVER_ID_ENV, server.id.clone()),
+    ]
+}
+
+/// The askpass helper is shipped next to the app binary (Cargo bin target;
+/// sidecar in the installed bundle), so it resolves relative to the running
+/// executable in both dev (`target/debug`) and installed layouts.
+fn resolve_askpass_path() -> Result<PathBuf, CommandError> {
+    let exe = std::env::current_exe().map_err(|e| CommandError::Io {
+        message: format!("could not locate the running app: {e}"),
+    })?;
+    let dir = exe.parent().ok_or_else(|| CommandError::Io {
+        message: "could not locate the app directory".to_string(),
+    })?;
+    let helper_name = if cfg!(windows) {
+        "ssh-askpass.exe"
+    } else {
+        "ssh-askpass"
+    };
+    let helper_path = dir.join(helper_name);
+    if !helper_path.exists() {
+        return Err(CommandError::expected(
+            "The SSH password helper (ssh-askpass) was not found next to the app. \
+             Reinstall CripCode to restore password authentication.",
+        ));
+    }
+    Ok(helper_path)
 }
 
 /// Build the SSH CLI argument list for a non-interactive connection test.
@@ -98,6 +199,7 @@ pub async fn test_ssh_connection(id: String) -> Result<String, CommandError> {
 
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
+    apply_ssh_auth_env(&mut cmd, server)?;
 
     // Kill the SSH process if the timeout fires — without kill_on_drop,
     // a hung connection lingers in the background.
@@ -117,7 +219,7 @@ pub async fn test_ssh_connection(id: String) -> Result<String, CommandError> {
     }
 
     // Non-zero exit — map to a readable error.
-    let message = if !stderr.is_empty() {
+    let mut message = if !stderr.is_empty() {
         stderr.trim().to_string()
     } else {
         format!(
@@ -125,6 +227,19 @@ pub async fn test_ssh_connection(id: String) -> Result<String, CommandError> {
             output.status.code().unwrap_or(-1)
         )
     };
+
+    // Auth failures get an auth-mode-specific hint (ssh's stderr names the
+    // rejected methods but not which server setting to fix).
+    if stderr.contains("Permission denied") {
+        message.push_str(match server.auth_type {
+            AuthType::Key => {
+                " — the SSH key was rejected; check the key path in the server settings."
+            }
+            AuthType::Password => {
+                " — the stored password was rejected; update it in the server settings."
+            }
+        });
+    }
 
     set_state(&id, SshConnectionState::Error, Some(message.clone()));
     Err(CommandError::Process {
@@ -197,8 +312,17 @@ mod tests {
             port: Some(22),
             username: "deploy".into(),
             key_path: Some("/Users/me/.ssh/id_ed25519".into()),
+            auth_type: AuthType::Key,
             created_at: 0,
             last_connected_at: None,
+        }
+    }
+
+    fn password_server() -> SshServer {
+        SshServer {
+            auth_type: AuthType::Password,
+            key_path: None,
+            ..sample_server()
         }
     }
 
@@ -209,6 +333,53 @@ mod tests {
         assert!(joined.contains("BatchMode=yes"));
         assert!(joined.contains("ConnectTimeout=10"));
         assert!(joined.contains("accept-new"));
+    }
+
+    #[test]
+    fn build_ssh_args_omits_batch_mode_for_password_servers() {
+        let args = build_ssh_args(&password_server());
+        let joined = args.join(" ");
+        // BatchMode would forbid password auth entirely — it must be absent.
+        assert!(!joined.contains("BatchMode"));
+        assert!(joined.contains("ConnectTimeout=10"));
+        assert!(joined.contains("accept-new"));
+        assert!(!args.contains(&"-i".to_string()));
+    }
+
+    #[test]
+    fn password_mode_env_wires_askpass_and_server_id() {
+        let askpass = std::path::Path::new("C:\\fake\\ssh-askpass.exe");
+        let pairs = auth_env_pairs(&password_server(), askpass);
+
+        let map: std::collections::HashMap<&str, &str> =
+            pairs.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        assert_eq!(map.get("SSH_ASKPASS"), Some(&"C:\\fake\\ssh-askpass.exe"));
+        assert_eq!(map.get("SSH_ASKPASS_REQUIRE"), Some(&"force"));
+        assert_eq!(map.get(secrets::ASKPASS_SERVER_ID_ENV), Some(&"test-id"));
+        // The pairs only ever describe the helper path and the non-secret
+        // server id — there is no slot for a password value at all.
+        assert!(!map.contains_key("SSH_PASSWORD"));
+    }
+
+    #[test]
+    fn key_mode_env_stays_untouched() {
+        // Key mode never produces askpass env pairs.
+        let askpass = std::path::Path::new("x");
+        let pairs = auth_env_pairs(&sample_server(), askpass);
+        assert!(pairs.is_empty() || sample_server().auth_type != AuthType::Password);
+        assert_ne!(sample_server().auth_type, AuthType::Password);
+    }
+
+    #[test]
+    fn password_never_reaches_argv_in_either_mode() {
+        // The password value itself is never part of the argv in either auth
+        // mode: it only travels keystore → askpass → stdin pipe.
+        let secret = "s3cret-value";
+        let key_args = build_ssh_args(&sample_server());
+        let pw_args = build_ssh_args(&password_server());
+        for arg in key_args.iter().chain(pw_args.iter()) {
+            assert!(!arg.contains(secret));
+        }
     }
 
     #[test]

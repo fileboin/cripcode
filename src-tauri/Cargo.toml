@@ -53,6 +53,11 @@ tauri-plugin-process = "2.3.1"
 tauri-plugin-deep-link = "2"
 semver = "1"
 tracing = "0.1"
+# SSH password auth: passwords live in the OS keystore (Windows Credential
+# Manager / macOS Keychain / Secret Service), never in the servers JSON file.
+# keyring v3 enables NO platform store by default — windows-native is
+# REQUIRED, otherwise set/get silently hit the in-memory mock store.
+keyring = { version = "3", features = ["windows-native"] }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tracing-appender = "0.2"
 sentry = { version = "0.34", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }

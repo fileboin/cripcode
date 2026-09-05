@@ -81,6 +81,7 @@ async fn run_remote(
     let args = build_remote_ssh_args(&server, remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
+    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
     crate::external_command::run_with_timeout(cmd, label, SSH_DEV_TIMEOUT_SECS).await
 }
 

@@ -91,6 +91,7 @@ async fn run_ssh_exec(
     let args = build_ssh_exec_args(server, remote_cmd);
     let mut cmd = Command::new("ssh");
     cmd.args(&args);
+    super::connection::apply_ssh_auth_env(&mut cmd, server)?;
     crate::external_command::run_with_timeout(cmd, label, SSH_FILE_TIMEOUT_SECS).await
 }
 
@@ -105,6 +106,7 @@ async fn run_ssh_exec_with_stdin(
     let args = build_ssh_exec_args(server, remote_cmd);
     let mut cmd = Command::new("ssh");
     cmd.args(&args);
+    super::connection::apply_ssh_auth_env(&mut cmd, server)?;
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -404,6 +406,7 @@ mod tests {
             port: Some(22),
             username: "deploy".into(),
             key_path: None,
+            auth_type: crate::types::AuthType::Key,
             created_at: 0,
             last_connected_at: None,
         };

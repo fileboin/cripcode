@@ -953,8 +953,24 @@ pub struct SshServersConfig {
     pub servers: Vec<SshServer>,
 }
 
+/// How a server authenticates. `Key` shells out to the SSH CLI with the
+/// stored key path (no secret ever enters this app); `Password` reads the
+/// password from the OS keystore at connect time and feeds it to ssh through
+/// the askpass helper — it never touches the servers JSON file, argv, or the
+/// environment.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthType {
+    #[default]
+    Key,
+    Password,
+}
+
 /// An SSH server configuration. The private key file itself is never read into
 /// memory — only its filesystem path is stored. SSH CLI reads the key directly.
+/// A password-mode server keeps its password ONLY in the OS keystore, keyed by
+/// [`SshServer::id`]; this struct is serialized to `ssh-servers.json`, so it
+/// must never carry one.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SshServer {
@@ -970,6 +986,10 @@ pub struct SshServer {
     pub username: String,
     /// Absolute filesystem path to the private key (e.g. `~/.ssh/id_ed25519`).
     pub key_path: Option<String>,
+    /// How the server authenticates. Defaults to [`AuthType::Key`] so config
+    /// files written before password support load unchanged.
+    #[serde(default)]
+    pub auth_type: AuthType,
     /// Unix ms timestamp of creation.
     pub created_at: u64,
     /// Unix ms timestamp of the last successful connection (None = never).
@@ -1022,6 +1042,49 @@ pub struct RemoteProject {
     pub created_at: u64,
     /// Unix ms timestamp of last time this project was opened.
     pub last_opened: Option<u64>,
+}
+
+#[cfg(test)]
+mod ssh_server_tests {
+    use super::{AuthType, SshServer};
+
+    /// Config files written before password support have no `authType` —
+    /// they must load as key-authentication servers, unchanged.
+    #[test]
+    fn missing_auth_type_deserializes_as_key() {
+        let json = r#"{
+            "id": "srv-1",
+            "name": "Old VPS",
+            "host": "example.com",
+            "port": 22,
+            "username": "deploy",
+            "keyPath": null,
+            "createdAt": 0,
+            "lastConnectedAt": null
+        }"#;
+        let server: SshServer = serde_json::from_str(json).unwrap();
+        assert_eq!(server.auth_type, AuthType::Key);
+    }
+
+    #[test]
+    fn auth_type_serializes_camel_case_and_round_trips() {
+        let json = r#"{
+            "id": "srv-2",
+            "name": "Pw VPS",
+            "host": "203.0.113.1",
+            "port": null,
+            "username": "root",
+            "keyPath": null,
+            "authType": "password",
+            "createdAt": 0,
+            "lastConnectedAt": null
+        }"#;
+        let server: SshServer = serde_json::from_str(json).unwrap();
+        assert_eq!(server.auth_type, AuthType::Password);
+        let serialized = serde_json::to_string(&server).unwrap();
+        assert!(serialized.contains("\"authType\":\"password\""));
+        assert!(!serialized.contains("password_password"));
+    }
 }
 
 #[cfg(test)]

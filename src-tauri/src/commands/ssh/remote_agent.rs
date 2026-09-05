@@ -76,6 +76,7 @@ pub async fn check_remote_agent_installed(
     let args = build_remote_ssh_args(&server, &build_agent_check_command(binary_trimmed));
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
+    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
 
     let label = format!("ssh check-agent {}", server.name);
     let output =

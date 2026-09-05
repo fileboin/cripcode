@@ -66,6 +66,7 @@ async fn run_remote_git(
     let args = build_remote_ssh_args(&server, &remote_cmd);
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.args(&args);
+    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
     let label = format!("ssh git {} {}", server.name, git_args);
     crate::external_command::run_with_timeout(cmd, &label, timeout_secs).await
 }
@@ -366,6 +367,7 @@ pub async fn remote_git_diff(
         );
         let mut cmd = tokio::process::Command::new("ssh");
         cmd.args(&ssh_args);
+        super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
         let label = format!("ssh git cat {}", server.name);
         let output =
             crate::external_command::run_with_timeout(cmd, &label, SSH_GIT_TIMEOUT_SECS).await?;

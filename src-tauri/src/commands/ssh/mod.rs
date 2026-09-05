@@ -20,6 +20,8 @@ mod remote_dev_server;
 mod remote_git;
 mod remote_preview;
 mod remote_projects;
+/// Public so the `ssh-askpass` helper binary can reuse the keystore wiring.
+pub mod secrets;
 
 pub use ai_provider::*;
 pub use config::*;
@@ -118,6 +120,7 @@ mod shell_quote_tests {
             port: Some(22),
             username: "deploy".into(),
             key_path: None,
+            auth_type: crate::types::AuthType::Key,
             created_at: 0,
             last_connected_at: None,
         };

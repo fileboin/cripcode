@@ -116,6 +116,7 @@ pub async fn start_remote_preview_tunnel(
         use std::os::unix::process::CommandExt;
         let mut cmd = create_command("ssh");
         cmd.args(&args);
+        super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
         unsafe {
             cmd.pre_exec(|| {
                 libc::setsid();
@@ -145,6 +146,7 @@ pub async fn start_remote_preview_tunnel(
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+        super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
 
         let child = cmd.spawn().map_err(|e| CommandError::Io {
             message: format!("Failed to start SSH tunnel: {e}"),

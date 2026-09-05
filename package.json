@@ -19,6 +19,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "copy:askpass": "node scripts/copy-askpass.js",
+    "dev:askpass": "cargo build --manifest-path src-tauri/Cargo.toml --bin ssh-askpass",
     "test": "vitest",
     "test:run": "vitest run",
     "test:watch": "vitest --watch",

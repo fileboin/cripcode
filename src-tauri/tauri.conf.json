@@ -7,6 +7,7 @@
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "pnpm copy:askpass",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,6 +30,9 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
+    ],
+    "externalBin": [
+      "binaries/ssh-askpass"
     ],
     "resources": {
       "fonts/*": "fonts/",

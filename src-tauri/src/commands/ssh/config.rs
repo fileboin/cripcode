@@ -3,10 +3,14 @@
 //! Server configs are stored in `~/CripCode/.cripcode/ssh-servers.json`,
 //! following the same pattern as `external-projects.json`. The private key
 //! file itself is never read into memory — only its filesystem path is stored.
+//! A password-mode server's password is never written to this file at all:
+//! it lives in the OS keystore (see [`secrets`]) keyed by server id, and the
+//! add/update/delete flows below pass it through transiently.
 
+use super::secrets::{KeyringStore, SecretStore};
 use crate::errors::CommandError;
-use crate::types::{SshServer, SshServersConfig, SSH_SERVERS_CONFIG_SCHEMA_VERSION};
-use std::path::PathBuf;
+use crate::types::{AuthType, SshServer, SshServersConfig, SSH_SERVERS_CONFIG_SCHEMA_VERSION};
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 /// Get the path to the SSH servers config file.
@@ -22,7 +26,10 @@ fn get_config_path() -> Result<PathBuf, String> {
 /// doesn't exist yet (first run).
 fn load_config() -> Result<SshServersConfig, String> {
     let config_path = get_config_path()?;
+    load_config_from(&config_path)
+}
 
+fn load_config_from(config_path: &Path) -> Result<SshServersConfig, String> {
     if !config_path.exists() {
         return Ok(SshServersConfig {
             schema_version: SSH_SERVERS_CONFIG_SCHEMA_VERSION,
@@ -30,7 +37,7 @@ fn load_config() -> Result<SshServersConfig, String> {
         });
     }
 
-    let contents = std::fs::read_to_string(&config_path)
+    let contents = std::fs::read_to_string(config_path)
         .map_err(|e| format!("Failed to read SSH servers config: {e}"))?;
 
     serde_json::from_str(&contents).map_err(|e| format!("Failed to parse SSH servers config: {e}"))
@@ -54,7 +61,10 @@ fn temp_config_path(config_path: &std::path::Path) -> PathBuf {
 /// previous `ssh-servers.json` intact instead of truncated.
 fn save_config(config: &SshServersConfig) -> Result<(), String> {
     let config_path = get_config_path()?;
+    save_config_to(&config_path, config)
+}
 
+fn save_config_to(config_path: &Path, config: &SshServersConfig) -> Result<(), String> {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)
@@ -65,11 +75,11 @@ fn save_config(config: &SshServersConfig) -> Result<(), String> {
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| format!("Failed to serialize SSH servers config: {e}"))?;
 
-    let temp_path = temp_config_path(&config_path);
+    let temp_path = temp_config_path(config_path);
     std::fs::write(&temp_path, &json)
         .map_err(|e| format!("Failed to write SSH servers config: {e}"))?;
 
-    std::fs::rename(&temp_path, &config_path).map_err(|e| {
+    std::fs::rename(&temp_path, config_path).map_err(|e| {
         let _ = std::fs::remove_file(&temp_path);
         format!("Failed to replace SSH servers config: {e}")
     })
@@ -213,19 +223,58 @@ pub fn list_ssh_servers() -> Result<Vec<SshServer>, CommandError> {
 }
 
 /// Add a new SSH server configuration.
+///
+/// For `AuthType::Password` the password is written to the OS keystore keyed
+/// by the new server id and never persisted to the JSON file. If the JSON
+/// write fails after the keystore write, the stored password is removed
+/// (compensation) so no orphaned secret remains.
 #[tauri::command]
-#[tracing::instrument]
+#[tracing::instrument(skip(password))]
 pub fn add_ssh_server(
     name: String,
     host: String,
     port: Option<u16>,
     username: String,
     key_path: Option<String>,
+    auth_type: Option<AuthType>,
+    password: Option<String>,
+) -> Result<SshServer, CommandError> {
+    let config_path = get_config_path().map_err(CommandError::from)?;
+    add_server_with_store(
+        &config_path,
+        &KeyringStore,
+        name,
+        host,
+        port,
+        username,
+        key_path,
+        auth_type,
+        password,
+    )
+}
+
+pub(crate) fn add_server_with_store(
+    config_path: &Path,
+    store: &dyn SecretStore,
+    name: String,
+    host: String,
+    port: Option<u16>,
+    username: String,
+    key_path: Option<String>,
+    auth_type: Option<AuthType>,
+    password: Option<String>,
 ) -> Result<SshServer, CommandError> {
     validate_name(&name)?;
     validate_host(&host)?;
     validate_username(&username)?;
-    let key_path = normalize_key_path(&key_path)?;
+    let auth_type = auth_type.unwrap_or_default();
+    // The key path is only meaningful for key authentication; password mode
+    // never passes a key file.
+    let key_path = match auth_type {
+        AuthType::Key => normalize_key_path(&key_path)?,
+        AuthType::Password => None,
+    };
+    require_password_when_password_mode(auth_type, password.as_deref())?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -239,19 +288,36 @@ pub fn add_ssh_server(
         port: port.or(Some(22)),
         username: username.trim().to_string(),
         key_path,
+        auth_type,
         created_at: now,
         last_connected_at: None,
     };
 
-    let mut config = load_config().map_err(CommandError::from)?;
+    let mut config = load_config_from(config_path).map_err(CommandError::from)?;
     config.servers.push(server.clone());
-    save_config(&config).map_err(CommandError::from)?;
+
+    // Keystore write happens BEFORE the JSON write; if the JSON write then
+    // fails, the secret is removed so nothing is orphaned.
+    if auth_type == AuthType::Password {
+        store.set_password(&server.id, password.as_deref().unwrap_or_default())?;
+    }
+    if let Err(e) = save_config_to(config_path, &config) {
+        if auth_type == AuthType::Password {
+            let _ = store.delete_password(&server.id);
+        }
+        return Err(e.into());
+    }
     Ok(server)
 }
 
 /// Update an existing SSH server configuration.
+///
+/// Password handling by mode transition: switching to password requires a new
+/// password (or an already-stored one), staying in password mode with a blank
+/// field keeps the stored password, and switching back to key authentication
+/// deletes the stored password entirely.
 #[tauri::command]
-#[tracing::instrument]
+#[tracing::instrument(skip(password))]
 pub fn update_ssh_server(
     id: String,
     name: String,
@@ -259,13 +325,46 @@ pub fn update_ssh_server(
     port: Option<u16>,
     username: String,
     key_path: Option<String>,
+    auth_type: Option<AuthType>,
+    password: Option<String>,
+) -> Result<SshServer, CommandError> {
+    let config_path = get_config_path().map_err(CommandError::from)?;
+    update_server_with_store(
+        &config_path,
+        &KeyringStore,
+        id,
+        name,
+        host,
+        port,
+        username,
+        key_path,
+        auth_type,
+        password,
+    )
+}
+
+pub(crate) fn update_server_with_store(
+    config_path: &Path,
+    store: &dyn SecretStore,
+    id: String,
+    name: String,
+    host: String,
+    port: Option<u16>,
+    username: String,
+    key_path: Option<String>,
+    auth_type: Option<AuthType>,
+    password: Option<String>,
 ) -> Result<SshServer, CommandError> {
     validate_name(&name)?;
     validate_host(&host)?;
     validate_username(&username)?;
-    let key_path = normalize_key_path(&key_path)?;
+    let auth_type = auth_type.unwrap_or_default();
+    let key_path = match auth_type {
+        AuthType::Key => normalize_key_path(&key_path)?,
+        AuthType::Password => None,
+    };
 
-    let mut config = load_config().map_err(CommandError::from)?;
+    let mut config = load_config_from(config_path).map_err(CommandError::from)?;
     let server = config
         .servers
         .iter_mut()
@@ -275,22 +374,78 @@ pub fn update_ssh_server(
             reason: format!("No SSH server found with id `{id}`"),
         })?;
 
+    let was_password = server.auth_type == AuthType::Password;
     server.name = name.trim().to_string();
     server.host = host.trim().to_string();
     server.port = port.or(Some(22));
     server.username = username.trim().to_string();
     server.key_path = key_path;
+    server.auth_type = auth_type;
+
+    // Keystore transitions. `restore` snapshots the previous value so a
+    // failed JSON write can roll the keystore back instead of orphaning or
+    // clobbering a secret.
+    let mut restore: Option<Option<String>> = None;
+    match auth_type {
+        AuthType::Key => {
+            if was_password {
+                store.delete_password(&id)?;
+            }
+        }
+        AuthType::Password => match password.as_deref() {
+            Some(pw) if !pw.is_empty() => {
+                restore = Some(store.get_password(&id)?);
+                store.set_password(&id, pw)?;
+            }
+            _ if was_password => {
+                if store.get_password(&id)?.is_none() {
+                    return Err(CommandError::expected(
+                        "A password is required for password authentication.",
+                    ));
+                }
+            }
+            _ => {
+                return Err(CommandError::expected(
+                    "A password is required for password authentication.",
+                ));
+            }
+        },
+    }
 
     let updated = server.clone();
-    save_config(&config).map_err(CommandError::from)?;
+    if let Err(e) = save_config_to(config_path, &config) {
+        if let Some(previous) = restore {
+            match previous {
+                Some(previous) => {
+                    let _ = store.set_password(&id, &previous);
+                }
+                None => {
+                    let _ = store.delete_password(&id);
+                }
+            }
+        }
+        return Err(e.into());
+    }
     Ok(updated)
 }
 
-/// Delete an SSH server configuration by ID.
+/// Delete an SSH server configuration by ID. The keystore entry (password
+/// mode) is removed best-effort afterwards: the server is already gone from
+/// the JSON at that point, so a keystore hiccup must not roll the deletion
+/// back or leave the server undeletable.
 #[tauri::command]
 #[tracing::instrument]
 pub fn delete_ssh_server(id: String) -> Result<(), CommandError> {
-    let mut config = load_config().map_err(CommandError::from)?;
+    let config_path = get_config_path().map_err(CommandError::from)?;
+    delete_server_with_store(&config_path, &KeyringStore, id)
+}
+
+pub(crate) fn delete_server_with_store(
+    config_path: &Path,
+    store: &dyn SecretStore,
+    id: String,
+) -> Result<(), CommandError> {
+    let mut config = load_config_from(config_path).map_err(CommandError::from)?;
     let before = config.servers.len();
     config.servers.retain(|s| s.id != id);
     if config.servers.len() == before {
@@ -299,8 +454,28 @@ pub fn delete_ssh_server(id: String) -> Result<(), CommandError> {
             reason: format!("No SSH server found with id `{id}`"),
         });
     }
-    save_config(&config).map_err(CommandError::from)?;
+    save_config_to(config_path, &config).map_err(CommandError::from)?;
+    let _ = store.delete_password(&id);
     Ok(())
+}
+
+/// A password-mode server cannot be saved without a password; key mode must
+/// not carry one. The check reads the raw value only — passwords are never
+/// trimmed (they may legitimately contain spaces) and never embedded in the
+/// error message.
+fn require_password_when_password_mode(
+    auth_type: AuthType,
+    password: Option<&str>,
+) -> Result<(), CommandError> {
+    match auth_type {
+        AuthType::Password => match password {
+            Some(pw) if !pw.is_empty() => Ok(()),
+            _ => Err(CommandError::expected(
+                "A password is required for password authentication.",
+            )),
+        },
+        AuthType::Key => Ok(()),
+    }
 }
 
 /// Public wrapper for `load_config` — used by the connection module to
@@ -412,5 +587,280 @@ mod tests {
         let temp = temp_config_path(real);
         assert_eq!(temp.parent(), real.parent());
         assert_eq!(temp.file_name().unwrap(), ".ssh-servers.json.tmp");
+    }
+
+    // ---- password transit (auth type + keystore) ----
+
+    use crate::commands::ssh::secrets::MockSecretStore;
+    use crate::types::AuthType;
+
+    /// Isolated temp config dir per test — the real ssh-servers.json is
+    /// never touched by unit tests.
+    struct TempConfig {
+        dir: std::path::PathBuf,
+    }
+
+    impl TempConfig {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("cripcode-ssh-config-test-{}-{tag}", Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).expect("create temp config dir");
+            Self { dir }
+        }
+
+        fn path(&self) -> std::path::PathBuf {
+            self.dir.join("ssh-servers.json")
+        }
+
+        fn json(&self) -> String {
+            std::fs::read_to_string(self.path()).expect("read config json")
+        }
+    }
+
+    impl Drop for TempConfig {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn add_args() -> (String, String, Option<u16>, String, Option<String>) {
+        (
+            "Test VPS".into(),
+            "example.com".into(),
+            Some(22),
+            "deploy".into(),
+            None,
+        )
+    }
+
+    #[test]
+    fn add_password_server_stores_secret_in_keystore_not_json() {
+        let temp = TempConfig::new("add-password");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let server = add_server_with_store(
+            &temp.path(),
+            &store,
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Password),
+            Some("s3cret-pw".into()),
+        )
+        .expect("add password server");
+
+        assert_eq!(server.auth_type, AuthType::Password);
+        assert!(store.contains(&server.id));
+        // The JSON on disk must be free of the password.
+        let json = temp.json();
+        assert!(!json.contains("s3cret-pw"));
+        assert!(json.contains("\"authType\": \"password\""));
+    }
+
+    #[test]
+    fn add_key_server_defaults_and_touches_no_keystore_entry() {
+        let temp = TempConfig::new("add-key");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let server = add_server_with_store(
+            &temp.path(),
+            &store,
+            name,
+            host,
+            port,
+            username,
+            Some("~/id_ed25519".into()),
+            None, // no explicit auth type → defaults to Key
+            None,
+        )
+        .expect("add key server");
+
+        assert_eq!(server.auth_type, AuthType::Key);
+        assert!(server.key_path.is_some());
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn add_password_server_without_password_is_rejected() {
+        let temp = TempConfig::new("add-pw-missing");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let result = add_server_with_store(
+            &temp.path(),
+            &store,
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Password),
+            None,
+        );
+        assert!(result.is_err());
+        assert!(!store.contains("nonexistent"));
+        // Nothing was persisted.
+        assert!(!temp.path().exists());
+    }
+
+    #[test]
+    fn failed_json_write_compensates_keystore_entry() {
+        let temp = TempConfig::new("compensate");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        // config_path's parent is a FILE → create_dir_all fails → JSON save
+        // fails after the keystore write → compensation must remove the
+        // secret instead of orphaning it.
+        let blocker = temp.dir.join("blocker");
+        std::fs::write(&blocker, b"not a directory").expect("write blocker");
+        let blocked_path = blocker.join("ssh-servers.json");
+
+        let result = add_server_with_store(
+            &blocked_path,
+            &store,
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Password),
+            Some("s3cret-pw".into()),
+        );
+        assert!(result.is_err());
+        // The keystore write happened before the JSON write and the secret
+        // was compensated away — nothing may remain in the store.
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn update_changes_keeps_and_clears_password() {
+        let temp = TempConfig::new("update-pw");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let server = add_server_with_store(
+            &temp.path(),
+            &store,
+            name.clone(),
+            host.clone(),
+            port,
+            username.clone(),
+            None,
+            Some(AuthType::Password),
+            Some("old-pw".into()),
+        )
+        .expect("add");
+
+        // Change: blank field (None) keeps the stored password.
+        let updated = update_server_with_store(
+            &temp.path(),
+            &store,
+            server.id.clone(),
+            name.clone(),
+            host.clone(),
+            port,
+            username.clone(),
+            None,
+            Some(AuthType::Password),
+            None,
+        )
+        .expect("update keep");
+        assert_eq!(updated.auth_type, AuthType::Password);
+        assert!(store.contains(&server.id));
+
+        // Change: a new value overwrites.
+        update_server_with_store(
+            &temp.path(),
+            &store,
+            server.id.clone(),
+            name.clone(),
+            host.clone(),
+            port,
+            username.clone(),
+            None,
+            Some(AuthType::Password),
+            Some("new-pw".into()),
+        )
+        .expect("update change");
+
+        // Switch back to key auth → stored password is deleted.
+        let switched = update_server_with_store(
+            &temp.path(),
+            &store,
+            server.id.clone(),
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Key),
+            None,
+        )
+        .expect("switch to key");
+        assert_eq!(switched.auth_type, AuthType::Key);
+        assert!(!store.contains(&server.id));
+    }
+
+    #[test]
+    fn switching_to_password_without_a_password_is_rejected() {
+        let temp = TempConfig::new("switch-pw-missing");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let server = add_server_with_store(
+            &temp.path(),
+            &store,
+            name.clone(),
+            host.clone(),
+            port,
+            username.clone(),
+            None,
+            Some(AuthType::Key),
+            None,
+        )
+        .expect("add key server");
+
+        let result = update_server_with_store(
+            &temp.path(),
+            &store,
+            server.id,
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Password),
+            None, // no stored password, none provided → reject
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_removes_keystore_entry() {
+        let temp = TempConfig::new("delete-pw");
+        let store = MockSecretStore::new();
+        let (name, host, port, username, _key) = add_args();
+
+        let server = add_server_with_store(
+            &temp.path(),
+            &store,
+            name,
+            host,
+            port,
+            username,
+            None,
+            Some(AuthType::Password),
+            Some("s3cret-pw".into()),
+        )
+        .expect("add");
+
+        delete_server_with_store(&temp.path(), &store, server.id.clone()).expect("delete");
+        assert!(!store.contains(&server.id));
+        assert!(!temp.json().contains(&server.id));
     }
 }
