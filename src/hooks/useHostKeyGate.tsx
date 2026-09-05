@@ -4,7 +4,8 @@
  * Every UI entry point that can trigger an SSH connection/exec must call
  * `ensureHostKeyAccepted(server)` first and render the returned
  * `hostKeyModal`. The gate:
- * - known / probe-unavailable → proceed (existing UX, no modal)
+ * - known → proceed (no modal; ssh still verifies the key at connect time)
+ * - probe-unavailable → refuse with a clear error (no silent TOFU)
  * - changed → show the blocking modal and refuse (no blind accept)
  * - unknown → show the fingerprint confirmation; on "Trust & connect"
  *   record the key via `accept_remote_host_key`, then proceed
@@ -50,6 +51,16 @@ export function useHostKeyGate() {
         status = await checkRemoteHostKey(server.id);
       } catch (err) {
         showToast(formatCommandError(asCommandError(err)), 'error');
+        return false;
+      }
+      if (status.state === 'probe-unavailable') {
+        // Fail closed: without a successful probe there is no fingerprint to
+        // confirm, and ssh's accept-new would silently trust the host. Never
+        // start the connection in this state.
+        showToast(
+          'Host key verification is unavailable — the host could not be probed. The connection was not started.',
+          'error'
+        );
         return false;
       }
       const action = resolveHostKeyAction(status.state);

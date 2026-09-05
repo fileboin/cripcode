@@ -9,6 +9,11 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+/** How a server authenticates. `key` shells out with the stored key path;
+ * `password` reads the password from the OS keystore via the askpass
+ * helper. */
+export type SshAuthType = 'key' | 'password';
+
 export interface SshServer {
   id: string;
   name: string;
@@ -16,6 +21,7 @@ export interface SshServer {
   port: number | null;
   username: string;
   keyPath: string | null;
+  authType: SshAuthType;
   createdAt: number;
   lastConnectedAt: number | null;
 }
@@ -28,6 +34,13 @@ export interface NewSshServer {
   port: number | null;
   username: string;
   keyPath: string | null;
+  authType: SshAuthType;
+  /**
+   * Transient: sent once over IPC and stored ONLY in the OS keystore by the
+   * backend. `null` on update means "keep the stored password". It must
+   * never be persisted anywhere by the frontend.
+   */
+  password?: string | null;
 }
 
 export async function listSshServers(): Promise<SshServer[]> {
@@ -84,9 +97,11 @@ export async function acceptRemoteHostKey(serverId: string): Promise<void> {
 export function resolveHostKeyAction(state: RemoteHostKeyState): 'proceed' | 'prompt' | 'block' {
   switch (state) {
     case 'known':
-    case 'probe-unavailable':
       return 'proceed';
     case 'changed':
+    case 'probe-unavailable':
+      // Fail closed: a changed key is an active warning, and an unverifiable
+      // host must never fall back to silent TOFU (accept-new).
       return 'block';
     default:
       return 'prompt';

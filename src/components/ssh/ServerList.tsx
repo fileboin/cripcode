@@ -31,6 +31,7 @@ import { AddServerModal } from './AddServerModal';
 import { RemoteTerminal } from './RemoteTerminal';
 import { RemoteFileBrowser } from './RemoteFileBrowser';
 import { OllamaStatusPanel } from './OllamaStatusPanel';
+import { logger } from '../../lib/logger';
 
 export function ServerList() {
   const { showToast } = useOptionalToast();
@@ -81,6 +82,7 @@ export function ServerList() {
   };
 
   const handleEdit = (server: SshServer) => {
+    logger.info('[ServerList] Edit clicked', { name: server.name });
     setEditServer(server);
     setModalOpen(true);
   };

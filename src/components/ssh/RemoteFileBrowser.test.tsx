@@ -41,6 +41,7 @@ const server: SshServer = {
   port: 22,
   username: 'deploy',
   keyPath: null,
+  authType: 'key',
   createdAt: 0,
   lastConnectedAt: null,
 };

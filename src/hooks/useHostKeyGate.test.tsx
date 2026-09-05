@@ -4,10 +4,11 @@
  * Regression coverage for the bypass audit: every UI entry point that can
  * trigger SSH exec routes through this hook, so these tests pin the
  * security decision table centrally:
- * - KNOWN / probe-unavailable → proceed without a modal
+ * - KNOWN → proceed without a modal
  * - UNKNOWN → fingerprint modal; Confirm → accept_remote_host_key then true
  * - Cancel → false, no accept call
  * - CHANGED → false immediately, blocking modal, no accept path
+ * - probe-unavailable → false, error surfaced, no modal, no accept path
  * - probe failure → false, error surfaced, no throw
  */
 
@@ -20,8 +21,8 @@ vi.mock('../lib/ssh', () => ({
   checkRemoteHostKey: vi.fn(),
   acceptRemoteHostKey: vi.fn(),
   resolveHostKeyAction: vi.fn((state: string) => {
-    if (state === 'known' || state === 'probe-unavailable') return 'proceed';
-    if (state === 'changed') return 'block';
+    if (state === 'known') return 'proceed';
+    if (state === 'changed' || state === 'probe-unavailable') return 'block';
     return 'prompt';
   }),
 }));
@@ -35,6 +36,7 @@ const server: SshServer = {
   port: 22,
   username: 'deploy',
   keyPath: null,
+  authType: 'key',
   createdAt: 0,
   lastConnectedAt: null,
 };
@@ -72,15 +74,17 @@ describe('useHostKeyGate', () => {
     expect(acceptRemoteHostKey).not.toHaveBeenCalled();
   });
 
-  it('probe-unavailable falls back to proceeding without a modal', async () => {
+  it('probe-unavailable blocks: error surfaced, no modal, no accept', async () => {
     vi.mocked(checkRemoteHostKey).mockResolvedValue(status('probe-unavailable'));
     const onResult = vi.fn();
     render(<Harness server={server} onResult={onResult} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'go' }));
 
-    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
     expect(screen.queryByText('Trust this host?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Trust & connect' })).not.toBeInTheDocument();
+    expect(acceptRemoteHostKey).not.toHaveBeenCalled();
   });
 
   it('UNKNOWN shows the fingerprint modal; Confirm accepts then proceeds', async () => {

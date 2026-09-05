@@ -64,6 +64,7 @@ describe('addSshServer', () => {
       host: '203.0.113.1',
       port: 2222,
       username: 'root',
+      authType: 'key',
       keyPath: '/home/me/.ssh/id_rsa',
     });
     expect(result.name).toBe('My VPS');
@@ -85,6 +86,7 @@ describe('updateSshServer', () => {
       port: 22,
       username: 'deploy',
       keyPath: null,
+      authType: 'key',
     });
     expect(result.name).toBe('Renamed');
   });
@@ -159,6 +161,7 @@ describe('buildSshTerminalArgs', () => {
     port: 2222,
     username: 'deploy',
     keyPath: '/home/me/.ssh/id_ed25519',
+    authType: 'key',
     createdAt: 0,
     lastConnectedAt: null,
   };
@@ -248,7 +251,7 @@ describe('host key confirmation', () => {
 
   it('resolveHostKeyAction maps states to UI actions', () => {
     expect(resolveHostKeyAction('known')).toBe('proceed');
-    expect(resolveHostKeyAction('probe-unavailable')).toBe('proceed');
+    expect(resolveHostKeyAction('probe-unavailable')).toBe('block');
     expect(resolveHostKeyAction('unknown')).toBe('prompt');
     expect(resolveHostKeyAction('changed')).toBe('block');
   });
