@@ -13,6 +13,7 @@ import { Button } from '../primitives/Button';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import { listSshServers, type SshServer } from '../../lib/ssh';
 import { addRemoteProject } from '../../lib/remoteProjects';
+import { listProjects } from '../../lib/project';
 
 interface AddRemoteProjectModalProps {
   isOpen: boolean;
@@ -22,8 +23,10 @@ interface AddRemoteProjectModalProps {
 
 export function AddRemoteProjectModal({ isOpen, onClose, onAdded }: AddRemoteProjectModalProps) {
   const [servers, setServers] = useState<SshServer[]>([]);
+  const [localProjects, setLocalProjects] = useState<{ name: string; path: string }[]>([]);
   const [selectedServerId, setSelectedServerId] = useState('');
   const [remotePath, setRemotePath] = useState('');
+  const [linkedLocalPath, setLinkedLocalPath] = useState('');
   const [projectName, setProjectName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +36,7 @@ export function AddRemoteProjectModal({ isOpen, onClose, onAdded }: AddRemotePro
     if (isOpen) {
       setRemotePath('');
       setProjectName('');
+      setLinkedLocalPath('');
       setError(null);
       setLoading(false);
       void listSshServers().then((list) => {
@@ -41,6 +45,10 @@ export function AddRemoteProjectModal({ isOpen, onClose, onAdded }: AddRemotePro
           setSelectedServerId(list[0].id);
         }
       });
+      // Optional link to a local repo — metadata only, prefills the picker.
+      void listProjects()
+        .then(setLocalProjects)
+        .catch(() => setLocalProjects([]));
       setTimeout(() => inputRef.current?.focus(), 50);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,7 +63,12 @@ export function AddRemoteProjectModal({ isOpen, onClose, onAdded }: AddRemotePro
     setLoading(true);
     setError(null);
     try {
-      await addRemoteProject(projectName.trim(), selectedServerId, remotePath.trim());
+      await addRemoteProject(
+        projectName.trim(),
+        selectedServerId,
+        remotePath.trim(),
+        linkedLocalPath || null
+      );
       onAdded();
       onClose();
     } catch (err) {
@@ -115,6 +128,25 @@ export function AddRemoteProjectModal({ isOpen, onClose, onAdded }: AddRemotePro
                 autoComplete="off"
                 spellCheck={false}
               />
+            </div>
+            <div className="form-group">
+              <label htmlFor="remote-project-local">Link to local project (optional)</label>
+              <select
+                id="remote-project-local"
+                value={linkedLocalPath}
+                onChange={(e) => setLinkedLocalPath(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">None</option>
+                {localProjects.map((p) => (
+                  <option key={p.path} value={p.path}>
+                    {p.name} — {p.path}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: 'var(--spacing-xs) 0 0', color: 'var(--text-muted)' }}>
+                Prefills the execution target for that repo. No files are copied or synced.
+              </p>
             </div>
           </>
         )}

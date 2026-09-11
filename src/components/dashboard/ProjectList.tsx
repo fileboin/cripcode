@@ -44,6 +44,7 @@ import { MachineToolsPanel } from './MachineToolsPanel';
 import { NewFolderModal } from './NewFolderModal';
 import { ProjectGridView } from './ProjectGridView';
 import { RemoteProjectList } from '../ssh/RemoteProjectList';
+import { AgentLaunchPanel } from './AgentLaunchPanel';
 import { RenameProjectModal } from './RenameProjectModal';
 import { SearchAndSort } from './SearchAndSort';
 import { FolderBreadcrumb } from './FolderBreadcrumb';
@@ -725,6 +726,8 @@ export function ProjectList({
         />
 
         <RemoteProjectList />
+
+        <AgentLaunchPanel />
 
         <AgentsPanel />
 

@@ -832,7 +832,18 @@ export interface SavedTerminalTabPayload {
   agent_id: string;
   session_id: string;
   custom_title?: string;
+  /** Optional for backward compatibility; missing means local execution. */
+  execution_target?: SavedExecutionTarget;
 }
+
+export type SavedExecutionTarget =
+  | { kind: 'local' }
+  | {
+      kind: 'ssh';
+      server_id: string;
+      remote_project_id: string;
+      remote_path: string;
+    };
 
 export async function setTerminalState(
   projectPath: string,

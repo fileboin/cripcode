@@ -166,12 +166,13 @@ describe('buildSshTerminalArgs', () => {
     lastConnectedAt: null,
   };
 
-  it('includes keepalive and host-key options', () => {
+  it('requires a pre-verified host key (strict, never accept-new)', () => {
     const args = buildSshTerminalArgs(server);
     const joined = args.join(' ');
+    expect(joined).toContain('StrictHostKeyChecking=yes');
+    expect(joined).not.toContain('StrictHostKeyChecking=accept-new');
     expect(joined).toContain('ServerAliveInterval=30');
     expect(joined).toContain('ServerAliveCountMax=3');
-    expect(joined).toContain('accept-new');
     expect(joined).toContain('ConnectTimeout=10');
   });
 

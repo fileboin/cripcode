@@ -53,6 +53,9 @@ import { asCommandError, formatCommandError } from '../../lib/errors';
 import { isPointInRect, dropPointToLogical } from '../../lib/dropTarget';
 import { getTerminalGpuEnabled } from '../../lib/settings';
 import { attachedLibraryDirs } from '../../lib/attached-libraries';
+import { listSshServers } from '../../lib/ssh';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
+import type { ExecutionTarget } from '../../hooks/useTerminalManagement';
 import { decideStartupTimeoutAction } from './startupWatchdog';
 import type { AgentConfig } from '../../lib/agent';
 import '@xterm/xterm/css/xterm.css';
@@ -72,6 +75,8 @@ interface TerminalProps {
   agent: AgentConfig;
   /** Absolute path to the project directory where the agent will run */
   projectPath: string;
+  /** Execution transport; the local project path remains the project context. */
+  executionTarget: ExecutionTarget;
   /** Callback fired when the PTY is spawned successfully. `pid` is the OS
    *  process id of the agent — used by the session registry to track
    *  liveness across project switches. */
@@ -121,6 +126,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   {
     agent,
     projectPath,
+    executionTarget,
     onSpawn,
     onExit,
     autoAcceptMode = false,
@@ -133,6 +139,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   },
   ref
 ) {
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
+  const executionTargetRef = useRef(executionTarget);
+  executionTargetRef.current = executionTarget;
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -717,9 +726,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           }
         }
 
-        // On Windows, agent may be a .cmd script - must run through cmd.exe
-        let spawnCmd = isWin ? 'cmd.exe' : agent.binaryName;
-        const spawnArgs = isWin ? ['/C', agent.binaryName, ...agentArgs] : agentArgs;
+        const target = executionTargetRef.current;
+        const isRemoteTarget = target.kind === 'ssh';
+
+        if (isRemoteTarget) {
+          const servers = await listSshServers();
+          const server = servers.find((item) => item.id === target.serverId);
+          if (!server) {
+            throw new Error('The configured SSH server no longer exists. Reconnect the agent.');
+          }
+          if (!(await ensureHostKeyAccepted(server))) return;
+        }
+
+        // On Windows, local agent may be a .cmd script - remote execution must
+        // receive the agent command itself, not a local cmd.exe wrapper.
+        let spawnCmd = isRemoteTarget ? agent.binaryName : isWin ? 'cmd.exe' : agent.binaryName;
+        const spawnArgs = isRemoteTarget
+          ? agentArgs
+          : isWin
+            ? ['/C', agent.binaryName, ...agentArgs]
+            : agentArgs;
 
         // Resolve the bare binary name through the backend's thorough
         // discovery (every NVM version, ~/.<agent>/bin, npm prefix -g …) the
@@ -732,7 +758,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         // "binary" is an absolute path (/bin/zsh), which the backend rejects
         // with a validation error on every open (issue #303).
         const isBareName = !agent.binaryName.includes('/') && !agent.binaryName.includes('\\');
-        if (isBareName) {
+        if (isBareName && !isRemoteTarget) {
           try {
             const resolved = await resolveCliPath(agent.binaryName);
             if (resolved) {
@@ -771,12 +797,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           sessionId: backendSessionId,
           command: spawnCmd,
           args: spawnArgs,
-          cwd: projectPath,
+          cwd: isRemoteTarget ? null : projectPath,
           env,
           cols: Math.max(term.cols, 2),
           rows: Math.max(term.rows, 2),
           projectPath,
           tabSessionId: sessionName ?? null,
+          executionTarget: target,
         });
 
         if (!mounted) {
@@ -1248,7 +1275,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     // `autoAcceptMode` is intentionally omitted — it's read from
     // `autoAcceptModeRef.current` at spawn time, and changing it must not
     // tear down an existing PTY (it's a CLI flag baked in at spawn).
-  }, [isReady, projectPath, cleanup, agent, sessionName, shouldResume]);
+  }, [isReady, projectPath, cleanup, agent, sessionName, shouldResume, ensureHostKeyAccepted]);
 
   // Click to focus terminal
   const handleClick = useCallback(() => {
@@ -1369,6 +1396,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           </div>
         </div>
       )}
+      {hostKeyModal}
     </div>
   );
 });

@@ -39,7 +39,12 @@
       "resources/scrcpy-server.jar": "scrcpy-server.jar",
       "resources/templates/*.zip": "templates/"
     },
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installerHooks": "./installer-hooks.nsi"
+      }
+    }
   },
   "plugins": {
     "updater": {

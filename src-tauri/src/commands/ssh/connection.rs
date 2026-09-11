@@ -43,11 +43,27 @@ fn now_millis() -> u64 {
 ///   [`apply_ssh_auth_env`], which wires ssh's askpass channel to the
 ///   stored password. The password never appears in these args.
 pub(crate) fn build_ssh_connection_args(server: &SshServer) -> Vec<String> {
+    build_ssh_connection_args_with_policy(server, false)
+}
+
+/// Same as [`build_ssh_connection_args`], but with `StrictHostKeyChecking=yes`:
+/// an unknown host fails closed instead of being silently trusted. Used by exec
+/// paths whose UI entry point runs the explicit host-key gate first
+/// (credentials), so the verified key is already in the user's `known_hosts`.
+pub(crate) fn build_ssh_connection_args_strict(server: &SshServer) -> Vec<String> {
+    build_ssh_connection_args_with_policy(server, true)
+}
+
+fn build_ssh_connection_args_with_policy(server: &SshServer, strict_host_key: bool) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "-o".into(),
         "ConnectTimeout=10".into(),
         "-o".into(),
-        "StrictHostKeyChecking=accept-new".into(),
+        if strict_host_key {
+            "StrictHostKeyChecking=yes".into()
+        } else {
+            "StrictHostKeyChecking=accept-new".into()
+        },
     ];
 
     match server.auth_type {
@@ -77,6 +93,41 @@ pub(crate) fn build_ssh_connection_args(server: &SshServer) -> Vec<String> {
     args
 }
 
+/// Build arguments for an interactive PTY launch after the frontend's
+/// explicit host-key gate has completed. Unlike the legacy connection helper,
+/// this path never accepts an unknown host key implicitly.
+pub(crate) fn build_ssh_pty_args(server: &SshServer) -> Vec<String> {
+    let mut args: Vec<String> = vec![
+        "-o".into(),
+        "ConnectTimeout=10".into(),
+        "-o".into(),
+        "ServerAliveInterval=30".into(),
+        "-o".into(),
+        "ServerAliveCountMax=3".into(),
+        "-o".into(),
+        "StrictHostKeyChecking=yes".into(),
+        "-t".into(),
+    ];
+
+    if server.auth_type == AuthType::Key {
+        if let Some(key_path) = &server.key_path {
+            let trimmed = key_path.trim();
+            if !trimmed.is_empty() {
+                args.push("-i".into());
+                args.push(trimmed.to_string());
+            }
+        }
+    }
+
+    if let Some(port) = server.port {
+        args.push("-p".into());
+        args.push(port.to_string());
+    }
+
+    args.push(format!("{}@{}", server.username, server.host));
+    args
+}
+
 /// Wire ssh's askpass channel to the stored password for password-mode
 /// servers. `SSH_ASKPASS_REQUIRE=force` makes the OpenSSH client use the
 /// helper even without a TTY, so headless exec (connection test, files,
@@ -94,6 +145,25 @@ pub(crate) fn apply_ssh_auth_env(
     }
     let askpass_path = resolve_askpass_path()?;
     apply_ssh_auth_env_with_path(cmd, server, &askpass_path);
+    Ok(())
+}
+
+/// Apply only the non-secret askpass wiring to a backend-owned PTY command.
+/// The password remains inside the OS keystore and askpass helper memory.
+pub(crate) fn apply_ssh_auth_env_to_pty(
+    cmd: &mut portable_pty::CommandBuilder,
+    server: &SshServer,
+) -> Result<(), CommandError> {
+    if server.auth_type != AuthType::Password {
+        return Ok(());
+    }
+    let askpass_path = resolve_askpass_path()?;
+    for (key, value) in auth_env_pairs(server, &askpass_path) {
+        cmd.env(
+            std::ffi::OsString::from(key),
+            std::ffi::OsString::from(value),
+        );
+    }
     Ok(())
 }
 
@@ -336,6 +406,24 @@ mod tests {
     }
 
     #[test]
+    fn interactive_pty_args_require_a_preverified_host_key() {
+        let args = build_ssh_pty_args(&sample_server());
+        let joined = args.join(" ");
+        assert!(joined.contains("StrictHostKeyChecking=yes"));
+        assert!(!joined.contains("StrictHostKeyChecking=accept-new"));
+        assert!(args.contains(&"-t".to_string()));
+    }
+
+    #[test]
+    fn interactive_password_pty_args_do_not_contain_a_password() {
+        let args = build_ssh_pty_args(&password_server());
+        let joined = args.join(" ");
+        assert!(!joined.contains("SSH_PASSWORD"));
+        assert!(!joined.contains("s3cret-value"));
+        assert!(!joined.contains("BatchMode"));
+    }
+
+    #[test]
     fn build_ssh_args_omits_batch_mode_for_password_servers() {
         let args = build_ssh_args(&password_server());
         let joined = args.join(" ");
@@ -344,6 +432,27 @@ mod tests {
         assert!(joined.contains("ConnectTimeout=10"));
         assert!(joined.contains("accept-new"));
         assert!(!args.contains(&"-i".to_string()));
+    }
+
+    #[test]
+    fn strict_exec_args_require_a_preverified_host_key() {
+        let args = build_ssh_connection_args_strict(&sample_server());
+        let joined = args.join(" ");
+        assert!(joined.contains("StrictHostKeyChecking=yes"));
+        assert!(!joined.contains("StrictHostKeyChecking=accept-new"));
+        // Key mode keeps the non-interactive BatchMode for exec helpers.
+        assert!(joined.contains("BatchMode=yes"));
+    }
+
+    #[test]
+    fn strict_password_exec_args_stay_password_safe() {
+        let args = build_ssh_connection_args_strict(&password_server());
+        let joined = args.join(" ");
+        assert!(joined.contains("StrictHostKeyChecking=yes"));
+        assert!(!joined.contains("StrictHostKeyChecking=accept-new"));
+        // BatchMode would forbid password auth; no password material in argv.
+        assert!(!joined.contains("BatchMode"));
+        assert!(!joined.contains("s3cret-value"));
     }
 
     #[test]

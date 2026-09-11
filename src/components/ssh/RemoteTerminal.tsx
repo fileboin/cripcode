@@ -3,9 +3,10 @@
  * VPS. Reuses the same xterm.js + backend-owned PTY infrastructure as the
  * main Terminal and BuildTerminal components.
  *
- * Spawns `ssh` in a `pty_session` with keepalive and host-key verification.
- * The PTY lifecycle (resize, input, scrollback replay) works identically to
- * a local terminal — the only difference is the spawn command.
+ * Spawns `ssh` in a `pty_session` with keepalive, host-key verification, and
+ * the keystore-backed askpass channel for password servers. The PTY lifecycle
+ * (resize, input, scrollback replay) works identically to a local terminal —
+ * the only difference is the spawn command.
  *
  * @module components/ssh/RemoteTerminal
  */
@@ -124,6 +125,9 @@ export function RemoteTerminal({ server, onBack }: RemoteTerminalProps) {
           cols: Math.max(term.cols, 2),
           rows: Math.max(term.rows, 2),
           projectPath: null,
+          // Names the server so the backend wires ssh's keystore askpass
+          // channel for password servers (id only — never a secret).
+          sshServerId: server.id,
         });
         sessionOpened = true;
         if (cancelled) return;

@@ -10,7 +10,10 @@
 
 import { useState, useCallback } from 'react';
 import { Button } from '../primitives/Button';
+import { Dropdown, DropdownItem } from '../primitives/Dropdown';
+import { ChevronIcon } from '../icons';
 import { useOptionalToast } from '../../contexts/ToastContext';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import { checkRemoteAgentInstalled } from '../../lib/remoteAgent';
 import type { SshServer } from '../../lib/ssh';
@@ -20,10 +23,19 @@ import { RemoteAgentTerminal } from './RemoteAgentTerminal';
 interface RemoteAgentPanelProps {
   server: SshServer;
   remotePath: string;
+  /** Remote project context — enables agent session registration (GAP 1). */
+  projectId?: string;
+  projectName?: string;
 }
 
-export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) {
+export function RemoteAgentPanel({
+  server,
+  remotePath,
+  projectId,
+  projectName,
+}: RemoteAgentPanelProps) {
   const { showToast } = useOptionalToast();
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
   const [selectedAgent, setSelectedAgent] = useState<AgentConfig>(ALL_AGENTS[0]);
   const [agentStatus, setAgentStatus] = useState<
     Record<string, { installed: boolean; path: string | null }>
@@ -35,6 +47,9 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
     async (agent: AgentConfig) => {
       setIsChecking(true);
       try {
+        // Explicit host-key gate before the probe (known → proceed, unknown →
+        // fingerprint confirmation, changed/unprobeable → block).
+        if (!(await ensureHostKeyAccepted(server))) return false;
         const status = await checkRemoteAgentInstalled(server.id, agent.binaryName);
         setAgentStatus((prev) => ({
           ...prev,
@@ -54,7 +69,7 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
         setIsChecking(false);
       }
     },
-    [server.id, server.name, showToast]
+    [server, ensureHostKeyAccepted, showToast]
   );
 
   const handleStart = async () => {
@@ -70,6 +85,8 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
         agent={selectedAgent}
         server={server}
         remotePath={remotePath}
+        projectId={projectId}
+        projectName={projectName}
         onBack={() => setShowTerminal(false)}
       />
     );
@@ -92,21 +109,30 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
         >
           Agent:
         </label>
-        <select
-          value={selectedAgent.id}
-          onChange={(e) => {
-            const agent = ALL_AGENTS.find((a) => a.id === e.target.value);
-            if (agent) setSelectedAgent(agent);
-          }}
-          className="ssh-remote-files-path-input"
-          style={{ flex: 1, width: 'auto' }}
-        >
-          {ALL_AGENTS.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.displayName}
-            </option>
-          ))}
-        </select>
+        <div className="remote-agent-select">
+          <Dropdown
+            menuClassName="remote-agent-select-menu"
+            trigger={(p) => (
+              <button type="button" className="remote-agent-select-trigger" {...p}>
+                <span>{selectedAgent.displayName}</span>
+                <ChevronIcon size={12} />
+              </button>
+            )}
+          >
+            {ALL_AGENTS.map((agent) => (
+              <DropdownItem
+                key={agent.id}
+                active={agent.id === selectedAgent.id}
+                onSelect={() => {
+                  const found = ALL_AGENTS.find((a) => a.id === agent.id);
+                  if (found) setSelectedAgent(found);
+                }}
+              >
+                {agent.displayName}
+              </DropdownItem>
+            ))}
+          </Dropdown>
+        </div>
         <Button
           variant="secondary"
           size="sm"
@@ -122,9 +148,7 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
           <div className="ssh-server-info">
             <span className="ssh-server-name">{selectedAgent.displayName}</span>
             {agentStatus[selectedAgent.id].path && (
-              <span className="ssh-server-detail">
-                {agentStatus[selectedAgent.id].path}
-              </span>
+              <span className="ssh-server-detail">{agentStatus[selectedAgent.id].path}</span>
             )}
             <span
               className={`ssh-connection-badge ssh-connection-badge--${
@@ -156,10 +180,11 @@ export function RemoteAgentPanel({ server, remotePath }: RemoteAgentPanelProps) 
             color: 'var(--text-muted)',
           }}
         >
-          Pick an agent and click "Check" to verify it's installed on the VPS,
-          then "Start Agent" to run it on this project.
+          Pick an agent and click "Check" to verify it's installed on the VPS, then "Start Agent" to
+          run it on this project.
         </p>
       )}
+      {hostKeyModal}
     </div>
   );
 }

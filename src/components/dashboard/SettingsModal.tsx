@@ -32,11 +32,24 @@ import {
   type MovableProjects,
 } from '../../lib/settings';
 import { asCommandError, formatCommandError } from '../../lib/errors';
+import {
+  OPENCODE_GO_PROVIDER,
+  OPENCODE_ZEN_PROVIDER,
+  getOpenCodeAuthProviders,
+  providerLabel,
+  removeOpenCodeAuthProvider,
+  setOpenCodeAuthProvider,
+} from '../../lib/opencodeAuth';
+import { listSshServers, type SshServer } from '../../lib/ssh';
 import { EditIcon } from '../icons';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
 import { useOpenModal } from '../../contexts/ModalContext';
 
 const errMsg = (err: unknown) => formatCommandError(asCommandError(err));
+
+/** Providers always shown as rows, even before a key is saved. */
+const DEFAULT_PROVIDER_IDS = [OPENCODE_ZEN_PROVIDER, OPENCODE_GO_PROVIDER];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -64,6 +77,7 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const { showToast } = useOptionalToast();
   const openModal = useOpenModal();
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
   // Projects folder is per-workspace; reflect the active one in the label.
   const { activeAccount, accounts } = useActiveAccount();
   const multipleWorkspaces = accounts.length > 1;
@@ -80,6 +94,16 @@ export function SettingsModal({
   const [savingRoot, setSavingRoot] = useState(false);
   const [movePrompt, setMovePrompt] = useState<MovePrompt | null>(null);
   const [moving, setMoving] = useState(false);
+
+  // OpenCode provider credentials on the selected server (PRESENT ids only).
+  const [sshServers, setSshServers] = useState<SshServer[]>([]);
+  const [authServerId, setAuthServerId] = useState('');
+  const [authProviderIds, setAuthProviderIds] = useState<string[]>([]);
+  const [authKeys, setAuthKeys] = useState<Record<string, string>>({});
+  const [authSaving, setAuthSaving] = useState<Record<string, boolean>>({});
+  const [authStatusLoading, setAuthStatusLoading] = useState(false);
+  const [newProviderId, setNewProviderId] = useState('');
+  const [newProviderKey, setNewProviderKey] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,6 +136,112 @@ export function SettingsModal({
       cancelled = true;
     };
   }, [isOpen]);
+
+  // Load SSH servers once per open; default to the first server.
+  useEffect(() => {
+    if (!isOpen) return;
+    void listSshServers()
+      .then((list) => {
+        setSshServers(list);
+        setAuthServerId((current) => current || list[0]?.id || '');
+      })
+      .catch(() => setSshServers([]));
+  }, [isOpen]);
+
+  // Refresh the provider ids present on the server (ids only — never values).
+  const refreshAuthStatus = useCallback(async (serverId: string) => {
+    if (!serverId) return;
+    setAuthStatusLoading(true);
+    try {
+      setAuthProviderIds(await getOpenCodeAuthProviders(serverId));
+    } catch {
+      setAuthProviderIds([]);
+    } finally {
+      setAuthStatusLoading(false);
+    }
+  }, []);
+
+  // Every credentials action is an SSH exec: run the shared explicit host-key
+  // gate first. Known → proceed, unknown → fingerprint confirmation, changed or
+  // unprobeable → blocked. No silent TOFU on this path.
+  const gateServer = useCallback(
+    async (serverId: string): Promise<boolean> => {
+      const server = sshServers.find((s) => s.id === serverId);
+      if (!server) return false;
+      return ensureHostKeyAccepted(server);
+    },
+    [sshServers, ensureHostKeyAccepted]
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void (async () => {
+      if (!(await gateServer(authServerId))) return;
+      await refreshAuthStatus(authServerId);
+    })();
+  }, [isOpen, authServerId, gateServer, refreshAuthStatus]);
+
+  // Transient key input must never survive a close or a target-server switch.
+  useEffect(() => {
+    setAuthKeys({});
+    setNewProviderId('');
+    setNewProviderKey('');
+  }, [isOpen, authServerId]);
+
+  // Save one provider key: merge into the remote auth.json via SSH stdin.
+  const saveProviderKey = useCallback(
+    async (providerId: string, rawKey: string): Promise<boolean> => {
+      const apiKey = rawKey.trim();
+      if (!authServerId || !apiKey) return false;
+      if (!(await gateServer(authServerId))) return false;
+      setAuthSaving((prev) => ({ ...prev, [providerId]: true }));
+      try {
+        await setOpenCodeAuthProvider(authServerId, providerId, apiKey);
+        // Clear immediately — the key must never linger in UI state.
+        setAuthKeys((prev) => ({ ...prev, [providerId]: '' }));
+        await refreshAuthStatus(authServerId);
+        showToast(`Key saved for ${providerLabel(providerId)} on the server`, 'success');
+        return true;
+      } catch (err) {
+        showToast(errMsg(err), 'error');
+        return false;
+      } finally {
+        setAuthSaving((prev) => ({ ...prev, [providerId]: false }));
+      }
+    },
+    [authServerId, gateServer, refreshAuthStatus, showToast]
+  );
+
+  const handleSaveProviderKey = (providerId: string) =>
+    void saveProviderKey(providerId, authKeys[providerId] || '');
+
+  // Add an arbitrary OpenCode provider id — no code change needed per provider.
+  const handleAddProvider = async () => {
+    const providerId = newProviderId.trim().toLowerCase();
+    if (!providerId) return;
+    if (await saveProviderKey(providerId, newProviderKey)) {
+      setNewProviderId('');
+      setNewProviderKey('');
+    }
+  };
+
+  const handleRemoveProvider = useCallback(
+    async (providerId: string) => {
+      if (!authServerId) return;
+      if (!(await gateServer(authServerId))) return;
+      setAuthSaving((prev) => ({ ...prev, [providerId]: true }));
+      try {
+        await removeOpenCodeAuthProvider(authServerId, providerId);
+        await refreshAuthStatus(authServerId);
+        showToast(`Credential removed for ${providerLabel(providerId)} on the server`, 'info');
+      } catch (err) {
+        showToast(errMsg(err), 'error');
+      } finally {
+        setAuthSaving((prev) => ({ ...prev, [providerId]: false }));
+      }
+    },
+    [authServerId, gateServer, refreshAuthStatus, showToast]
+  );
 
   const handleToggle = useCallback(() => {
     const newValue = !analyticsEnabled;
@@ -239,6 +369,13 @@ export function SettingsModal({
     }
   }, [movePrompt, onProjectsRootChanged, showToast]);
 
+  // Known providers always get a row; anything else the server reports is
+  // appended, so a custom provider id shows up after it is added.
+  const providerRows = [
+    ...DEFAULT_PROVIDER_IDS,
+    ...authProviderIds.filter((id) => !DEFAULT_PROVIDER_IDS.includes(id)),
+  ];
+
   return (
     <>
       <ModalFrame isOpen={isOpen} onClose={onClose} title="Settings" className="settings-modal">
@@ -307,6 +444,109 @@ export function SettingsModal({
               >
                 Manage
               </Button>
+            </div>
+            <div className="settings-row settings-row--stacked">
+              <div className="settings-row-info">
+                <span className="settings-row-label">Credentials / API Keys</span>
+                <span className="settings-row-description">
+                  Manage OpenCode provider API keys on the selected server. Keys are written over
+                  SSH and never displayed or logged.
+                </span>
+              </div>
+              {sshServers.length > 0 && (
+                <div className="settings-opencode">
+                  <select
+                    className="settings-opencode-server"
+                    value={authServerId}
+                    onChange={(e) => setAuthServerId(e.target.value)}
+                    aria-label="Server"
+                  >
+                    {sshServers.map((server) => (
+                      <option key={server.id} value={server.id}>
+                        {server.name} ({server.username}@{server.host})
+                      </option>
+                    ))}
+                  </select>
+                  {providerRows.map((providerId) => {
+                    const present = authProviderIds.includes(providerId);
+                    return (
+                      <div className="settings-opencode-row" key={providerId}>
+                        <span className="settings-opencode-name">{providerLabel(providerId)}</span>
+                        <span
+                          className={`settings-opencode-status ${present ? 'present' : 'absent'}`}
+                        >
+                          {authStatusLoading ? '…' : present ? 'PRESENT' : 'NOT PRESENT'}
+                        </span>
+                        <input
+                          type="password"
+                          className="settings-opencode-input"
+                          placeholder="API key"
+                          autoComplete="off"
+                          value={authKeys[providerId] || ''}
+                          onChange={(e) =>
+                            setAuthKeys((prev) => ({ ...prev, [providerId]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveProviderKey(providerId);
+                          }}
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={authSaving[providerId] || !(authKeys[providerId] || '').trim()}
+                          onClick={() => handleSaveProviderKey(providerId)}
+                        >
+                          {authSaving[providerId] ? 'Saving…' : 'Save'}
+                        </Button>
+                        {present && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={authSaving[providerId]}
+                            onClick={() => void handleRemoveProvider(providerId)}
+                            title={`Remove ${providerLabel(providerId)} from the server`}
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className="settings-opencode-row">
+                    <input
+                      type="text"
+                      className="settings-opencode-input"
+                      placeholder="provider id (e.g. openai)"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={newProviderId}
+                      onChange={(e) => setNewProviderId(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleAddProvider();
+                      }}
+                    />
+                    <input
+                      type="password"
+                      className="settings-opencode-input"
+                      placeholder="API key"
+                      autoComplete="off"
+                      value={newProviderKey}
+                      onChange={(e) => setNewProviderKey(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleAddProvider();
+                      }}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!newProviderId.trim() || !newProviderKey.trim()}
+                      onClick={() => void handleAddProvider()}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="settings-row">
               <div className="settings-row-info">
@@ -469,6 +709,8 @@ export function SettingsModal({
           </div>
         </ModalFrame>
       )}
+
+      {hostKeyModal}
     </>
   );
 }

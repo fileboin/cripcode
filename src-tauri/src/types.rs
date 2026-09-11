@@ -156,6 +156,24 @@ pub struct SavedTerminalTab {
     /// falls back to the PTY-emitted title at runtime.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_title: Option<String>,
+    /// Where this existing agent tab executes. Missing in legacy metadata means local.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_target: Option<ExecutionTarget>,
+}
+
+/// Execution transport for an existing agent tab. Runtime/provider/model are separate.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExecutionTarget {
+    Local,
+    Ssh {
+        #[serde(rename = "server_id", alias = "serverId")]
+        server_id: String,
+        #[serde(rename = "remote_project_id", alias = "remoteProjectId")]
+        remote_project_id: String,
+        #[serde(rename = "remote_path", alias = "remotePath")]
+        remote_path: String,
+    },
 }
 
 /// Saved terminal state for restoring tabs when reopening a project.
@@ -1038,6 +1056,10 @@ pub struct RemoteProject {
     pub server_id: String,
     /// Absolute path on the remote VPS (e.g. /home/user/my-app).
     pub remote_path: String,
+    /// Optional absolute path of the local project/repo this remote project
+    /// mirrors. Metadata only (no clone/sync) — the execution-target picker
+    /// uses it to prefill this remote project for that local repo.
+    pub local_project_path: Option<String>,
     /// Unix ms timestamp of registration.
     pub created_at: u64,
     /// Unix ms timestamp of last time this project was opened.
@@ -1046,7 +1068,32 @@ pub struct RemoteProject {
 
 #[cfg(test)]
 mod ssh_server_tests {
-    use super::{AuthType, SshServer};
+    use super::{AuthType, ExecutionTarget, SavedTerminalTab, SshServer};
+
+    #[test]
+    fn legacy_saved_terminal_tab_defaults_to_no_execution_target() {
+        let json = r#"{
+            "agent_id": "codex",
+            "session_id": "session-1"
+        }"#;
+        let tab: SavedTerminalTab = serde_json::from_str(json).unwrap();
+        assert!(tab.execution_target.is_none());
+    }
+
+    #[test]
+    fn ssh_execution_target_round_trips_without_provider_data() {
+        let target = ExecutionTarget::Ssh {
+            server_id: "server-1".into(),
+            remote_project_id: "project-1".into(),
+            remote_path: "/srv/project".into(),
+        };
+        let json = serde_json::to_string(&target).unwrap();
+        assert!(json.contains(r#""kind":"ssh""#));
+        assert!(json.contains(r#""remote_path":"/srv/project""#));
+        let restored: ExecutionTarget = serde_json::from_str(&json).unwrap();
+        let restored_json = serde_json::to_string(&restored).unwrap();
+        assert_eq!(json, restored_json);
+    }
 
     /// Config files written before password support have no `authType` —
     /// they must load as key-authentication servers, unchanged.

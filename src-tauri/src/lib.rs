@@ -795,11 +795,16 @@ pub fn run() {
             commands::ssh::create_remote_directory,
             commands::ssh::delete_remote_file,
             commands::ssh::rename_remote_file,
+            // OpenCode provider credentials (remote auth.json, merge-only)
+            commands::ssh::opencode_auth_status,
+            commands::ssh::opencode_auth_set_provider,
+            commands::ssh::opencode_auth_remove_provider,
             // Remote Projects
             commands::ssh::list_remote_projects,
             commands::ssh::add_remote_project,
             commands::ssh::remove_remote_project,
             commands::ssh::mark_remote_project_opened,
+            commands::ssh::set_remote_project_local_link,
             // Remote Git
             commands::ssh::remote_git_status,
             commands::ssh::remote_git_current_branch,

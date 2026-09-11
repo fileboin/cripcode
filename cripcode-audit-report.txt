@@ -1,0 +1,412 @@
+CRIPCODE — READ-ONLY FEATURE AUDIT
+==================================
+Datum: 2026-09-11
+Metod: read-only pregled koda, testova i postojecih live E2E dokaza iz ove sesije.
+Nije radjen build, install, restart, commit, push niti deploy.
+Izvori: src/, src-tauri/src/, scripts/, tauri.conf.json, test fajlovi, live dokazi Phase 5/6.
+
+Legenda:
+  IMPLEMENTED      - funkcionalnost postoji u kodu
+  UNIT TESTED      - postoje unit testovi (Rust/Vitest)
+  INTEGRATION TESTED - UI <-> backend komande su povezane i pokrivene wrapper/komponent testovima
+  LIVE E2E TESTED  - dokazano na stvarnom VPS-u kroz instaliranu aplikaciju
+  Status: DONE / PARTIAL / NOT DONE / BLOCKED / UNCERTAIN
+
+Napomena: 13 (Ollama connection), 20 (Background Mode), 21 (Regression) i Light Mode
+NISU tretirani kao otvoren posao (po instrukciji).
+
+
+------------------------------------------------------------
+7. REMOTE TERMINAL
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: YES (workspace SSH tab + dashboard RemoteAgentTerminal + SSH_OK),
+                 ServerList -> Terminal putanja: samo unit (nije ponovo live-verifikovana)
+
+Dokaz (code):
+  src/components/ssh/RemoteTerminal.tsx          (SSH terminal iz ServerList; askpass id u 6F)
+  src/components/ssh/RemoteAgentTerminal.tsx     (agent terminal na VPS; 6B executionTarget)
+  src/components/terminal/Terminal.tsx:796       (per-tab executionTarget -> openPtySession)
+  src/hooks/useTerminalManagement.ts:45-64       (ExecutionTarget tip)
+  src/lib/ptySession.ts:22-94                    (openPtySession + executionTarget/sshServerId)
+  src-tauri/src/commands/pty_session.rs:303-374  (pty_session_open -> build_execution_command)
+  src-tauri/src/commands/pty_session.rs:87-123   (build_execution_command, strict pty args)
+  src-tauri/src/commands/ssh/connection.rs:83-113 (build_ssh_pty_args, StrictHostKeyChecking=yes)
+
+Dokaz (testovi):
+  src/lib/ptySession.test.ts
+  src/lib/ssh.test.ts (buildSshTerminalArgs: strict yes, bez accept-new)
+  src/components/ssh/RemoteAgentTerminal.test.ts
+  src-tauri/src/commands/ssh/connection.rs (14 testova)
+
+Live dokaz:
+  Phase 5/6 live E2E: ssh argv `-o StrictHostKeyChecking=yes -t -p 22 root@91.99.126.64
+  "cd '/root/ollama' && 'opencode'"`, OpenCode TUI, odgovor `SSH_OK`.
+
+Nedostaje: nista funkcionalno.
+
+
+------------------------------------------------------------
+8. REMOTE FILESYSTEM
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: PARTIAL (browser otvaran live; eksplicitni read/write fajla nije radjen)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/files.rs
+    list_remote_files, read_remote_file, save_remote_file,
+    create_remote_directory, delete_remote_file, rename_remote_file
+  src/components/ssh/RemoteFileBrowser.tsx
+  src/components/ssh/ServerList.tsx (Files dugme), src/components/ssh/RemoteProjectList.tsx (Open)
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/files.rs (7 Rust testova)
+  src/lib/remoteFiles.test.ts
+  src/components/ssh/RemoteFileBrowser.test.tsx
+
+Nedostaje: nista; postojeca SSH infrastruktura pokriva ceo sloj.
+
+
+------------------------------------------------------------
+9. REMOTE WORKSPACE
+------------------------------------------------------------
+Status: PARTIAL (funkcionalna povrsina postoji; nije pun lokalni workspace)
+IMPLEMENTED: PARTIAL
+UNIT TESTED: PARTIAL
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: PARTIAL
+
+Dokaz (code):
+  src/components/ssh/RemoteFileBrowser.tsx:247-314  (tabovi: files/git/dev/preview/agent/build)
+  src/hooks/useRemoteWorkspaceState.ts              (per-project tab+path u localStorage)
+  src-tauri/src/commands/ssh/remote_projects.rs     (remote-projects.json mapiranje)
+  src/components/dashboard/AgentLaunchPanel.tsx     (remote agent binding)
+  src/components/workspace/WorkspaceView.tsx        (per-tab executionTarget za remote agente)
+
+Dokaz (testovi):
+  src/components/ssh/RemoteFileBrowser.test.tsx
+  src/lib/remoteProjects.test.ts
+  src/lib/remoteAgentSessions.test.ts
+  (nema direktnog testa za useRemoteWorkspaceState)
+
+Live dokaz: remote projekat otvoren, agent tab pokrenut (Phase 5/6).
+
+Nedostaje: remote projekat kao currentProject (pun workspace sa lokalnim sidebar/tab iskustvom).
+Procena: VEROVATNO NEPOTREBNO - modal pokriva files+git+dev+preview+agent+build zajedno.
+
+
+------------------------------------------------------------
+10. REMOTE GIT
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: UNCERTAIN (nije radjen u ovoj sesiji)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/remote_git.rs:
+    remote_git_status, remote_git_current_branch, remote_git_list_branches,
+    remote_git_changed_files, remote_git_diff, remote_git_commit,
+    remote_git_pull, remote_git_push
+  src/components/ssh/RemoteGitPanel.tsx
+  src/lib/remoteGit.ts
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/remote_git.rs (7 Rust testova)
+  src/lib/remoteGit.test.ts
+
+Nedostaje: nista u odnosu na navedene operacije.
+
+
+------------------------------------------------------------
+11. REMOTE DEV SERVER
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: UNCERTAIN (nije radjen u ovoj sesiji)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/remote_dev_server.rs:
+    start_remote_dev_server, stop_remote_dev_server, restart_remote_dev_server,
+    get_remote_dev_server_status, get_remote_dev_server_logs (pid/log fajlovi)
+  src/components/ssh/RemoteDevServerPanel.tsx
+  src/lib/remoteDevServer.ts
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/remote_dev_server.rs (8 Rust testova)
+  src/lib/remoteDevServer.test.ts
+
+Nedostaje: nista; mehanizam za remote proces/dev server postoji.
+
+
+------------------------------------------------------------
+12. REMOTE PREVIEW
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: UNCERTAIN (nije radjen u ovoj sesiji)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/remote_preview.rs:
+    start_remote_preview_tunnel (ssh -L local:localhost:remote), stop, status
+  src/components/ssh/RemotePreviewPanel.tsx (iframe na localhost:<tunnel_port>)
+  src/lib/remotePreview.ts
+  Reuse postojeceg preview/proxy sloja - nema novog sistema.
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/remote_preview.rs (2 Rust testa)
+  src/lib/remotePreview.test.ts
+
+Nedostaje: nista; novi preview sistem nije potreban.
+
+
+------------------------------------------------------------
+14. MODEL DISCOVERY
+------------------------------------------------------------
+Status: PARTIAL (Ollama discovery DONE; CLI agenti agent-native)
+IMPLEMENTED: YES (Ollama), N/A (CLI agenti)
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: UNCERTAIN (UI panel nije otvaran; API je live proveren read-only)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/ollama.rs:
+    check_ollama_status, list_ollama_models (lokalno + per-server preko /api/tags),
+    get_ollama_model_info (/api/show)
+  src-tauri/src/commands/ssh/ai_provider.rs:
+    list_ai_providers, get_ai_provider_info (Cli + Ollama registry)
+  src/lib/ollama.ts
+  src/components/ssh/OllamaStatusPanel.tsx
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/ollama.rs (10), ai_provider.rs (2)
+  src/lib/ollama.test.ts
+
+Nedostaje: discovery za CLI agente - NIJE POTREBNO (model lista zivi u samom agentu:
+OpenCode /models, Claude /model, itd.).
+
+
+------------------------------------------------------------
+15. MODEL SELECTION
+------------------------------------------------------------
+Status: PARTIAL
+IMPLEMENTED: PARTIAL (Ollama selection postoji; CLI agenti agent-native)
+UNIT TESTED: YES (Ollama)
+INTEGRATION TESTED: YES (Ollama panel)
+LIVE E2E TESTED: YES za agent-native (OpenCode je koristio qwen2.5-coder:7b na VPS),
+                 Ollama panel selection nije live-ovan
+
+Dokaz (code):
+  src/components/ssh/OllamaStatusPanel.tsx:96-115  (izbor + perzistencija modela)
+  src-tauri/src/commands/ssh/ollama.rs:538-575     (get/set/clear_selected_ollama_model)
+  src/lib/ollama.ts:137-156
+  src/lib/agent.ts                                  (AgentConfig NEMA model polje - model se bira u TUI)
+
+Dokaz (testovi):
+  src/lib/ollama.test.ts (get/set/clear selected model)
+
+Live dokaz: SSH/VPS NE menja postojeci provider/model sistem - remote OpenCode je koristio
+sopstvenu konfiguraciju na VPS-u (qwen2.5-coder:7b).
+
+Nedostaje: jedinstveni CripCode model-selector za CLI agente.
+Procena: VEROVATNO NEPOTREBNO - agent-native izbor je pokriven.
+
+
+------------------------------------------------------------
+16. AI PROVIDER ABSTRACTION
+------------------------------------------------------------
+Status: PARTIAL (by design) / ALREADY COVERED
+IMPLEMENTED: YES (read-only registry)
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: N/A
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/ai_provider.rs
+    ProviderInfo { id, name, provider_type: Cli|Ollama, available, description, server_id }
+  src/lib/agent.ts (ALL_AGENTS - centralni agent registry)
+  src/lib/agents-management.ts (install/auth/uninstall status lifecycle)
+
+Dokaz (testovi):
+  ai_provider.rs (2), src/lib/agent.test.ts, src/components/dashboard/AgentPanel.test.tsx
+
+Nedostaje: dublja apstrakcija (zajednicki runtime/model sloj).
+Procena: NIJE POTREBNA - OpenCode/Codex/Claude/Cursor + Ollama su vec obuhvaceni registry-jem.
+
+
+------------------------------------------------------------
+17. REMOTE AI AGENT
+------------------------------------------------------------
+Status: DONE + LIVE E2E
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: YES
+
+Dokaz (code):
+  src/components/dashboard/AgentLaunchPanel.tsx      (per-agent remote binding)
+  src/lib/remoteAgentBinding.ts                      (localStorage binding, bez tajni)
+  src/components/ssh/RemoteAgentTerminal.tsx         (6B executionTarget + gate)
+  src/components/terminal/Terminal.tsx               (workspace per-tab SSH target)
+  src/hooks/useHostKeyGate.tsx + src/lib/ssh.ts      (host-key gate)
+  src-tauri/src/commands/ssh/host_key.rs             (probe + accept, eksplicitni trust)
+  src-tauri/src/commands/ssh/secrets.rs              (keystore/askpass)
+  src-tauri/src/commands/ssh/opencode_auth.rs        (generic provider credentials)
+  src-tauri/src/commands/ssh/remote_agent.rs         (6D strict probe)
+
+Dokaz (testovi):
+  useHostKeyGate.test.tsx (6), RemoteAgentTerminal.test.ts (2), opencodeAuth.test.ts (5),
+  remoteAgent.test.ts (3), remoteAgentSessions.test.ts (4),
+  Rust: host_key.rs 25, connection.rs 14, opencode_auth.rs 12, remote_agent.rs 5
+
+Live dokaz (ova sesija):
+  - Workspace execution target -> OpenCode na VPS (/root/ollama, v1.18.30) - bez password prompta
+  - `SSH_OK` odgovor kroz pravi CripCode terminal
+  - Dashboard AgentLaunchPanel -> RemoteAgentTerminal -> OpenCode - bez password prompta
+  - Legacy Files -> Agent: StrictHostKeyChecking=yes potvrdjen u argv
+  - Zen/Go/anthropic + custom credential: live add/delete/persist
+  Existing Original Agent sistem ostaje centralni - nema novog Agent sistema.
+
+
+------------------------------------------------------------
+18. REMOTE BUILD
+------------------------------------------------------------
+Status: DONE
+IMPLEMENTED: YES
+UNIT TESTED: YES
+INTEGRATION TESTED: YES
+LIVE E2E TESTED: UNCERTAIN (nije radjen u ovoj sesiji)
+
+Dokaz (code):
+  src-tauri/src/commands/ssh/remote_build.rs:
+    start_remote_build, stop_remote_build, get_remote_build_status, get_remote_build_logs
+  src/components/ssh/RemoteBuildPanel.tsx
+  src/lib/remoteBuild.ts
+
+Dokaz (testovi):
+  src-tauri/src/commands/ssh/remote_build.rs (7 Rust testova)
+  src/lib/remoteBuild.test.ts
+
+Nedostaje: nista; build na VPS-u je pokriven postojecim mehanizmom.
+
+
+------------------------------------------------------------
+19. PRIVACY DEFAULTS
+------------------------------------------------------------
+Status: DONE (sve OFF po defaultu)
+IMPLEMENTED: YES
+UNIT TESTED: N/A
+INTEGRATION TESTED: N/A
+LIVE E2E TESTED: YES (kod + runtime defaults)
+
+Dokaz:
+  src-tauri/src/commands/analytics.rs:18-19   POSTHOG_API_KEY = "", POSTHOG_HOST = ""
+  src-tauri/src/error_reporting.rs:35         const ENDPOINT: &str = ""
+  src/instrument.ts:5                         const DSN = ''
+  src/lib/analytics.ts:166                    return false; // Default to disabled (privacy-first)
+  (@sentry/react je mrtav dependency - inertan)
+
+Nedostaje: opciono uklanjanje mrtvog Sentry dependency-ja (nije blokada).
+
+
+------------------------------------------------------------
+22. INDEPENDENT RELEASE / INSTALLER STANJE
+------------------------------------------------------------
+Status: DONE (infrastruktura postoji; installer rad odlozen po instrukciji)
+IMPLEMENTED: YES
+UNIT TESTED: N/A
+INTEGRATION TESTED: YES (build + install live izvrseni u Phase 6 E2E)
+LIVE E2E TESTED: YES (NSIS silent install + launch, hash identican buildu)
+
+Dokaz:
+  src-tauri/tauri.conf.json: productName "cripcode", identifier "com.fileboin.cripcode",
+    createUpdaterArtifacts: true, updater endpointi github.com/fileboin/cripcode
+  src-tauri/installer-hooks.nsi             (zastita od 0-byte exe pri update-u)
+  scripts/install.ps1, scripts/install.sh   (GitHub fileboin/cripcode releases)
+  scripts/release.sh, scripts/build-notarized.sh
+  CRIPCODE-INDEPENDENCE-AUDIT.md            (prethodni audit; YELLOW stavke nisu blokada)
+
+Nedostaje: nista sto blokira; installer promene se NE rade sada (po instrukciji).
+
+
+------------------------------------------------------------
+SSH EVIDENCE (bez ponavljanja testova)
+------------------------------------------------------------
+- SSH execution target:      IMPLEMENTED + UNIT + INTEGRATION + LIVE
+  pty_session.rs:87-123, Terminal.tsx:729-807, useTerminalManagement.ts:45-64
+- Host-key gate:             IMPLEMENTED + UNIT + INTEGRATION + LIVE
+  host_key.rs:262-380, useHostKeyGate.tsx:47-100, HostKeyConfirmModal.tsx
+- StrictHostKeyChecking=yes: IMPLEMENTED + UNIT + LIVE argv dokaz
+  connection.rs:92 (pty), build_ssh_connection_args_strict, lib/ssh.ts buildSshTerminalArgs
+  (nema accept-new u PTY/terminal tokovima; accept-new ostaje samo u capture-probe mehanizmu
+   gata i u gated exec helperu za files/git/ollama)
+- askpass:                   IMPLEMENTED + UNIT + LIVE
+  secrets.rs, connection.rs apply_ssh_auth_env*, pty_session.rs ssh_server_id (6E)
+- password security:         LIVE provereno - nema passworda u argv/localStorage/logovima/errors
+- multiple servers:          IMPLEMENTED + LIVE (ssh-servers.json Vec, bez limita; 2 registrovana)
+- remote project mapping:    IMPLEMENTED + UNIT + LIVE (remote-projects.json; hetzner -> /root/ollama)
+- OpenCode preko SSH:        LIVE (workspace + dashboard)
+- SSH_OK E2E:                LIVE (odgovor tacno SSH_OK)
+- generic Credentials:       IMPLEMENTED + UNIT + LIVE (Zen/Go/anthropic + custom add/delete/persist)
+
+
+------------------------------------------------------------
+A) DONE
+------------------------------------------------------------
+Remote Terminal, Remote Filesystem, Remote Git, Remote Dev Server, Remote Preview,
+Remote Build (implementacija + unit + integration), Remote AI Agent (live), Generic
+Credentials (live), SSH execution target + host-key gate + strict + askpass (live),
+Privacy defaults, Release infrastruktura.
+
+B) PARTIAL
+------------------------------------------------------------
+- Remote Workspace: modalna files/git/dev/preview/agent/build povrsina + perzistencija
+  taba/putanje; nije pun workspace kao lokalni projekat.
+- Model Discovery/Selection: Ollama deo radi; CLI agenti model biraju u svom TUI-u;
+  nema jedinstvenog CripCode model-selectora.
+- Provider Abstraction: minimalni read-only registry; dublja apstrakcija nije uradjena.
+- Live E2E nije ponovljen za: Remote Git, Remote Dev Server, Remote Preview, Remote Build,
+  Ollama panel i ServerList -> Terminal posle 6F izmena (kod + unit su zeleni).
+
+C) NOT DONE
+------------------------------------------------------------
+- Nema funkcionalnog bloka koji sprečava rad.
+- Formalno "ne postoji": full remote-project-as-workspace i unified CLI-agent model selector.
+  Oba su procenjena kao NEPOTREBNA za sadasnji zahtev.
+
+D) BLOCKED
+------------------------------------------------------------
+Nista.
+
+E) ALREADY COVERED / NO NEW WORK
+------------------------------------------------------------
+- Novi Ollama sistem -> vec postoji (ollama.rs + OllamaStatusPanel + lib/ollama.ts).
+- Novi Agent sistem -> Original Agent sistem je centralni (agent.ts, Terminal, AgentLaunchPanel).
+- Novi remote file/terminal/git/build/preview sistem -> svi postoje kroz SSH infrastrukturu.
+- Dodatna provider apstrakcija -> ai_provider.rs registry je dovoljan.
+- Installer izmene -> odlozeno po instrukciji; infrastruktura postoji.
+
+F) NEXT STEP (najbezbedniji)
+------------------------------------------------------------
+1) Jedan konsolidovani LIVE smoke posle sledeceg odobrenog build/install-a:
+   - ServerList -> Terminal (6F askpass, bez password prompta)
+   - Dashboard -> AgentLaunchPanel -> RemoteAgentTerminal (6B/6D)
+   - Files -> Agent legacy (6E, StrictHostKeyChecking=yes + askpass)
+   - Remote Git / Dev Server / Preview / Build paneli (jedan prolaz)
+   - Ollama panel: list models + select model
+2) Bez izmena koda pre tog smoke-a.
+3) Installer rad ostaje odlozen.
+
+STATUS PUTEVA: nista nije pogresno usmereno; nema tehnickih prepreka.
+NO CODE CHANGES · NO COMMIT · NO PUSH.

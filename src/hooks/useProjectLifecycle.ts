@@ -35,7 +35,7 @@
  */
 
 import { useState, useRef, useCallback, type RefObject } from 'react';
-import type { Project, WorkspaceInfo } from '../lib/project';
+import type { Project, SavedExecutionTarget, WorkspaceInfo } from '../lib/project';
 import type { ProjectType } from '../lib/static-server';
 import type { ProjectGitHubStatus } from '../lib/github';
 import {
@@ -73,9 +73,30 @@ import { describeExitStatus, extractTerminalError } from '../lib/terminalDiagnos
 import { getProjectId } from '../lib/projectIdentity';
 import { startProjectSession, endProjectSession } from '../lib/session';
 import { basename } from '../lib/paths';
+import type { ExecutionTarget } from './useTerminalManagement';
 
 import type { AppView } from '../lib/types';
 import { preferredPortForProject } from '../lib/ports';
+
+function toSavedExecutionTarget(target?: ExecutionTarget): SavedExecutionTarget {
+  if (!target || target.kind === 'local') return { kind: 'local' };
+  return {
+    kind: 'ssh',
+    server_id: target.serverId,
+    remote_project_id: target.remoteProjectId,
+    remote_path: target.remotePath,
+  };
+}
+
+function fromSavedExecutionTarget(target?: SavedExecutionTarget | null): ExecutionTarget {
+  if (!target || target.kind === 'local') return { kind: 'local' };
+  return {
+    kind: 'ssh',
+    serverId: target.server_id,
+    remoteProjectId: target.remote_project_id,
+    remotePath: target.remote_path,
+  };
+}
 
 export interface UseProjectLifecycleParams {
   currentProject: Project | null;
@@ -97,12 +118,17 @@ export interface UseProjectLifecycleParams {
   clearNeedsInstall: (projectPath: string) => void;
   // Terminal
   pasteToActiveTerminal: (text: string) => void;
-  terminalTabs: Array<{ id: number; agentId: string; sessionId: string }>;
+  terminalTabs: Array<{
+    id: number;
+    agentId: string;
+    sessionId: string;
+    executionTarget?: ExecutionTarget;
+  }>;
   activeTerminalTab: number;
   /** Seed a project's tab list from persisted backend state on first open. */
   restoreTerminalTabs: (
     projectPath: string,
-    tabs: Array<{ agentId: string; sessionId: string }>,
+    tabs: Array<{ agentId: string; sessionId: string; executionTarget?: ExecutionTarget }>,
     activeIndex: number
   ) => void;
   /** Seed the project with a default tab when no persisted state exists. */
@@ -410,6 +436,7 @@ export function useProjectLifecycle({
             agent_id: t.agentId,
             session_id: t.sessionId,
             custom_title: outgoingCustomTitles.get(t.id),
+            execution_target: toSavedExecutionTarget(t.executionTarget),
           })),
           active_tab_index: outgoingActiveIdx,
         },
@@ -451,7 +478,12 @@ export function useProjectLifecycle({
     // tasking session), restoreTerminalTabs is a no-op and we just
     // reveal the existing tabs. Fresh opens seed a default tab list.
     invoke<{
-      tabs: Array<{ agent_id: string; session_id: string; custom_title?: string | null }>;
+      tabs: Array<{
+        agent_id: string;
+        session_id: string;
+        custom_title?: string | null;
+        execution_target?: SavedExecutionTarget | null;
+      }>;
       active_tab_index: number;
     } | null>('get_terminal_state', { projectPath: project.path })
       .then((savedState) => {
@@ -471,6 +503,7 @@ export function useProjectLifecycle({
             savedState.tabs.map((t) => ({
               agentId: currentDefault,
               sessionId: t.session_id,
+              executionTarget: fromSavedExecutionTarget(t.execution_target),
             })),
             savedState.active_tab_index
           );

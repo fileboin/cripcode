@@ -21,6 +21,7 @@ import {
 } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { logger } from '../../lib/logger';
+import { asCommandError, formatCommandError } from '../../lib/errors';
 import { setTerminalState } from '../../lib/project';
 import { Terminal } from '../terminal/Terminal';
 import { StaleEnvBanner } from '../terminal/StaleEnvBanner';
@@ -46,6 +47,7 @@ import { trackEvent } from '../../lib/analytics';
 import { useWorkspaceCommands } from '../../commands/useWorkspaceCommands';
 import {
   CameraIcon,
+  ChevronIcon,
   CodeIcon,
   CropIcon,
   BranchIcon,
@@ -58,18 +60,21 @@ import {
 import { useSnapshots } from '../../hooks/useSnapshots';
 import { useWorktreeWorkflow } from '../../hooks/useWorktreeWorkflow';
 import { ToolbarDropdown } from './ToolbarDropdown';
+import { ModalFrame } from '../primitives/ModalFrame';
+import { Button } from '../primitives/Button';
+import { Dropdown, DropdownItem } from '../primitives/Dropdown';
 import { TerminalSplitHeaders } from './TerminalSplitHeaders';
 import { TerminalSplitDividers } from './TerminalSplitDividers';
 import { PluginsDropdown } from '../plugins/PluginsDropdown';
 import { getAgentById } from '../../lib/agent';
 import type { AgentConfig } from '../../lib/agent';
-import type { Project } from '../../lib/project';
+import type { Project, SavedExecutionTarget } from '../../lib/project';
 import { hasWebPreview, isMobileProjectType, type ProjectType } from '../../lib/static-server';
 import { ShopifySetup } from '../shopify/ShopifySetup';
 import { useShopifyTheme } from '../../hooks/useShopifyTheme';
 import { isMac } from '../../lib/setup';
 import { kbd } from '../../lib/shortcuts';
-import type { TerminalTab } from '../../hooks/useTerminalManagement';
+import type { ExecutionTarget, TerminalTab } from '../../hooks/useTerminalManagement';
 import type { TerminalHandle } from '../terminal/Terminal';
 import type { Toast, ToastType } from '../../hooks/useToasts';
 import type { NotificationSettings } from '../../lib/sounds';
@@ -83,6 +88,12 @@ import type { PinnedProjectRow } from '../../hooks/usePinnedProjects';
 import { useModal } from '../../contexts/ModalContext';
 import { sessionRegistry } from '../../lib/sessionRegistry';
 import { Spinner } from '../primitives/Spinner';
+import { listSshServers, type SshServer } from '../../lib/ssh';
+import {
+  listRemoteProjects,
+  findRemoteProjectForLocalPath,
+  type RemoteProject,
+} from '../../lib/remoteProjects';
 import '../../styles/features/notifications.css';
 
 // ---------------------------------------------------------------------------
@@ -94,6 +105,17 @@ interface TerminalSessionView {
   tabs: TerminalTab[];
   activeTabId: number;
   sessionEpoch: number;
+}
+
+function serializeExecutionTarget(target: ExecutionTarget): SavedExecutionTarget {
+  return target.kind === 'local'
+    ? { kind: 'local' }
+    : {
+        kind: 'ssh',
+        server_id: target.serverId,
+        remote_project_id: target.remoteProjectId,
+        remote_path: target.remotePath,
+      };
 }
 
 interface TerminalProps {
@@ -110,6 +132,7 @@ interface TerminalProps {
   closeTerminalTab: (id: number) => void;
   focusActiveTerminal: () => void;
   switchTabAgent: (tabId: number, agentId: string) => void;
+  setExecutionTarget: (tabId: number, target: ExecutionTarget) => void;
   restartTerminalTab: (tabId: number, projectPath?: string) => void;
   getActiveTabAgent: () => AgentConfig;
   /** Side-by-side view: tab ids visible in panes, or null when off. */
@@ -414,6 +437,7 @@ export const WorkspaceView = memo(function WorkspaceView({
     focusActiveTerminal,
     restartTerminalTab,
     getActiveTabAgent,
+    setExecutionTarget,
     splitPaneTabIds,
     splitPaneSizes,
     enableSplitView,
@@ -522,6 +546,120 @@ export const WorkspaceView = memo(function WorkspaceView({
   // Jump-to-code: when set, the Code tab opens this file and highlights the line.
   // Driven by openInCode (e.g. the visual editor's source links / usage modal).
   const [codeTarget, setCodeTarget] = useState<{ file: string; line: number } | null>(null);
+
+  const [targetPickerTabId, setTargetPickerTabId] = useState<number | null>(null);
+  const [targetPickerMode, setTargetPickerMode] = useState<'local' | 'ssh'>('local');
+  const [targetPickerServerId, setTargetPickerServerId] = useState('');
+  const [targetPickerProjectId, setTargetPickerProjectId] = useState('');
+  const [targetPickerServers, setTargetPickerServers] = useState<SshServer[]>([]);
+  const [targetPickerProjects, setTargetPickerProjects] = useState<RemoteProject[]>([]);
+  const [targetPickerLoading, setTargetPickerLoading] = useState(false);
+  const [targetPickerError, setTargetPickerError] = useState<string | null>(null);
+
+  const openExecutionTargetPicker = useCallback(
+    (tabId: number) => {
+      const tab = terminalTabs.find((item) => item.id === tabId);
+      if (!tab) return;
+      setTargetPickerTabId(tabId);
+      setTargetPickerMode(tab.executionTarget.kind);
+      setTargetPickerServerId(
+        tab.executionTarget.kind === 'ssh' ? tab.executionTarget.serverId : ''
+      );
+      setTargetPickerProjectId(
+        tab.executionTarget.kind === 'ssh' ? tab.executionTarget.remoteProjectId : ''
+      );
+      setTargetPickerError(null);
+      setTargetPickerLoading(true);
+      void Promise.all([listSshServers(), listRemoteProjects()])
+        .then(([servers, projects]) => {
+          setTargetPickerServers(servers);
+          setTargetPickerProjects(projects);
+          // Prefill the remote project linked to this local repo (metadata
+          // link only; the user can still change it or pick any other).
+          if (tab.executionTarget.kind !== 'ssh') {
+            const linked = findRemoteProjectForLocalPath(projects, currentProject.path);
+            if (linked) {
+              setTargetPickerServerId(linked.serverId);
+              setTargetPickerProjectId(linked.id);
+            }
+          }
+        })
+        .catch((err) => {
+          setTargetPickerError(formatCommandError(asCommandError(err)));
+        })
+        .finally(() => setTargetPickerLoading(false));
+    },
+    [terminalTabs, currentProject.path]
+  );
+
+  const persistTerminalTargets = useCallback(
+    (tabs: TerminalTab[]) => {
+      const customTitles = sessionRegistry.getCustomTitles(currentProject.path);
+      const activeIdx = Math.max(
+        0,
+        tabs.findIndex((tab) => tab.id === activeTerminalTab)
+      );
+      void setTerminalState(currentProject.path, {
+        tabs: tabs.map((tab) => ({
+          agent_id: tab.agentId,
+          session_id: tab.sessionId,
+          custom_title: customTitles.get(tab.id),
+          execution_target: serializeExecutionTarget(tab.executionTarget),
+        })),
+        active_tab_index: activeIdx,
+      }).catch((err) => {
+        logger.warn('[ExecutionTarget] Failed to persist target', { error: String(err) });
+      });
+    },
+    [activeTerminalTab, currentProject.path]
+  );
+
+  const saveExecutionTarget = useCallback(() => {
+    if (targetPickerTabId === null) return;
+    const currentTab = terminalTabs.find((tab) => tab.id === targetPickerTabId);
+    if (!currentTab) return;
+    let target: ExecutionTarget;
+    if (targetPickerMode === 'local') {
+      target = { kind: 'local' };
+    } else {
+      const server = targetPickerServers.find((item) => item.id === targetPickerServerId);
+      const project = targetPickerProjects.find(
+        (item) => item.id === targetPickerProjectId && item.serverId === targetPickerServerId
+      );
+      if (!server || !project || project.serverId !== server.id) {
+        setTargetPickerError(
+          'Select a registered SSH server and a project belonging to that server.'
+        );
+        return;
+      }
+      if (!project.remotePath.startsWith('/') || project.remotePath.includes('..')) {
+        setTargetPickerError('The selected remote project has an invalid remote path.');
+        return;
+      }
+      target = {
+        kind: 'ssh',
+        serverId: server.id,
+        remoteProjectId: project.id,
+        remotePath: project.remotePath,
+      };
+    }
+    const nextTabs = terminalTabs.map((tab) =>
+      tab.id === targetPickerTabId ? { ...tab, executionTarget: target } : tab
+    );
+    setExecutionTarget(targetPickerTabId, target);
+    persistTerminalTargets(nextTabs);
+    setTargetPickerTabId(null);
+  }, [
+    persistTerminalTargets,
+    setExecutionTarget,
+    targetPickerMode,
+    targetPickerProjectId,
+    targetPickerProjects,
+    targetPickerServerId,
+    targetPickerServers,
+    targetPickerTabId,
+    terminalTabs,
+  ]);
   const openInCode = useCallback(
     (file: string, line: number) => {
       setCodeTarget({ file, line });
@@ -705,6 +843,7 @@ export const WorkspaceView = memo(function WorkspaceView({
           agent_id: t.agentId,
           session_id: t.sessionId,
           custom_title: customTitles.get(t.id),
+          execution_target: serializeExecutionTarget(t.executionTarget),
         })),
         active_tab_index: activeIdx,
       }).catch((err) => {
@@ -1120,6 +1259,7 @@ export const WorkspaceView = memo(function WorkspaceView({
                 });
                 sessionRegistry.setTerminalTabAttention(currentProject.path, tabId, false);
               }}
+              onConfigureExecutionTarget={openExecutionTargetPicker}
               onAddTab={addTerminalTab}
               onCloseTab={closeTerminalTab}
               onRenameTab={handleRenameTab}
@@ -1337,6 +1477,7 @@ export const WorkspaceView = memo(function WorkspaceView({
                                     }}
                                     agent={getAgentById(tab.agentId)}
                                     projectPath={session.projectPath}
+                                    executionTarget={tab.executionTarget}
                                     onSpawn={(pid) => {
                                       sessionRegistry.patchTerminalTab(
                                         session.projectPath,
@@ -1651,6 +1792,166 @@ export const WorkspaceView = memo(function WorkspaceView({
           onPluginTerminalExit={handlePluginTerminalExit}
         />
       </div>
+      {targetPickerTabId !== null && (
+        <ModalFrame
+          isOpen
+          onClose={() => setTargetPickerTabId(null)}
+          title={`Execution target · ${getAgentById(terminalTabs.find((tab) => tab.id === targetPickerTabId)?.agentId ?? '').displayName}`}
+        >
+          <div
+            style={{
+              padding: 'var(--spacing-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--spacing-md)',
+            }}
+          >
+            <div className="form-group">
+              <label htmlFor="agent-execution-target">Target</label>
+              <Dropdown
+                trigger={(props) => (
+                  <button type="button" className="remote-agent-select-trigger" {...props}>
+                    <span>{targetPickerMode === 'local' ? 'Local' : 'SSH/VPS'}</span>
+                    <ChevronIcon size={12} />
+                  </button>
+                )}
+              >
+                <DropdownItem
+                  active={targetPickerMode === 'local'}
+                  onSelect={() => setTargetPickerMode('local')}
+                >
+                  Local
+                </DropdownItem>
+                <DropdownItem
+                  active={targetPickerMode === 'ssh'}
+                  onSelect={() => {
+                    setTargetPickerMode('ssh');
+                    if (!targetPickerProjectId) {
+                      const linked = findRemoteProjectForLocalPath(
+                        targetPickerProjects,
+                        currentProject.path
+                      );
+                      if (linked) {
+                        setTargetPickerServerId(linked.serverId);
+                        setTargetPickerProjectId(linked.id);
+                      }
+                    }
+                  }}
+                >
+                  SSH/VPS
+                </DropdownItem>
+              </Dropdown>
+            </div>
+
+            {targetPickerMode === 'ssh' && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="agent-execution-server">SSH server</label>
+                  <Dropdown
+                    menuClassName="remote-agent-select-menu"
+                    trigger={(props) => {
+                      const server = targetPickerServers.find(
+                        (item) => item.id === targetPickerServerId
+                      );
+                      return (
+                        <button
+                          type="button"
+                          className="remote-agent-select-trigger"
+                          disabled={targetPickerLoading}
+                          {...props}
+                        >
+                          <span>
+                            {server
+                              ? `${server.name} (${server.username}@${server.host})`
+                              : 'Select server'}
+                          </span>
+                          <ChevronIcon size={12} />
+                        </button>
+                      );
+                    }}
+                  >
+                    {targetPickerServers.map((server) => (
+                      <DropdownItem
+                        key={server.id}
+                        active={server.id === targetPickerServerId}
+                        onSelect={() => {
+                          setTargetPickerServerId(server.id);
+                          setTargetPickerProjectId('');
+                        }}
+                      >
+                        {server.name} ({server.username}@{server.host})
+                      </DropdownItem>
+                    ))}
+                  </Dropdown>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="agent-execution-project">Remote project</label>
+                  <Dropdown
+                    menuClassName="remote-agent-select-menu"
+                    trigger={(props) => {
+                      const project = targetPickerProjects.find(
+                        (item) =>
+                          item.id === targetPickerProjectId &&
+                          item.serverId === targetPickerServerId
+                      );
+                      return (
+                        <button
+                          type="button"
+                          className="remote-agent-select-trigger"
+                          disabled={targetPickerLoading || !targetPickerServerId}
+                          {...props}
+                        >
+                          <span>
+                            {project
+                              ? `${project.name} (${project.remotePath})`
+                              : 'Select remote project'}
+                          </span>
+                          <ChevronIcon size={12} />
+                        </button>
+                      );
+                    }}
+                  >
+                    {targetPickerProjects
+                      .filter((project) => project.serverId === targetPickerServerId)
+                      .map((project) => (
+                        <DropdownItem
+                          key={project.id}
+                          active={project.id === targetPickerProjectId}
+                          onSelect={() => setTargetPickerProjectId(project.id)}
+                        >
+                          {project.name} ({project.remotePath})
+                        </DropdownItem>
+                      ))}
+                  </Dropdown>
+                </div>
+              </>
+            )}
+
+            {targetPickerError && (
+              <p style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)', margin: 0 }}>
+                {targetPickerError}
+              </p>
+            )}
+            <div className="modal-actions">
+              <Button variant="secondary" size="sm" onClick={() => setTargetPickerTabId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={
+                  targetPickerLoading ||
+                  (targetPickerMode === 'ssh' && (!targetPickerServerId || !targetPickerProjectId))
+                }
+                onClick={saveExecutionTarget}
+              >
+                Save target
+              </Button>
+            </div>
+          </div>
+        </ModalFrame>
+      )}
     </>
   );
 });

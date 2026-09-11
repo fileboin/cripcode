@@ -9,7 +9,7 @@
 //! frontend can use the same types for local and remote files.
 
 use super::config;
-use super::{build_remote_ssh_args, shell_quote};
+use super::{build_remote_ssh_args, build_remote_ssh_args_strict, shell_quote};
 use crate::commands::code::{infer_language, FileContent, FileEntry};
 use crate::errors::CommandError;
 use crate::types::SshServer;
@@ -30,8 +30,14 @@ fn build_ssh_exec_args(server: &SshServer, remote_cmd: &str) -> Vec<String> {
     build_remote_ssh_args(server, remote_cmd)
 }
 
+/// Exec args for paths already behind the explicit host-key gate: the verified
+/// key is in `known_hosts`, so an unknown host fails closed at connect time.
+fn build_ssh_exec_args_strict(server: &SshServer, remote_cmd: &str) -> Vec<String> {
+    build_remote_ssh_args_strict(server, remote_cmd)
+}
+
 /// Look up a server by ID from the config file.
-fn get_server(server_id: &str) -> Result<SshServer, CommandError> {
+pub(crate) fn get_server(server_id: &str) -> Result<SshServer, CommandError> {
     let config = config::load_config_pub().map_err(CommandError::from)?;
     config
         .servers
@@ -83,12 +89,32 @@ fn validate_destructive_path(path: &str) -> Result<(), CommandError> {
 /// Run an SSH exec command (no stdin) with timeout. Returns the captured
 /// stdout/stderr. Uses the same `run_with_timeout` infrastructure as all
 /// other CLI calls.
-async fn run_ssh_exec(
+pub(crate) async fn run_ssh_exec(
     server: &SshServer,
     remote_cmd: &str,
     label: &str,
 ) -> Result<std::process::Output, CommandError> {
     let args = build_ssh_exec_args(server, remote_cmd);
+    run_ssh_exec_with_args(server, args, label).await
+}
+
+/// [`run_ssh_exec`] for paths behind the explicit host-key gate. Uses
+/// `StrictHostKeyChecking=yes`, so a host whose key was never confirmed fails
+/// closed instead of being silently trusted (no TOFU fallback).
+pub(crate) async fn run_ssh_exec_strict(
+    server: &SshServer,
+    remote_cmd: &str,
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    let args = build_ssh_exec_args_strict(server, remote_cmd);
+    run_ssh_exec_with_args(server, args, label).await
+}
+
+async fn run_ssh_exec_with_args(
+    server: &SshServer,
+    args: Vec<String>,
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
     let mut cmd = Command::new("ssh");
     cmd.args(&args);
     super::connection::apply_ssh_auth_env(&mut cmd, server)?;
@@ -97,13 +123,35 @@ async fn run_ssh_exec(
 
 /// Run an SSH exec command with stdin data (for writing files). Pipes the
 /// given content to the remote command's stdin.
-async fn run_ssh_exec_with_stdin(
+pub(crate) async fn run_ssh_exec_with_stdin(
     server: &SshServer,
     remote_cmd: &str,
     stdin_data: &[u8],
     label: &str,
 ) -> Result<std::process::Output, CommandError> {
     let args = build_ssh_exec_args(server, remote_cmd);
+    run_ssh_exec_with_stdin_args(server, args, stdin_data, label).await
+}
+
+/// [`run_ssh_exec_with_stdin`] for paths behind the explicit host-key gate.
+/// Uses `StrictHostKeyChecking=yes`; the stdin content is never placed in
+/// argv, the environment, or any error message.
+pub(crate) async fn run_ssh_exec_with_stdin_strict(
+    server: &SshServer,
+    remote_cmd: &str,
+    stdin_data: &[u8],
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    let args = build_ssh_exec_args_strict(server, remote_cmd);
+    run_ssh_exec_with_stdin_args(server, args, stdin_data, label).await
+}
+
+async fn run_ssh_exec_with_stdin_args(
+    server: &SshServer,
+    args: Vec<String>,
+    stdin_data: &[u8],
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
     let mut cmd = Command::new("ssh");
     cmd.args(&args);
     super::connection::apply_ssh_auth_env(&mut cmd, server)?;

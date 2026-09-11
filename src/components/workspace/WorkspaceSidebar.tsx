@@ -99,6 +99,7 @@ interface Props {
   attentionTabs: Set<number>;
   maxTabs: number;
   onSelectTab: (id: number) => void;
+  onConfigureExecutionTarget?: (tabId: number) => void;
   onAddTab: (agentId?: string) => void;
   onCloseTab: (id: number) => void;
   /** Commit a manual rename of a terminal tab. Empty string clears the
@@ -260,6 +261,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
   attentionTabs,
   maxTabs,
   onSelectTab,
+  onConfigureExecutionTarget,
   onAddTab,
   onCloseTab,
   onRenameTab,
@@ -406,6 +408,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
       const ordinal = `${agent.displayName} ${count}`;
       const title = tabTitles.get(tab.id)?.trim();
       const label = title && title.length > 0 ? title : ordinal;
+      const targetLabel = tab.executionTarget.kind === 'ssh' ? 'SSH-VPS' : 'Local';
 
       const item: SidebarItem = {
         key: `tab-${tab.id}`,
@@ -415,6 +418,18 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
         onSelect: () => onSelectTab(tab.id),
         onClose: terminalTabs.length > 1 ? () => onCloseTab(tab.id) : undefined,
         onRename: onRenameTab ? (newName) => onRenameTab(tab.id, newName) : undefined,
+        trailing:
+          !isShell && onConfigureExecutionTarget ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onConfigureExecutionTarget(tab.id)}
+              title={`Execution target: ${targetLabel}`}
+              aria-label={`Execution target for ${label}: ${targetLabel}`}
+            >
+              {targetLabel}
+            </Button>
+          ) : undefined,
       };
 
       if (isShell) terms.push(item);
@@ -454,6 +469,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
     onSelectTab,
     onCloseTab,
     onRenameTab,
+    onConfigureExecutionTarget,
     onOpenDevServerLogs,
     onRestartDevServer,
     devServerUrl,

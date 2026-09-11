@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { createAttachGate, resizePtySessionLogged } from './ptySession';
+import { createAttachGate, openPtySession, resizePtySessionLogged } from './ptySession';
 import { logger } from './logger';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -93,6 +93,34 @@ describe('createAttachGate', () => {
     expect(delivered).toEqual(['a']);
     gate.push(1, bytes('b'));
     expect(delivered).toEqual(['a', 'b']);
+  });
+});
+
+describe('openPtySession transport fields', () => {
+  it('forwards the legacy sshServerId (id only, no secret) to the backend', async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    mockIPC((cmd, args) => {
+      if (cmd === 'pty_session_open') {
+        calls.push(args as Record<string, unknown>);
+        return { sessionId: 's1', pid: 123 };
+      }
+      return null;
+    });
+
+    await openPtySession({
+      sessionId: 's1',
+      command: 'ssh',
+      args: ['user@host'],
+      cols: 80,
+      rows: 24,
+      sshServerId: 'srv-1',
+    });
+
+    expect(calls[0]).toMatchObject({
+      sessionId: 's1',
+      executionTarget: null,
+      sshServerId: 'srv-1',
+    });
   });
 });
 

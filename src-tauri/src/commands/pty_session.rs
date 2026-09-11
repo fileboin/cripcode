@@ -18,6 +18,7 @@
 //! project's terminal would otherwise look empty when switched back in.
 
 use crate::errors::CommandError;
+use crate::types::ExecutionTarget;
 use crate::utils::validate_project_path;
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtySize};
 use serde::Serialize;
@@ -67,6 +68,58 @@ fn validated_session_project_path(
             validate_project_path(&p)?.to_string_lossy().to_string(),
         )),
     }
+}
+
+fn build_remote_command(command: &str, args: &[String], remote_path: &str) -> String {
+    let mut remote_parts = Vec::with_capacity(args.len() + 1);
+    remote_parts.push(crate::commands::ssh::shell_quote(command));
+    remote_parts.extend(
+        args.iter()
+            .map(|arg| crate::commands::ssh::shell_quote(arg)),
+    );
+    format!(
+        "cd {} && {}",
+        crate::commands::ssh::shell_quote(remote_path),
+        remote_parts.join(" ")
+    )
+}
+
+fn build_execution_command(
+    command: &str,
+    args: &[String],
+    target: Option<&ExecutionTarget>,
+) -> Result<(String, Vec<String>, Option<crate::types::SshServer>), CommandError> {
+    let Some(ExecutionTarget::Ssh {
+        server_id,
+        remote_project_id,
+        remote_path,
+    }) = target
+    else {
+        return Ok((command.to_string(), args.to_vec(), None));
+    };
+
+    if remote_project_id.trim().is_empty() {
+        return Err(CommandError::Validation {
+            field: "remoteProjectId".into(),
+            reason: "Remote project is required".into(),
+        });
+    }
+    let server = crate::commands::ssh::get_server(server_id)?;
+    let registered_project = crate::commands::ssh::get_remote_project(remote_project_id)?;
+    crate::commands::ssh::validate_remote_path(remote_path)?;
+    if registered_project.server_id != *server_id || registered_project.remote_path != *remote_path
+    {
+        return Err(CommandError::Validation {
+            field: "executionTarget".into(),
+            reason: "Remote project, SSH server, and remote path do not match".into(),
+        });
+    }
+
+    let remote_command = build_remote_command(command, args, remote_path);
+
+    let mut ssh_args = crate::commands::ssh::build_ssh_pty_args(&server);
+    ssh_args.push(remote_command);
+    Ok(("ssh".into(), ssh_args, Some(server)))
 }
 
 /// Ring buffer + cumulative-offset accounting, guarded by ONE mutex so that
@@ -258,6 +311,12 @@ pub async fn pty_session_open(
     rows: u16,
     project_path: Option<String>,
     tab_session_id: Option<String>,
+    execution_target: Option<ExecutionTarget>,
+    // Legacy fallback paths without a registered remote project
+    // (ServerList → Files → Agent) name the SSH server whose keystore
+    // credential feeds ssh's askpass channel. Ignored when
+    // `execution_target` already names the server. The id is not a secret.
+    ssh_server_id: Option<String>,
 ) -> Result<OpenSessionResult, CommandError> {
     // Idempotent: if a live session already exists for this id, return it.
     // If an exited session exists under this id (e.g. resume-failed retry
@@ -282,6 +341,18 @@ pub async fn pty_session_open(
     // anywhere on disk. Validate before allocating any PTY resources.
     let cwd = validated_session_cwd(cwd)?;
     let project_path = validated_session_project_path(project_path)?;
+    let (spawn_command, spawn_args, ssh_server) =
+        build_execution_command(&command, &args, execution_target.as_ref())?;
+
+    // Legacy fallback: no execution target, but a named server still gets the
+    // keystore/askpass wiring so password servers never prompt on the TTY.
+    let ssh_server = match ssh_server {
+        Some(server) => Some(server),
+        None => match ssh_server_id.as_deref().map(str::trim) {
+            Some(id) if !id.is_empty() => Some(crate::commands::ssh::get_server(id)?),
+            _ => None,
+        },
+    };
 
     let (rows, cols) = clamp_pty_size(rows, cols);
     let pty_system = native_pty_system();
@@ -303,10 +374,15 @@ pub async fn pty_session_open(
         .try_clone_reader()
         .map_err(|e| format!("clone_reader: {e}"))?;
 
-    let mut cmd = CommandBuilder::new(&command);
-    cmd.args(&args);
-    if let Some(ref c) = cwd {
-        cmd.cwd(std::ffi::OsString::from(c));
+    let mut cmd = CommandBuilder::new(&spawn_command);
+    cmd.args(&spawn_args);
+    if ssh_server.is_none() {
+        if let Some(ref c) = cwd {
+            cmd.cwd(std::ffi::OsString::from(c));
+        }
+    }
+    if let Some(ref server) = ssh_server {
+        crate::commands::ssh::apply_ssh_auth_env_to_pty(&mut cmd, server)?;
     }
     for (k, v) in env.iter() {
         cmd.env(std::ffi::OsString::from(k), std::ffi::OsString::from(v));
@@ -342,11 +418,11 @@ pub async fn pty_session_open(
     // Retried on transient EAGAIN (process-table pressure) — and labeled with
     // the spawned command, so the three spawn_command sites in this codebase
     // no longer collapse into one indistinguishable telemetry bucket (#587).
-    let mut child = crate::external_command::retry_spawn_on_pressure(&command, || {
+    let mut child = crate::external_command::retry_spawn_on_pressure(&spawn_command, || {
         pair.slave.spawn_command(cmd.clone())
     })
     .map_err(|e| {
-        let message = format!("spawn_command `{command}`: {e}");
+        let message = format!("spawn_command `{spawn_command}`: {e}");
         // A persistent EAGAIN is the environment (resource pressure), not an
         // app malfunction — Expected with a human message (issue #587).
         if crate::external_command::is_spawn_resource_pressure(&message) {
@@ -722,6 +798,32 @@ pub fn pty_session_list(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_execution_target_keeps_the_existing_command_unchanged() {
+        let target = ExecutionTarget::Local;
+        let args = vec!["--model".to_string(), "example".to_string()];
+        let (command, built_args, server) =
+            build_execution_command("agent-runtime", &args, Some(&target)).unwrap();
+        assert_eq!(command, "agent-runtime");
+        assert_eq!(built_args, args);
+        assert!(server.is_none());
+    }
+
+    #[test]
+    fn remote_command_keeps_runtime_and_model_args_generic() {
+        let args = vec![
+            "--provider".into(),
+            "future-provider".into(),
+            "--model".into(),
+            "model-x".into(),
+        ];
+        let command = build_remote_command("future-runtime", &args, "/srv/remote-app");
+        assert_eq!(
+            command,
+            "cd '/srv/remote-app' && 'future-runtime' '--provider' 'future-provider' '--model' 'model-x'"
+        );
+    }
 
     #[test]
     fn ring_buffer_append_within_limit() {

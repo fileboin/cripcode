@@ -5,12 +5,10 @@
 //! VPS — the local machine only needs SSH access, not the agent CLI.
 
 use super::config;
-use super::{build_remote_ssh_args, shell_quote};
+use super::shell_quote;
 use crate::errors::CommandError;
 use serde::Serialize;
 
-/// Timeout for the agent detection check.
-const SSH_AGENT_TIMEOUT_SECS: u64 = 10;
 const ALLOWED_AGENT_BINARIES: &[&str] = &["claude", "codex", "opencode", "cursor-agent"];
 
 /// Look up a server by ID.
@@ -73,14 +71,23 @@ pub async fn check_remote_agent_installed(
 
     let binary_trimmed = validate_agent_binary(&binary_name)?;
 
-    let args = build_remote_ssh_args(&server, &build_agent_check_command(binary_trimmed));
-    let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&args);
-    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-
+    let remote_cmd = build_agent_check_command(binary_trimmed);
     let label = format!("ssh check-agent {}", server.name);
-    let output =
-        crate::external_command::run_with_timeout(cmd, &label, SSH_AGENT_TIMEOUT_SECS).await?;
+    // Strict host key: the UI runs the explicit host-key gate before this
+    // probe, so an unknown or changed host fails closed here — never
+    // accept-new / silent TOFU. Reuses the same runner as the other
+    // host-key-gated exec paths (30s timeout, keystore askpass wiring).
+    let output = super::files::run_ssh_exec_strict(&server, &remote_cmd, &label).await?;
+
+    if !output.status.success() {
+        // Non-zero status is an SSH-level failure (unverified/changed host key,
+        // auth, connectivity) — never report that as "agent not installed".
+        return Err(CommandError::Process {
+            cmd: label,
+            exit_code: output.status.code().unwrap_or(-1),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        });
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let trimmed = stdout.trim();

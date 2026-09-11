@@ -41,12 +41,24 @@ import { logger } from '../lib/logger';
 /** Maximum number of terminal tabs allowed per project */
 const MAX_TERMINAL_TABS = 5;
 
+/** Where an existing agent tab executes; runtime/provider/model stay separate. */
+export type ExecutionTarget =
+  | { kind: 'local' }
+  | {
+      kind: 'ssh';
+      serverId: string;
+      remoteProjectId: string;
+      remotePath: string;
+    };
+
 /** A terminal tab with its own agent assignment. */
 export interface TerminalTab {
   id: number;
   agentId: string;
   /** Unique session ID (UUID) for resuming agent conversations */
   sessionId: string;
+  /** Execution target; absent in legacy persisted state means local. */
+  executionTarget: ExecutionTarget;
   /** Whether this tab should resume a previous session on spawn */
   shouldResume?: boolean;
 }
@@ -114,6 +126,8 @@ export interface UseTerminalManagementReturn {
   focusActiveTerminal: () => void;
   pasteToActiveTerminal: (text: string) => void;
   switchTabAgent: (tabId: number, agentId: string) => void;
+  /** Change a tab's execution target and relaunch it through the existing PTY lifecycle. */
+  setExecutionTarget: (tabId: number, target: ExecutionTarget) => void;
   /** Relaunch a tab's agent with a fresh session (used after it exits).
    *  Defaults to the current project; pass a path to target a background one. */
   restartTerminalTab: (tabId: number, projectPath?: string) => void;
@@ -151,7 +165,14 @@ export interface UseTerminalManagementReturn {
 
 function makeDefaultState(): ProjectTerminalState {
   return {
-    tabs: [{ id: 1, agentId: getDefaultAgentId(), sessionId: crypto.randomUUID() }],
+    tabs: [
+      {
+        id: 1,
+        agentId: getDefaultAgentId(),
+        sessionId: crypto.randomUUID(),
+        executionTarget: { kind: 'local' },
+      },
+    ],
     activeTabId: 1,
     counter: 1,
     sessionEpoch: 1,
@@ -261,7 +282,10 @@ export function useTerminalManagement(
       const newTabId = s.counter;
       const sessionId = crypto.randomUUID();
       const resolvedAgent = agentId ?? getDefaultAgentId();
-      s.tabs = [...s.tabs, { id: newTabId, agentId: resolvedAgent, sessionId }];
+      s.tabs = [
+        ...s.tabs,
+        { id: newTabId, agentId: resolvedAgent, sessionId, executionTarget: { kind: 'local' } },
+      ];
       s.activeTabId = newTabId;
       bump();
       void trackEvent('terminal_tab_added', {
@@ -378,6 +402,44 @@ export function useTerminalManagement(
     [bump]
   );
 
+  const setExecutionTarget = useCallback(
+    (tabId: number, target: ExecutionTarget) => {
+      const path = currentPathRef.current;
+      if (!path) return;
+      const s = statesRef.current.get(path);
+      if (!s) return;
+      const tab = s.tabs.find((item) => item.id === tabId);
+      if (!tab) return;
+      const current = tab.executionTarget;
+      if (
+        current.kind === target.kind &&
+        (current.kind === 'local' ||
+          (target.kind === 'ssh' &&
+            current.serverId === target.serverId &&
+            current.remoteProjectId === target.remoteProjectId &&
+            current.remotePath === target.remotePath))
+      ) {
+        return;
+      }
+      const ref = terminalRefsMap.current.get(refKey(path, tabId));
+      if (ref) ref.kill();
+      terminalRefsMap.current.delete(refKey(path, tabId));
+      s.tabs = s.tabs.map((item) =>
+        item.id === tabId
+          ? {
+              ...item,
+              executionTarget: target,
+              sessionId: crypto.randomUUID(),
+              shouldResume: false,
+            }
+          : item
+      );
+      s.sessionEpoch += 1;
+      bump();
+    },
+    [bump]
+  );
+
   const restartTerminalTab = useCallback(
     (tabId: number, projectPath?: string) => {
       const path = projectPath ?? currentPathRef.current;
@@ -420,7 +482,7 @@ export function useTerminalManagement(
   const restoreTerminalTabs = useCallback(
     (
       projectPath: string,
-      tabs: Array<{ agentId: string; sessionId: string }>,
+      tabs: Array<{ agentId: string; sessionId: string; executionTarget?: ExecutionTarget }>,
       activeIndex: number
     ) => {
       if (tabs.length === 0) return;
@@ -433,6 +495,7 @@ export function useTerminalManagement(
         id: i + 1,
         agentId: t.agentId,
         sessionId: t.sessionId,
+        executionTarget: t.executionTarget ?? { kind: 'local' },
         shouldResume: true,
       }));
       const activeId = restoredTabs[Math.min(activeIndex, restoredTabs.length - 1)]?.id ?? 1;
@@ -604,6 +667,7 @@ export function useTerminalManagement(
     focusActiveTerminal,
     pasteToActiveTerminal,
     switchTabAgent,
+    setExecutionTarget,
     restartTerminalTab,
     getActiveTabAgent,
     restoreTerminalTabs,

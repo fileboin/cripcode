@@ -25,6 +25,7 @@ import {
   renameRemoteFile,
 } from '../../lib/remoteFiles';
 import type { SshServer } from '../../lib/ssh';
+import { useRemoteWorkspaceState } from '../../hooks/useRemoteWorkspaceState';
 import { RemoteGitPanel } from './RemoteGitPanel';
 import { RemoteDevServerPanel } from './RemoteDevServerPanel';
 import { RemotePreviewPanel } from './RemotePreviewPanel';
@@ -33,13 +34,25 @@ import { RemoteBuildPanel } from './RemoteBuildPanel';
 
 interface RemoteFileBrowserProps {
   server: SshServer;
+  /** Remote project id — enables per-project persistent workspace state (`remote:{projectId}`). */
+  projectId?: string;
+  projectName?: string;
+  /** Folder the browser opens in when nothing is persisted for this project. */
+  initialPath?: string;
   onBack: () => void;
 }
 
-export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
+export function RemoteFileBrowser({
+  server,
+  projectId,
+  projectName,
+  initialPath = '/home',
+  onBack,
+}: RemoteFileBrowserProps) {
   const { showToast } = useOptionalToast();
-  const [currentPath, setCurrentPath] = useState('/home');
-  const [pathInput, setPathInput] = useState('/home');
+  const workspaceState = useRemoteWorkspaceState(projectId, initialPath);
+  const [currentPath, setCurrentPath] = useState(workspaceState.path);
+  const [pathInput, setPathInput] = useState(workspaceState.path);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileContent | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
@@ -52,7 +65,12 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [activeTab, setActiveTab] = useState<
     'files' | 'git' | 'dev' | 'preview' | 'agent' | 'build'
-  >('files');
+  >(workspaceState.tab as 'files' | 'git' | 'dev' | 'preview' | 'agent' | 'build');
+
+  const switchTab = (tab: 'files' | 'git' | 'dev' | 'preview' | 'agent' | 'build') => {
+    setActiveTab(tab);
+    workspaceState.persistTab(tab);
+  };
 
   const loadFiles = useCallback(
     async (path: string) => {
@@ -66,13 +84,14 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         const list = await listRemoteFiles(server.id, path);
         setEntries(list);
         setCurrentPath(path);
+        workspaceState.persistPath(path);
       } catch (err) {
         showToast(formatCommandError(asCommandError(err)), 'error');
       } finally {
         setIsLoading(false);
       }
     },
-    [server.id, showToast]
+    [server.id, showToast, workspaceState]
   );
 
   useEffect(() => {
@@ -227,42 +246,42 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
         <Button
           variant={activeTab === 'files' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('files')}
+          onClick={() => switchTab('files')}
         >
           Files
         </Button>
         <Button
           variant={activeTab === 'git' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('git')}
+          onClick={() => switchTab('git')}
         >
           Git
         </Button>
         <Button
           variant={activeTab === 'dev' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('dev')}
+          onClick={() => switchTab('dev')}
         >
           Dev
         </Button>
         <Button
           variant={activeTab === 'preview' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('preview')}
+          onClick={() => switchTab('preview')}
         >
           Preview
         </Button>
         <Button
           variant={activeTab === 'agent' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('agent')}
+          onClick={() => switchTab('agent')}
         >
           Agent
         </Button>
         <Button
           variant={activeTab === 'build' ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('build')}
+          onClick={() => switchTab('build')}
         >
           Build
         </Button>
@@ -285,7 +304,12 @@ export function RemoteFileBrowser({ server, onBack }: RemoteFileBrowserProps) {
       ) : activeTab === 'preview' ? (
         <RemotePreviewPanel server={server} remotePath={currentPath} />
       ) : activeTab === 'agent' ? (
-        <RemoteAgentPanel server={server} remotePath={currentPath} />
+        <RemoteAgentPanel
+          server={server}
+          remotePath={currentPath}
+          projectId={projectId}
+          projectName={projectName}
+        />
       ) : activeTab === 'build' ? (
         <RemoteBuildPanel server={server} remotePath={currentPath} />
       ) : (

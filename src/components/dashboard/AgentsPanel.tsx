@@ -42,6 +42,12 @@ import { logger } from '../../lib/logger';
 import { asCommandError, formatCommandError } from '../../lib/errors';
 import { extractTerminalError } from '../../lib/terminalDiagnostics';
 import {
+  getRemoteAgentSessions,
+  removeRemoteAgentSession,
+  subscribeRemoteAgentSessions,
+  type RemoteAgentSession,
+} from '../../lib/remoteAgentSessions';
+import {
   CheckIcon,
   ClaudeIcon,
   CodexIcon,
@@ -257,6 +263,14 @@ export function AgentsPanel() {
   const [terminalTask, setTerminalTask] = useState<TerminalTask | null>(null);
   const [confirmUninstall, setConfirmUninstall] = useState<UninstallConfirm | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // GAP 1: remote agent sessions (agents running on VPS hosts over SSH) —
+  // registered by RemoteAgentTerminal on Start Agent, kept here so the
+  // dashboard sees and manages them alongside local sessions.
+  const [remoteSessions, setRemoteSessions] = useState<RemoteAgentSession[]>([]);
+  useEffect(() => {
+    setRemoteSessions(getRemoteAgentSessions());
+    return subscribeRemoteAgentSessions(() => setRemoteSessions(getRemoteAgentSessions()));
+  }, []);
   // The active workspace decides how Claude auth works: the Default workspace
   // uses the machine's native `claude` login (today's terminal flow), while a
   // non-default workspace gets its own isolated token via the connect modal.
@@ -529,6 +543,47 @@ export function AgentsPanel() {
         </div>
         {loading && <Spinner size="sm" className="agents-panel-spinner" />}
       </header>
+
+      {remoteSessions.length > 0 && (
+        <div className="remote-agents-section">
+          <p className="agents-section-title">Remote agents</p>
+          <div className="agents-panel-list">
+            {remoteSessions.map((session) => (
+              <div key={session.key} className="ssh-server-card" style={{ cursor: 'default' }}>
+                <div className="ssh-server-info">
+                  <span className="ssh-server-name">{session.agentName}</span>
+                  <span className="ssh-server-detail">
+                    {session.serverName} — {session.remotePath}
+                  </span>
+                  <span className="ssh-server-detail">
+                    {session.status === 'running'
+                      ? `running since ${new Date(session.startedAt).toLocaleTimeString()}`
+                      : 'session ended'}
+                  </span>
+                  <span
+                    className={`ssh-connection-badge ssh-connection-badge--${
+                      session.status === 'running' ? 'connected' : 'disconnected'
+                    }`}
+                  >
+                    {session.status === 'running' ? 'running' : 'stopped'}
+                  </span>
+                </div>
+                <div className="ssh-server-actions">
+                  {session.status === 'stopped' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeRemoteAgentSession(session.key)}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <p className="agents-section-title">Coding agents</p>
       <div className="agents-panel-list">

@@ -31,8 +31,15 @@ import { getTerminalGpuEnabled } from '../../lib/settings';
 import { loadNerdFonts } from '../../lib/fonts';
 import { logger } from '../../lib/logger';
 import { asCommandError, formatCommandError } from '../../lib/errors';
+import {
+  markRemoteAgentSessionRunning,
+  markRemoteAgentSessionStopped,
+  upsertRemoteAgentSession,
+} from '../../lib/remoteAgentSessions';
 import { buildRemoteAgentCommand, buildSshTerminalArgs, type SshServer } from '../../lib/ssh';
 import type { AgentConfig } from '../../lib/agent';
+import type { ExecutionTarget } from '../../hooks/useTerminalManagement';
+import { useHostKeyGate } from '../../hooks/useHostKeyGate';
 import { Button } from '../primitives/Button';
 import '@xterm/xterm/css/xterm.css';
 
@@ -43,20 +50,71 @@ interface RemoteAgentTerminalProps {
   server: SshServer;
   /** The remote project path on the VPS. */
   remotePath: string;
+  /** Remote project context — enables agent session registration (GAP 1). */
+  projectId?: string;
+  projectName?: string;
   /** Callback when the component goes back. */
   onBack: () => void;
+}
+
+/**
+ * Decide how to spawn the remote agent PTY.
+ *
+ * With a registered remote project we hand the backend the same
+ * `ExecutionTarget` the Workspace SSH tabs use: the backend builds the ssh
+ * argv with `StrictHostKeyChecking=yes` and wires the keystore-backed askpass
+ * helper, so password auth never needs a TTY prompt. Without a project id
+ * there is no registered target the backend could validate, so the legacy
+ * raw-ssh spawn is kept — still behind the host-key gate, and the server id
+ * is passed so the backend can wire the same keystore askpass channel.
+ * Exported for unit testing.
+ */
+export function buildRemoteAgentSpawn(
+  server: SshServer,
+  agent: AgentConfig,
+  remotePath: string,
+  projectId?: string
+): {
+  command: string;
+  args: string[];
+  executionTarget?: ExecutionTarget;
+  sshServerId?: string;
+} {
+  if (projectId) {
+    return {
+      command: agent.binaryName,
+      args: [],
+      executionTarget: {
+        kind: 'ssh',
+        serverId: server.id,
+        remoteProjectId: projectId,
+        remotePath,
+      },
+    };
+  }
+  return {
+    command: 'ssh',
+    args: [...buildSshTerminalArgs(server), buildRemoteAgentCommand(remotePath, agent.binaryName)],
+    // No registered remote project to build an execution target from, but the
+    // backend can still wire ssh's askpass channel from this server's keystore
+    // credential (id only — never a secret).
+    sshServerId: server.id,
+  };
 }
 
 export function RemoteAgentTerminal({
   agent,
   server,
   remotePath,
+  projectId,
+  projectName,
   onBack,
 }: RemoteAgentTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const [exited, setExited] = useState(false);
   const mountedRef = useRef(false);
+  const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
 
   const sessionId = `ssh-agent-${server.id}-${agent.id}-${remotePath.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
@@ -125,32 +183,51 @@ export function RemoteAgentTerminal({
     });
     disposers.push(() => inputDisposable.dispose());
 
-    // Build SSH args: standard connection args + remote command
-    // ssh -o ... -t user@host "cd /path && <agent-binary>"
-    const sshArgs = buildSshTerminalArgs(server);
-    // Remove the trailing "user@host" — we need to append the remote command
-    const connArgs = sshArgs.slice(0, -1);
-
+    // The spawn spec (backend execution target or legacy raw-ssh fallback) is
+    // built by buildRemoteAgentSpawn; `user@host` stays the last element of the
+    // legacy args so the remote command is appended AFTER the target.
     term.writeln(
       `\x1b[2mStarting ${agent.displayName} on ${server.username}@${server.host}:${remotePath}...\x1b[0m`
     );
 
     void (async () => {
       try {
-        const remoteCmd = buildRemoteAgentCommand(remotePath, agent.binaryName);
+        // Explicit host-key gate — the same one every SSH surface uses:
+        // known → proceed, unknown → fingerprint confirmation, changed or
+        // unprobeable → blocked.
+        if (!(await ensureHostKeyAccepted(server))) return;
+        const spawn = buildRemoteAgentSpawn(server, agent, remotePath, projectId);
         await openPtySession({
           sessionId,
-          command: 'ssh',
-          args: [...connArgs, remoteCmd],
+          command: spawn.command,
+          args: spawn.args,
           cwd: null,
           env: {},
           cols: Math.max(term.cols, 2),
           rows: Math.max(term.rows, 2),
           projectPath: null,
+          executionTarget: spawn.executionTarget,
+          sshServerId: spawn.sshServerId,
         });
         sessionOpened = true;
         if (cancelled) return;
         resizePtySessionLogged(sessionId, Math.max(term.cols, 2), Math.max(term.rows, 2));
+
+        // GAP 1: register the remote agent session so the dashboard Agents
+        // surface sees it (server/agent/path context, no secrets).
+        if (projectId) {
+          upsertRemoteAgentSession({
+            projectId,
+            projectName: projectName ?? server.name,
+            serverId: server.id,
+            serverName: server.name,
+            agentId: agent.id,
+            agentName: agent.displayName,
+            remotePath,
+            ptySessionId: sessionId,
+          });
+          markRemoteAgentSessionRunning(sessionId);
+        }
 
         const gate = createAttachGate((bytes) => {
           term.write(bytes);
@@ -164,6 +241,8 @@ export function RemoteAgentTerminal({
         const unlistenExit = await onPtySessionExit(sessionId, (exitCode) => {
           if (cancelled) return;
           setExited(true);
+          // GAP 1: the remote agent session ended � update the registry.
+          if (projectId) markRemoteAgentSessionStopped(sessionId);
           term.writeln(
             `\r\n\x1b[2m[${agent.displayName} session ended — exit code ${exitCode}]\x1b[0m`
           );
@@ -176,6 +255,17 @@ export function RemoteAgentTerminal({
           term.write(attach.buffer);
         }
         gate.open(attach.endOffset);
+
+        // GAP 1: sync the registry with the ACTUAL pty state — an app
+        // restart kills backend ptys, so a persisted 'running' entry must
+        // flip to 'stopped' when the pty is dead on re-attach.
+        if (projectId) {
+          if (attach.alive) {
+            markRemoteAgentSessionRunning(sessionId);
+          } else {
+            markRemoteAgentSessionStopped(sessionId);
+          }
+        }
 
         if (!attach.alive && attach.exitCode !== null) {
           setExited(true);
@@ -216,7 +306,7 @@ export function RemoteAgentTerminal({
       term.dispose();
       termRef.current = null;
     };
-  }, [agent, server, remotePath, sessionId]);
+  }, [agent, server, remotePath, sessionId, projectId, projectName, ensureHostKeyAccepted]);
 
   const handleReconnect = async () => {
     try {
@@ -249,6 +339,7 @@ export function RemoteAgentTerminal({
         )}
       </div>
       <div ref={containerRef} className="ssh-remote-terminal-body" />
+      {hostKeyModal}
     </div>
   );
 }

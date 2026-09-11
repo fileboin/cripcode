@@ -93,6 +93,7 @@ async function openAppJs() {
 
 describe('RemoteFileBrowser loading and selection', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(listRemoteFiles).mockResolvedValue(entries);
     vi.mocked(readRemoteFile).mockResolvedValue(fileContent);
@@ -161,6 +162,7 @@ describe('RemoteFileBrowser loading and selection', () => {
 
 describe('RemoteFileBrowser edit, save and cancel', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(listRemoteFiles).mockResolvedValue(entries);
     vi.mocked(readRemoteFile).mockResolvedValue(fileContent);
@@ -237,6 +239,7 @@ describe('RemoteFileBrowser edit, save and cancel', () => {
 
 describe('RemoteFileBrowser rename and refresh', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(listRemoteFiles).mockResolvedValue(entries);
     vi.mocked(readRemoteFile).mockResolvedValue(fileContent);
@@ -297,6 +300,7 @@ describe('RemoteFileBrowser rename and refresh', () => {
 
 describe('RemoteFileBrowser error handling', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(saveRemoteFile).mockResolvedValue(undefined);
     vi.mocked(renameRemoteFile).mockResolvedValue(undefined);
@@ -349,6 +353,7 @@ describe('RemoteFileBrowser error handling', () => {
 
 describe('RemoteFileBrowser busy state', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(listRemoteFiles).mockResolvedValue(entries);
     vi.mocked(readRemoteFile).mockResolvedValue(fileContent);

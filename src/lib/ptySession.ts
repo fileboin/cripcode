@@ -17,6 +17,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logger } from './logger';
 import { asCommandError, formatCommandError } from './errors';
+import type { ExecutionTarget } from '../hooks/useTerminalManagement';
 
 export interface OpenPtySessionArgs {
   /** Stable id for this PTY session. Usually the tab's `sessionId` UUID
@@ -30,6 +31,12 @@ export interface OpenPtySessionArgs {
   rows: number;
   projectPath?: string | null;
   tabSessionId?: string | null;
+  /** Optional execution transport; omitted/local keeps the existing spawn path. */
+  executionTarget?: ExecutionTarget | null;
+  /** Legacy fallback paths without a registered remote project: names the SSH
+   *  server whose keystore credential feeds ssh's askpass channel. Ignored
+   *  when `executionTarget` already names the server. The id is not a secret. */
+  sshServerId?: string | null;
 }
 
 export interface OpenPtySessionResult {
@@ -86,6 +93,8 @@ export async function openPtySession(args: OpenPtySessionArgs): Promise<OpenPtyS
     rows: args.rows,
     projectPath: args.projectPath ?? null,
     tabSessionId: args.tabSessionId ?? null,
+    executionTarget: args.executionTarget ?? null,
+    sshServerId: args.sshServerId ?? null,
   });
 }
 

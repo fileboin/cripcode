@@ -216,6 +216,7 @@ export function CompactWorkspace({
                   }}
                   agent={getAgentById(tab.agentId)}
                   projectPath={session.projectPath}
+                  executionTarget={tab.executionTarget}
                   onSpawn={(pid) => {
                     sessionRegistry.patchTerminalTab(session.projectPath, tab.id, {
                       status: 'running',

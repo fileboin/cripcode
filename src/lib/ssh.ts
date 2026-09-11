@@ -126,9 +126,12 @@ export function buildRemoteAgentCommand(remotePath: string, binaryName: string):
 /**
  * Build the SSH CLI argument list for an interactive terminal session.
  * Uses keepalive (ServerAliveInterval) so a dropped connection is detected,
- * and `StrictHostKeyChecking=accept-new` for first-connection auto-accept.
- * Unlike the connection test, BatchMode is NOT set — interactive sessions
- * may need to prompt for a key passphrase.
+ * and `StrictHostKeyChecking=yes`: every caller runs the explicit host-key
+ * gate (`ensureHostKeyAccepted`) before spawning, so the verified key is
+ * already in the user's known_hosts — an unknown host fails closed instead of
+ * being silently trusted (no accept-new / TOFU). Unlike the connection test,
+ * BatchMode is NOT set — interactive sessions may need to prompt for a key
+ * passphrase.
  */
 export function buildSshTerminalArgs(server: SshServer): string[] {
   const args = [
@@ -139,7 +142,7 @@ export function buildSshTerminalArgs(server: SshServer): string[] {
     '-o',
     'ServerAliveCountMax=3',
     '-o',
-    'StrictHostKeyChecking=accept-new',
+    'StrictHostKeyChecking=yes',
     '-t',
   ];
 

@@ -14,6 +14,7 @@ mod connection;
 mod files;
 mod host_key;
 mod ollama;
+mod opencode_auth;
 mod remote_agent;
 mod remote_build;
 mod remote_dev_server;
@@ -29,6 +30,7 @@ pub use connection::*;
 pub use files::*;
 pub use host_key::*;
 pub use ollama::*;
+pub use opencode_auth::*;
 pub use remote_agent::*;
 pub use remote_build::*;
 pub use remote_dev_server::*;
@@ -61,9 +63,23 @@ pub(crate) fn build_remote_ssh_args(server: &SshServer, remote_command: &str) ->
     args
 }
 
+/// [`build_remote_ssh_args`] with `StrictHostKeyChecking=yes` for exec paths
+/// that are already behind the explicit host-key gate: the verified host key is
+/// in `known_hosts`, so an unknown host must fail closed (no silent TOFU).
+pub(crate) fn build_remote_ssh_args_strict(
+    server: &SshServer,
+    remote_command: &str,
+) -> Vec<String> {
+    let mut args = connection::build_ssh_connection_args_strict(server);
+    args.push(remote_command.to_string());
+    args
+}
+
 #[cfg(test)]
 mod shell_quote_tests {
-    use super::{build_remote_ssh_args, shell_program_arg, shell_quote};
+    use super::{
+        build_remote_ssh_args, build_remote_ssh_args_strict, shell_program_arg, shell_quote,
+    };
     use crate::types::SshServer;
 
     #[test]
@@ -130,5 +146,28 @@ mod shell_quote_tests {
             Some("printf '%s' 'remote'")
         );
         assert!(!args.contains(&"__cripcode_ssh_ok__".to_string()));
+    }
+
+    #[test]
+    fn strict_remote_ssh_args_require_a_preverified_host_key() {
+        let server = SshServer {
+            id: "test".into(),
+            name: "Test".into(),
+            host: "example.com".into(),
+            port: Some(22),
+            username: "deploy".into(),
+            key_path: None,
+            auth_type: crate::types::AuthType::Key,
+            created_at: 0,
+            last_connected_at: None,
+        };
+        let args = build_remote_ssh_args_strict(&server, "printf '%s' 'remote'");
+        let joined = args.join(" ");
+        assert!(joined.contains("StrictHostKeyChecking=yes"));
+        assert!(!joined.contains("StrictHostKeyChecking=accept-new"));
+        assert_eq!(
+            args.last().map(String::as_str),
+            Some("printf '%s' 'remote'")
+        );
     }
 }

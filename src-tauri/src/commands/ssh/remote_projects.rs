@@ -51,7 +51,7 @@ fn save_config(config: &RemoteProjectsConfig) -> Result<(), String> {
 }
 
 /// Validate a remote path: must be absolute, no `..` traversal.
-fn validate_remote_path(path: &str) -> Result<(), CommandError> {
+pub(crate) fn validate_remote_path(path: &str) -> Result<(), CommandError> {
     if !path.starts_with('/') {
         return Err(CommandError::Validation {
             field: "remotePath".into(),
@@ -75,14 +75,30 @@ pub fn list_remote_projects() -> Result<Vec<RemoteProject>, CommandError> {
     Ok(config.projects)
 }
 
+/// Look up a registered remote project for internal execution-target checks.
+pub(crate) fn get_remote_project(id: &str) -> Result<RemoteProject, CommandError> {
+    let config = load_config().map_err(CommandError::from)?;
+    config
+        .projects
+        .into_iter()
+        .find(|project| project.id == id)
+        .ok_or_else(|| CommandError::Validation {
+            field: "remoteProjectId".into(),
+            reason: "Registered remote project was not found".into(),
+        })
+}
+
 /// Register a new remote project. The `server_id` must reference an existing
 /// SSH server config. The `remote_path` must be an absolute path on the VPS.
+/// `local_project_path` optionally links this remote project to a local
+/// project/repo — metadata only, used to prefill the execution-target picker.
 #[tauri::command]
 #[tracing::instrument]
 pub fn add_remote_project(
     name: String,
     server_id: String,
     remote_path: String,
+    local_project_path: Option<String>,
 ) -> Result<RemoteProject, CommandError> {
     let name_trimmed = name.trim();
     if name_trimmed.is_empty() {
@@ -118,6 +134,7 @@ pub fn add_remote_project(
         name: name_trimmed.to_string(),
         server_id,
         remote_path: remote_path.trim().to_string(),
+        local_project_path: normalize_local_project_path(local_project_path),
         created_at: now,
         last_opened: None,
     };
@@ -126,6 +143,36 @@ pub fn add_remote_project(
     config.projects.push(project.clone());
     save_config(&config).map_err(CommandError::from)?;
     Ok(project)
+}
+
+/// Trim a local project path, treating blank input as "no link".
+fn normalize_local_project_path(value: Option<String>) -> Option<String> {
+    value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// Link (or unlink, with `None`) a registered remote project to a local
+/// project path. Metadata only — nothing is copied or synced.
+#[tauri::command]
+#[tracing::instrument]
+pub fn set_remote_project_local_link(
+    id: String,
+    local_project_path: Option<String>,
+) -> Result<RemoteProject, CommandError> {
+    let mut config = load_config().map_err(CommandError::from)?;
+    let project = config
+        .projects
+        .iter_mut()
+        .find(|p| p.id == id)
+        .ok_or_else(|| CommandError::Validation {
+            field: "id".into(),
+            reason: format!("No remote project found with id `{id}`"),
+        })?;
+    project.local_project_path = normalize_local_project_path(local_project_path);
+    let updated = project.clone();
+    save_config(&config).map_err(CommandError::from)?;
+    Ok(updated)
 }
 
 /// Remove a remote project registration (does NOT delete anything on the VPS).
@@ -185,5 +232,15 @@ mod tests {
     #[test]
     fn validate_remote_path_accepts_absolute() {
         assert!(validate_remote_path("/home/user/myproject").is_ok());
+    }
+
+    #[test]
+    fn normalize_local_project_path_trims_and_drops_blanks() {
+        assert_eq!(normalize_local_project_path(None), None);
+        assert_eq!(normalize_local_project_path(Some("   ".into())), None);
+        assert_eq!(
+            normalize_local_project_path(Some(" /repos/bro ".into())),
+            Some("/repos/bro".to_string())
+        );
     }
 }
