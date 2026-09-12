@@ -1,6 +1,6 @@
 [package]
 name = "ship-studio"
-version = "0.18.7"
+version = "0.18.8"
 description = "Cripcode — a desktop app for shipping web projects with AI coding agents."
 authors = ["Julian Galluzzo", "Cripcode contributors"]
 license = "MIT"

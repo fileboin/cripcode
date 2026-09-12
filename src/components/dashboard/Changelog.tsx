@@ -45,6 +45,13 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.18.8', // v0.18.8
+    items: [
+      "Independent CripCode executable: the installed app now runs as cripcode.exe instead of sharing Ship Studio's executable name, so CripCode updates and uninstalls no longer affect a Ship Studio process",
+      'Windows auto-updates are fixed: this release is versioned cleanly so existing installations can detect and install it from inside the app',
+    ],
+  },
+  {
     version: '0.18.7', // v0.18.7
     items: [
       'First Cripcode release: the app now uses its own bundle identity, deep-link scheme, updater key, and release repository',

@@ -6,6 +6,12 @@ The latest entry is rendered inside the in-app update dialog, so write user-
 facing language — what changed, in plain English — not commit subjects.
 -->
 
+## What's New in v0.18.8
+
+- **Independent CripCode executable** - The installed app now runs as `cripcode.exe` instead of sharing the Ship Studio executable name, so CripCode updates and uninstalls no longer affect a Ship Studio process
+- **Windows auto-updates fixed** - This Windows release is versioned cleanly so existing installations can detect and install it from inside the app
+
+
 ## What's New in v0.19.0
 
 - **SSH server management** - Add, test, connect, and disconnect to VPS servers from the Cmd+K palette
