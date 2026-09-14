@@ -14,12 +14,25 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 /// Get the path to the SSH servers config file.
+///
+/// Desktop: `~/CripCode/.cripcode/ssh-servers.json`. Android has no home
+/// directory; config lives in the app-private data dir (same app-private
+/// policy as pins/app-state/logs).
 fn get_config_path() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    Ok(home
-        .join("CripCode")
-        .join(".cripcode")
-        .join("ssh-servers.json"))
+    #[cfg(target_os = "android")]
+    {
+        return crate::android_paths::app_data_dir()
+            .map(|dir| dir.join("ssh-servers.json"))
+            .ok_or_else(|| "Could not resolve the app data directory".to_string());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let home = dirs::home_dir().ok_or("Could not find home directory")?;
+        Ok(home
+            .join("CripCode")
+            .join(".cripcode")
+            .join("ssh-servers.json"))
+    }
 }
 
 /// Load the SSH servers config from disk. Returns an empty config if the file
@@ -147,18 +160,32 @@ fn validate_username(username: &str) -> Result<(), CommandError> {
 
 /// Expand a leading `~` to the user's home directory so the stored key path is
 /// absolute everywhere (the ssh CLI's own tilde handling differs per platform).
+/// Android has no home directory — `~` is rejected there instead of silently
+/// resolving somewhere unexpected.
 fn expand_home(path: &str) -> Result<String, CommandError> {
     if path != "~" && !path.starts_with("~/") && !path.starts_with("~\\") {
         return Ok(path.to_string());
     }
-    let home = dirs::home_dir().ok_or_else(|| CommandError::Validation {
-        field: "keyPath".into(),
-        reason: "Could not resolve the home directory".into(),
-    })?;
-    if path == "~" {
-        return Ok(home.to_string_lossy().to_string());
+    #[cfg(target_os = "android")]
+    {
+        return Err(CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "`~` is not available on this platform — use an absolute path to the \
+                     imported key inside the app's private storage"
+                .into(),
+        });
     }
-    Ok(home.join(&path[2..]).to_string_lossy().to_string())
+    #[cfg(not(target_os = "android"))]
+    {
+        let home = dirs::home_dir().ok_or_else(|| CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Could not resolve the home directory".into(),
+        })?;
+        if path == "~" {
+            return Ok(home.to_string_lossy().to_string());
+        }
+        Ok(home.join(&path[2..]).to_string_lossy().to_string())
+    }
 }
 
 /// Normalize and validate a key path: expand a leading `~`, then require an
@@ -197,17 +224,36 @@ fn normalize_key_path(key_path: &Option<String>) -> Result<Option<String>, Comma
 
     // Keys live under the user's home in every normal setup (any subfolder —
     // no fixed `.ssh` assumption); paths outside it are rejected so a
-    // compromised webview can't point `-i` at arbitrary system files.
+    // compromised webview can't point `-i` at arbitrary system files. Android
+    // has no home: the allowed root is the app-private data dir, where
+    // imported keys live.
     let canonical = dunce::canonicalize(pb).unwrap_or_else(|_| pb.to_path_buf());
-    let home = dirs::home_dir().ok_or_else(|| CommandError::Validation {
-        field: "keyPath".into(),
-        reason: "Could not resolve the home directory".into(),
-    })?;
-    let home_canonical = dunce::canonicalize(&home).unwrap_or(home);
-    if !canonical.starts_with(&home_canonical) {
+
+    #[cfg(target_os = "android")]
+    let (root, outside_reason) = (
+        crate::android_paths::app_data_dir()
+            .map(|dir| dir.as_path().to_path_buf())
+            .ok_or_else(|| CommandError::Validation {
+                field: "keyPath".into(),
+                reason: "Could not resolve the app data directory".into(),
+            })?,
+        "Key path must be inside the app's private storage",
+    );
+
+    #[cfg(not(target_os = "android"))]
+    let (root, outside_reason) = (
+        dirs::home_dir().ok_or_else(|| CommandError::Validation {
+            field: "keyPath".into(),
+            reason: "Could not resolve the home directory".into(),
+        })?,
+        "Key path must be inside your home directory",
+    );
+
+    let root_canonical = dunce::canonicalize(&root).unwrap_or(root);
+    if !canonical.starts_with(&root_canonical) {
         return Err(CommandError::Validation {
             field: "keyPath".into(),
-            reason: "Key path must be inside your home directory".into(),
+            reason: outside_reason.into(),
         });
     }
 

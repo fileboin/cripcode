@@ -12,12 +12,25 @@ use crate::types::{RemoteProject, RemoteProjectsConfig, REMOTE_PROJECTS_CONFIG_S
 use uuid::Uuid;
 
 /// Get the path to the remote projects config file.
+///
+/// Desktop: `~/CripCode/.cripcode/remote-projects.json`. Android has no home
+/// directory; config lives in the app-private data dir (same app-private
+/// policy as pins/app-state/logs).
 fn get_config_path() -> Result<std::path::PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    Ok(home
-        .join("CripCode")
-        .join(".cripcode")
-        .join("remote-projects.json"))
+    #[cfg(target_os = "android")]
+    {
+        return crate::android_paths::app_data_dir()
+            .map(|dir| dir.join("remote-projects.json"))
+            .ok_or_else(|| "Could not resolve the app data directory".to_string());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let home = dirs::home_dir().ok_or("Could not find home directory")?;
+        Ok(home
+            .join("CripCode")
+            .join(".cripcode")
+            .join("remote-projects.json"))
+    }
 }
 
 /// Load the remote projects config from disk.

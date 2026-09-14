@@ -491,12 +491,25 @@ struct OllamaConfig {
 }
 
 /// Get the path to the Ollama config file.
+///
+/// Desktop: `~/CripCode/.cripcode/ollama-config.json`. Android has no home
+/// directory; config lives in the app-private data dir (same app-private
+/// policy as pins/app-state/logs).
 fn ollama_config_path() -> Result<std::path::PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
-    Ok(home
-        .join("CripCode")
-        .join(".cripcode")
-        .join("ollama-config.json"))
+    #[cfg(target_os = "android")]
+    {
+        return crate::android_paths::app_data_dir()
+            .map(|dir| dir.join("ollama-config.json"))
+            .ok_or_else(|| "Could not resolve the app data directory".to_string());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let home = dirs::home_dir().ok_or("Could not find home directory")?;
+        Ok(home
+            .join("CripCode")
+            .join(".cripcode")
+            .join("ollama-config.json"))
+    }
 }
 
 /// Load the Ollama config from disk (empty config if file doesn't exist).
