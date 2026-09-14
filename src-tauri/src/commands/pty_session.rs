@@ -17,9 +17,7 @@
 //! frontend can replay recent history into xterm — a background
 //! project's terminal would otherwise look empty when switched back in.
 
-use super::session_backend::{
-    remote_pty_supported, unsupported_remote_pty_error, ProcessBackend, SessionBackend,
-};
+use super::session_backend::{ProcessBackend, SessionBackend};
 use crate::errors::CommandError;
 use crate::types::ExecutionTarget;
 use crate::utils::validate_project_path;
@@ -120,9 +118,19 @@ fn build_execution_command(
 
     let remote_command = build_remote_command(command, args, remote_path);
 
-    let mut ssh_args = crate::commands::ssh::build_ssh_pty_args(&server);
-    ssh_args.push(remote_command);
-    Ok(("ssh".into(), ssh_args, Some(server)))
+    #[cfg(not(target_os = "android"))]
+    {
+        let mut ssh_args = crate::commands::ssh::build_ssh_pty_args(&server);
+        ssh_args.push(remote_command);
+        Ok(("ssh".into(), ssh_args, Some(server)))
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        // No OpenSSH process exists on Android: the remote shell program is
+        // the "spawn command" consumed by the russh transport adapter.
+        Ok((remote_command, Vec::new(), Some(server)))
+    }
 }
 
 /// Ring buffer + cumulative-offset accounting, guarded by ONE mutex so that
@@ -353,15 +361,19 @@ pub async fn pty_session_open(
         },
     };
 
-    // Remote sessions need a platform transport: desktop runs the OpenSSH
-    // client through the local PTY, Android has no OpenSSH binary and the
-    // in-process adapter is not implemented yet. Fail closed with an explicit
-    // "unsupported" error instead of spawning a missing `ssh`.
-    if ssh_server.is_some() && !remote_pty_supported() {
-        return Err(unsupported_remote_pty_error());
+    let (rows, cols) = clamp_pty_size(rows, cols);
+
+    // Android: remote sessions run through the in-process russh transport
+    // (the platform has no OpenSSH binary). Local sessions keep the process
+    // PTY path below.
+    #[cfg(target_os = "android")]
+    if let Some(server) = ssh_server.as_ref() {
+        let remote_command = android_remote_command(&spawn_command, &spawn_args)?;
+        let backend =
+            super::ssh::transport_russh::open_shell(server, cols, rows, &remote_command).await?;
+        return start_session(app, session_id, backend, 0, project_path, tab_session_id);
     }
 
-    let (rows, cols) = clamp_pty_size(rows, cols);
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -460,6 +472,19 @@ pub async fn pty_session_open(
         pid,
     ));
 
+    start_session(app, session_id, backend, pid, project_path, tab_session_id)
+}
+
+/// Create the registry entry and the reader/waiter threads for a backend.
+/// Shared by the desktop process PTY and the Android russh channel.
+fn start_session(
+    app: AppHandle,
+    session_id: String,
+    backend: Arc<dyn SessionBackend>,
+    pid: u32,
+    project_path: Option<String>,
+    tab_session_id: Option<String>,
+) -> Result<OpenSessionResult, CommandError> {
     let session = Arc::new(Session {
         backend: backend.clone(),
         project_path: project_path.clone(),
@@ -486,7 +511,7 @@ pub async fn pty_session_open(
             let mut dsr_carry: Vec<u8> = Vec::new();
             loop {
                 let n = match session_for_reader.backend.read(&mut buf) {
-                    Ok(0) => break, // EOF — child closed slave
+                    Ok(0) => break, // EOF — the session ended
                     Ok(n) => n,
                     Err(_) => break,
                 };
@@ -522,7 +547,7 @@ pub async fn pty_session_open(
         });
     }
 
-    // Waiter thread: blocks on child.wait(), records exit code, emits exit.
+    // Waiter thread: blocks on the backend's exit, records exit code, emits exit.
     {
         let session_id_for_waiter = session_id.clone();
         let session_for_waiter = session.clone();
@@ -551,6 +576,20 @@ pub async fn pty_session_open(
     );
 
     Ok(OpenSessionResult { session_id, pid })
+}
+
+/// On Android the russh transport needs the remote shell program itself.
+/// Execution-target sessions already carry it as `command`; the legacy
+/// frontend shape is `ssh <pty args> <remote command>` (command + last arg).
+#[cfg(target_os = "android")]
+fn android_remote_command(command: &str, args: &[String]) -> Result<String, CommandError> {
+    if command == "ssh" {
+        return args
+            .last()
+            .cloned()
+            .ok_or_else(|| CommandError::expected("Remote SSH sessions require a remote command"));
+    }
+    Ok(command.to_string())
 }
 
 #[tauri::command]

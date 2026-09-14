@@ -23,6 +23,9 @@ mod remote_preview;
 mod remote_projects;
 /// Public so the `ssh-askpass` helper binary can reuse the keystore wiring.
 pub mod secrets;
+/// Android in-process SSH transport (russh). Desktop keeps the OpenSSH CLI.
+#[cfg(target_os = "android")]
+pub(crate) mod transport_russh;
 
 pub use ai_provider::*;
 pub use config::*;

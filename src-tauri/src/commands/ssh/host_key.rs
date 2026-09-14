@@ -19,6 +19,12 @@
 //! unverifiable host must never fall back to silent TOFU. Hosts already
 //! recorded in `known_hosts` stay `known`: ssh re-verifies the key
 //! authoritatively at connect time.
+//!
+//! Android has no `ssh`/`ssh-keygen`; the two command entry points dispatch
+//! to the russh transport (`transport_russh`), which reuses this module's
+//! pure policy helpers so the states, fingerprints, and fail-closed behavior
+//! stay identical. The CLI-only helpers are unused there.
+#![cfg_attr(target_os = "android", allow(dead_code))]
 
 use super::config;
 use crate::errors::CommandError;
@@ -151,7 +157,7 @@ async fn capture_host_keys(
 
 /// `known_hosts` lookup reference: entries for non-default ports are stored
 /// as `[host]:port`.
-fn known_hosts_hostref(host: &str, port: Option<u16>) -> String {
+pub(crate) fn known_hosts_hostref(host: &str, port: Option<u16>) -> String {
     match port {
         Some(p) if p != 22 => format!("[{host}]:{p}"),
         _ => host.to_string(),
@@ -221,7 +227,7 @@ fn known_hosts_match(known_output: &str, scan_blobs: &[String]) -> bool {
 
 /// Decide the verification state from the probed keys and the user's
 /// known_hosts lookup output. Pure — no I/O — so it's directly testable.
-fn evaluate_host_key_state(
+pub(crate) fn evaluate_host_key_state(
     scan_keys: &[(String, String, String)],
     known_output: &str,
 ) -> (&'static str, Option<String>) {
@@ -246,7 +252,7 @@ fn evaluate_host_key_state(
 /// time, so a changed key is still rejected there. Anything else fails closed
 /// as `probe-unavailable`; the frontend blocks the connection instead of
 /// falling back to silent TOFU. Pure — no I/O — so it's directly testable.
-fn fallback_state_without_probe(known_output: &str) -> &'static str {
+pub(crate) fn fallback_state_without_probe(known_output: &str) -> &'static str {
     if known_output.trim().is_empty() {
         "probe-unavailable"
     } else {
@@ -262,7 +268,19 @@ fn fallback_state_without_probe(known_output: &str) -> &'static str {
 #[tauri::command]
 #[tracing::instrument]
 pub async fn check_remote_host_key(server_id: String) -> Result<HostKeyStatus, CommandError> {
-    let server = get_server(&server_id)?;
+    #[cfg(target_os = "android")]
+    {
+        return super::transport_russh::check_remote_host_key(&server_id).await;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        check_remote_host_key_cli(&server_id).await
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+async fn check_remote_host_key_cli(server_id: &str) -> Result<HostKeyStatus, CommandError> {
+    let server = get_server(server_id)?;
 
     // Look the host up in known_hosts BEFORE probing the network: an
     // already-trusted host must not be locked out by a failed capture, and
@@ -357,7 +375,19 @@ pub async fn check_remote_host_key(server_id: String) -> Result<HostKeyStatus, C
 #[tauri::command]
 #[tracing::instrument]
 pub async fn accept_remote_host_key(server_id: String) -> Result<(), CommandError> {
-    let server = get_server(&server_id)?;
+    #[cfg(target_os = "android")]
+    {
+        return super::transport_russh::accept_remote_host_key(&server_id).await;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        accept_remote_host_key_cli(&server_id).await
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+async fn accept_remote_host_key_cli(server_id: &str) -> Result<(), CommandError> {
+    let server = get_server(server_id)?;
 
     let captured = capture_host_keys(&server).await?;
     if captured.is_empty() {

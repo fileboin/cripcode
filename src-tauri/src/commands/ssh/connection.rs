@@ -4,6 +4,11 @@
 //! via `run_with_timeout`. A successful test records the state as `Connected`
 //! and stamps `last_connected_at` in the config file. The state registry is
 //! in-memory only — on app restart, all connections are `Disconnected`.
+//!
+//! Android has no `ssh` binary; the test dispatches to the russh transport
+//! (`transport_russh`) with the same marker contract. The CLI-only helpers
+//! are unused there.
+#![cfg_attr(target_os = "android", allow(dead_code))]
 
 use super::config;
 use super::secrets;
@@ -251,6 +256,29 @@ pub(crate) fn build_ssh_args(server: &SshServer) -> Vec<String> {
 #[tauri::command]
 #[tracing::instrument]
 pub async fn test_ssh_connection(id: String) -> Result<String, CommandError> {
+    #[cfg(target_os = "android")]
+    {
+        let server = super::files::get_server(&id)?;
+        set_state(&id, SshConnectionState::Connecting, None);
+        return match super::transport_russh::test_connection(&server).await {
+            Ok(output) => {
+                set_state(&id, SshConnectionState::Connected, None);
+                Ok(output)
+            }
+            Err(e) => {
+                set_state(&id, SshConnectionState::Error, Some(e.to_string()));
+                Err(e)
+            }
+        };
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        test_ssh_connection_cli(id).await
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+async fn test_ssh_connection_cli(id: String) -> Result<String, CommandError> {
     let config = config::load_config_pub().map_err(CommandError::from)?;
     let server =
         config

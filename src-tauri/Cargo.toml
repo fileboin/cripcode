@@ -101,3 +101,10 @@ arboard = "3"
 objc2 = "0.5"
 objc2-foundation = { version = "0.2", features = ["NSString", "NSGeometry"] }
 block2 = "0.5"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Android SSH transport: no OpenSSH binary exists on Android, so remote
+# sessions use this in-process client behind the SessionBackend seam.
+# `ring` (not aws-lc-rs) keeps the NDK build toolchain-free; `rsa` covers
+# RSA host keys / keys, `flate2` covers zlib compression.
+russh = { version = "0.63.3", default-features = false, features = ["ring", "rsa", "flate2"] }

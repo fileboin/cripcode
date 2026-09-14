@@ -2,12 +2,10 @@
 //!
 //! Desktop sessions are a real local PTY process (portable_pty); for remote
 //! execution targets that process is the OpenSSH client. Android has no
-//! OpenSSH binary, so a later phase will add an in-process SSH channel
-//! adapter behind this same trait. Until that adapter exists, remote sessions
-//! fail closed with an explicit "unsupported" error instead of spawning a
-//! missing `ssh` and surfacing a confusing spawn failure.
+//! OpenSSH binary, so remote sessions use the in-process SSH channel adapter
+//! (`commands::ssh::transport_russh::RusshBackend`) behind this same trait.
+//! The session registry above this seam is transport-agnostic.
 
-use crate::errors::CommandError;
 use portable_pty::{Child, ChildKiller, MasterPty, PtySize};
 use std::io::{Read, Write};
 use std::sync::Mutex;
@@ -127,59 +125,13 @@ impl SessionBackend for ProcessBackend {
     }
 }
 
-/// Whether a remote (SSH) PTY session can be opened on `os`.
-///
-/// Pure so the Android fallback decision is testable on any host. Android
-/// reports `"android"` from `std::env::consts::OS`; the in-process SSH
-/// adapter is not implemented yet, so remote sessions fail closed there.
-pub fn remote_pty_supported_on(os: &str) -> bool {
-    os != "android"
-}
-
-/// Whether this build can open a remote (SSH) PTY session.
-pub fn remote_pty_supported() -> bool {
-    remote_pty_supported_on(std::env::consts::OS)
-}
-
-/// Explicit fail-closed error for platforms without a remote transport yet.
-/// `Expected` keeps an environment gap out of telemetry.
-pub fn unsupported_remote_pty_error() -> CommandError {
-    CommandError::expected("Remote SSH terminals are not supported on this platform yet.")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn android_is_not_supported() {
-        assert!(!remote_pty_supported_on("android"));
-    }
-
-    #[test]
-    fn desktop_platforms_are_supported() {
-        for os in ["windows", "macos", "linux"] {
-            assert!(remote_pty_supported_on(os), "{os} must be supported");
-        }
-    }
-
-    #[test]
-    fn current_platform_matches_the_compile_time_decision() {
-        assert_eq!(remote_pty_supported(), !cfg!(target_os = "android"));
-    }
-
-    #[test]
-    fn unsupported_error_is_expected_and_explicit() {
-        let err = unsupported_remote_pty_error();
-        assert!(matches!(err, CommandError::Expected { .. }), "got {err:?}");
-        assert!(
-            err.to_string().contains("not supported"),
-            "message must say the transport is unsupported: {err}"
-        );
-    }
-
     /// Compile-time proof that the desktop backend satisfies the seam. The
-    /// Android adapter (F2+) must implement the same trait.
+    /// Android adapter (`transport_russh::RusshBackend`) implements the same
+    /// trait behind `#[cfg(target_os = "android")]`.
     #[test]
     fn process_backend_implements_the_seam() {
         fn assert_backend<T: SessionBackend>() {}
