@@ -18,9 +18,11 @@ import {
   addSshServer,
   updateSshServer,
   testSshConnection,
+  importSshKey,
   type SshAuthType,
   type SshServer,
 } from '../../lib/ssh';
+import { isAndroid } from '../../lib/setup';
 
 interface AddServerModalProps {
   isOpen: boolean;
@@ -53,6 +55,9 @@ export function AddServerModal({
   /** Transient — cleared after submit; the backend stores it in the OS
    * keystore. An empty field on edit means "keep the stored password". */
   const [password, setPassword] = useState('');
+  /** Android-only transient key text — imported to app-private storage and
+   * cleared immediately after; never persisted by the frontend. */
+  const [privateKey, setPrivateKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +82,7 @@ export function AddServerModal({
         setAuthType('key');
       }
       setPassword('');
+      setPrivateKey('');
       setError(null);
       setTestResult(null);
       setLoading(false);
@@ -85,17 +91,32 @@ export function AddServerModal({
     }
   }, [isOpen, editServer]);
 
-  const buildConfig = () => ({
+  const buildConfig = (resolvedKeyPath: string | null) => ({
     name: name.trim(),
     host: host.trim(),
     port: port.trim() ? Number(port.trim()) : null,
     username: username.trim(),
-    keyPath: authType === 'key' ? keyPath.trim() || null : null,
+    keyPath: authType === 'key' ? resolvedKeyPath : null,
     authType,
     // Blank on edit → backend keeps the stored password; on add it is
     // required for password mode.
     password: authType === 'password' && password.length > 0 ? password : null,
   });
+
+  /** Resolve the key path for save/test: on Android a pasted key is imported
+   * into app-private storage first (and the transient text cleared); on
+   * desktop the typed path is used as-is. */
+  const resolveKeyPath = async (): Promise<string | null> => {
+    if (authType !== 'key') return null;
+    if (!isAndroid()) return keyPath.trim() || null;
+    const pasted = privateKey.trim();
+    if (pasted) {
+      const imported = await importSshKey(pasted, editServer?.id ?? null);
+      setPrivateKey('');
+      return imported;
+    }
+    return keyPath.trim() || null;
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -103,10 +124,11 @@ export function AddServerModal({
     setTestResult(null);
     const editing = editServer;
     try {
+      const resolvedKeyPath = await resolveKeyPath();
       let serverId = editing?.id;
       let target = editing ?? undefined;
       if (!serverId || !editing) {
-        const saved = await addSshServer(buildConfig());
+        const saved = await addSshServer(buildConfig(resolvedKeyPath));
         serverId = saved.id;
         target = saved;
         setTestResult('Server saved. Testing connection...');
@@ -114,7 +136,7 @@ export function AddServerModal({
         // Persist the modal state first — otherwise Test runs against the
         // SAVED server (e.g. still key mode) and a freshly typed password
         // would never reach the keystore before the connection attempt.
-        const saved = await updateSshServer(editing.id, buildConfig());
+        const saved = await updateSshServer(editing.id, buildConfig(resolvedKeyPath));
         target = saved;
       }
       if (serverId && ensureHostKeyAccepted) {
@@ -142,13 +164,18 @@ export function AddServerModal({
       setError('A password is required for password authentication');
       return;
     }
+    if (isAndroid() && authType === 'key' && !privateKey.trim() && !keyPath.trim()) {
+      setError('Paste your SSH private key');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
+      const resolvedKeyPath = await resolveKeyPath();
       if (isEdit && editServer) {
-        await updateSshServer(editServer.id, buildConfig());
+        await updateSshServer(editServer.id, buildConfig(resolvedKeyPath));
       } else {
-        await addSshServer(buildConfig());
+        await addSshServer(buildConfig(resolvedKeyPath));
       }
       onSaved();
       onClose();
@@ -251,11 +278,28 @@ export function AddServerModal({
               type="text"
               value={keyPath}
               onChange={(e) => setKeyPath(e.target.value)}
-              placeholder="~/.ssh/id_ed25519"
+              placeholder={
+                isAndroid() ? 'Imported automatically from the pasted key' : '~/.ssh/id_ed25519'
+              }
               disabled={loading || testing}
               autoComplete="off"
               spellCheck={false}
             />
+            {isAndroid() && (
+              <div className="form-group">
+                <label htmlFor="ssh-private-key">Paste private key</label>
+                <textarea
+                  id="ssh-private-key"
+                  value={privateKey}
+                  onChange={(e) => setPrivateKey(e.target.value)}
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                  disabled={loading || testing}
+                  autoComplete="off"
+                  spellCheck={false}
+                  rows={4}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="form-group">

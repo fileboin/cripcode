@@ -285,6 +285,15 @@ pub fn add_ssh_server(
     auth_type: Option<AuthType>,
     password: Option<String>,
 ) -> Result<SshServer, CommandError> {
+    // Android has no OS keystore backend (keyring v3 would silently use its
+    // in-memory mock), so password mode fails closed there instead of
+    // pretending the secret was persisted.
+    #[cfg(target_os = "android")]
+    if auth_type.unwrap_or_default() == AuthType::Password {
+        return Err(CommandError::expected(
+            "Password authentication is not available on this platform yet — use an SSH key.",
+        ));
+    }
     let config_path = get_config_path().map_err(CommandError::from)?;
     add_server_with_store(
         &config_path,
@@ -374,6 +383,14 @@ pub fn update_ssh_server(
     auth_type: Option<AuthType>,
     password: Option<String>,
 ) -> Result<SshServer, CommandError> {
+    // Same Android fail-closed rule as `add_ssh_server`: never route a
+    // password into the mock keystore.
+    #[cfg(target_os = "android")]
+    if auth_type.unwrap_or_default() == AuthType::Password {
+        return Err(CommandError::expected(
+            "Password authentication is not available on this platform yet — use an SSH key.",
+        ));
+    }
     let config_path = get_config_path().map_err(CommandError::from)?;
     update_server_with_store(
         &config_path,

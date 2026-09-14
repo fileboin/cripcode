@@ -835,6 +835,9 @@ pub fn run() {
             // Host-key fingerprint confirmation
             commands::ssh::check_remote_host_key,
             commands::ssh::accept_remote_host_key,
+            // Android private-key import (app-private storage)
+            #[cfg(target_os = "android")]
+            commands::ssh::import_ssh_key,
             // Remote Filesystem
             commands::ssh::list_remote_files,
             commands::ssh::read_remote_file,

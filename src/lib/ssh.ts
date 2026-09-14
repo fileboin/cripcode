@@ -51,6 +51,15 @@ export async function addSshServer(config: NewSshServer): Promise<SshServer> {
   return invoke<SshServer>('add_ssh_server', { ...config });
 }
 
+/**
+ * Android only: import a pasted private key into app-private storage and
+ * return the absolute path to store in the server config. The backend
+ * validates and writes the key in one step; the frontend never persists it.
+ */
+export async function importSshKey(keyText: string, serverId?: string | null): Promise<string> {
+  return invoke<string>('import_ssh_key', { keyText, serverId: serverId ?? null });
+}
+
 export async function updateSshServer(id: string, config: NewSshServer): Promise<SshServer> {
   return invoke<SshServer>('update_ssh_server', { id, ...config });
 }
