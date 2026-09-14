@@ -113,6 +113,7 @@ pub fn is_registered_external_path(canonical: &Path) -> Result<bool, String> {
 
 /// Opens a native folder picker and registers the selected folder as an external project.
 /// Returns the path of the registered project, or None if cancelled.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn register_external_project(app: AppHandle) -> Result<Option<String>, CommandError> {

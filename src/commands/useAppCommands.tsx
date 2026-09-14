@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useCommands } from './useCommands';
+import type { Command } from './types';
 import { useOpenModal } from '../contexts/ModalContext';
 import { getDashboardProjects, type DashboardProject, type Project } from '../lib/project';
 import { sessionRegistry } from '../lib/sessionRegistry';
@@ -8,7 +9,7 @@ import { checkIdeAvailability, openInIde, openInFinder } from '../lib/ide';
 import { logger } from '../lib/logger';
 import { kbd } from '../lib/shortcuts';
 import { basename } from '../lib/paths';
-import { fileManagerName } from '../lib/setup';
+import { fileManagerName, isAndroid } from '../lib/setup';
 import {
   CodeIcon,
   CursorIcon,
@@ -249,7 +250,7 @@ export function useAppCommands({
         title: 'Import local folder',
         icon: <FolderIcon size={14} />,
         category: 'action',
-        when: 'home',
+        when: (ctx) => ctx.kind === 'home' && !isAndroid(),
         keywords: ['import', 'folder', 'local', 'existing'],
         run: () => void handleImportLocalFolder(),
       },
@@ -275,6 +276,7 @@ export function useAppCommands({
         title: 'Check for updates',
         icon: <SettingsIcon size={14} />,
         category: 'settings',
+        when: () => !isAndroid(),
         keywords: ['version', 'upgrade'],
         run: () => void runCheckUpdates(),
       },
@@ -283,6 +285,7 @@ export function useAppCommands({
         title: 'Shared libraries',
         icon: <LayersIcon size={14} />,
         category: 'settings',
+        when: () => !isAndroid(),
         keywords: [
           'library',
           'attached',
@@ -309,7 +312,7 @@ export function useAppCommands({
   // Project-context commands
   useCommands(() => {
     if (!currentProject) return [];
-    const cmds = [
+    const cmds: Command[] = [
       {
         id: 'nav.home',
         title: 'Go to Home',
@@ -332,7 +335,7 @@ export function useAppCommands({
         title: `Reveal in ${fileManagerName()}`,
         icon: <FolderIcon size={14} />,
         category: 'action' as const,
-        when: 'project' as const,
+        when: ({ kind }) => kind === 'project' && !isAndroid(),
         // Keep 'finder'/'explorer'/'files' all searchable regardless of platform.
         keywords: ['finder', 'explorer', 'files', 'show', 'open folder', 'reveal'],
         run: () => void runFinder(),

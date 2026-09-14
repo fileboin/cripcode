@@ -133,6 +133,11 @@ fn throttle_path() -> Option<PathBuf> {
     {
         dirs::data_local_dir().map(|d| d.join("cripcode/bug-report-throttle.json"))
     }
+
+    #[cfg(target_os = "android")]
+    {
+        crate::android_paths::app_data_dir().map(|d| d.join("bug-report-throttle.json"))
+    }
 }
 
 /// Check + record `key` against the persistent throttle. Corrupt or missing

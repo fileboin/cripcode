@@ -14,7 +14,7 @@ import { PinIcon, ChevronIcon } from '../icons';
 import { useOpenPalette } from '../CommandPalette/paletteContext';
 import { setAlwaysOnTop } from '../../lib/window';
 import { logger } from '../../lib/logger';
-import { isMac } from '../../lib/setup';
+import { isAndroid, isMac } from '../../lib/setup';
 import { kbd } from '../../lib/shortcuts';
 import type { PinnedProjectRow } from '../../hooks/usePinnedProjects';
 
@@ -173,16 +173,18 @@ export function CompactTopbar({
             <span style={dotInnerStyle} />
           </span>
         )}
-        <button
-          type="button"
-          style={pinStyle}
-          onClick={togglePin}
-          aria-pressed={isPinned}
-          title={isPinned ? 'Unpin window' : 'Pin window on top'}
-          aria-label={isPinned ? 'Unpin window' : 'Pin window on top'}
-        >
-          <PinIcon size={12} />
-        </button>
+        {!isAndroid() && (
+          <button
+            type="button"
+            style={pinStyle}
+            onClick={togglePin}
+            aria-pressed={isPinned}
+            title={isPinned ? 'Unpin window' : 'Pin window on top'}
+            aria-label={isPinned ? 'Unpin window' : 'Pin window on top'}
+          >
+            <PinIcon size={12} />
+          </button>
+        )}
         <button
           type="button"
           style={paletteBtnStyle}

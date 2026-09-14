@@ -320,6 +320,7 @@ pub async fn open_url_in_browser(url: String, browser_id: String) -> Result<(), 
     }
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn open_studio_window(

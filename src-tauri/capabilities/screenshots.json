@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "screenshots",
+  "description": "Desktop-only capability for tauri-plugin-screenshots. The plugin is excluded from Android builds because its xcap dependency has no Android backend.",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["main", "project-*", "window-*"],
+  "permissions": ["screenshots:default"]
+}

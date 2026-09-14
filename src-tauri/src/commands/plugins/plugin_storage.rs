@@ -249,6 +249,7 @@ pub async fn exec_plugin_shell(
 ///
 /// Opens a native folder picker, validates the selected folder has plugin.json and dist/index.js,
 /// then registers it in the project's plugin registry as a dev plugin.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app), fields(project = %project_path))]
 pub async fn link_dev_plugin(

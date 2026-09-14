@@ -156,7 +156,12 @@ pub async fn start_remote_preview_tunnel(
         std::mem::forget(child);
     }
 
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "windows",
+        target_os = "android"
+    )))]
     {
         pid = None;
     }

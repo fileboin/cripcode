@@ -77,6 +77,13 @@ pub(crate) fn get_pins_file_path() -> PathBuf {
             .map(|d| d.join("cripcode/pins.json"))
             .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-pins.json"))
     }
+
+    #[cfg(target_os = "android")]
+    {
+        crate::android_paths::app_data_dir()
+            .map(|d| d.join("pins.json"))
+            .unwrap_or_else(|| std::env::temp_dir().join("cripcode-pins.json"))
+    }
 }
 
 /// Read pins from disk. Returns an empty `PinsFile` if the file does not

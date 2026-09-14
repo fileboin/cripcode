@@ -168,6 +168,7 @@ pub async fn attached_library_dirs() -> Result<Vec<String>, CommandError> {
 ///
 /// The picker is the trust boundary: a directory can only enter the registry
 /// through explicit user selection, never a path supplied by the webview.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn add_attached_library(app: AppHandle) -> Result<Option<String>, CommandError> {

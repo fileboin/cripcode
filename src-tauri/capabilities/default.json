@@ -19,7 +19,6 @@
     "shell:allow-spawn",
     "shell:allow-execute",
     "pty:default",
-    "screenshots:default",
     "fs:default",
     "updater:default",
     "process:allow-restart",

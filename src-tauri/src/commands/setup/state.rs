@@ -31,6 +31,13 @@ pub(crate) fn get_app_state_path() -> std::path::PathBuf {
             .map(|d| d.join("cripcode/app_state.json"))
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp/cripcode-app-state.json"))
     }
+
+    #[cfg(target_os = "android")]
+    {
+        crate::android_paths::app_data_dir()
+            .map(|d| d.join("app_state.json"))
+            .unwrap_or_else(|| std::env::temp_dir().join("cripcode-app-state.json"))
+    }
 }
 
 /// Mark setup as complete (persists to disk)

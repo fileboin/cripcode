@@ -12,7 +12,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { SetupItem, isSetupItemReady, isWindows, TerminalCommand } from './setup';
+import { SetupItem, isAndroid, isSetupItemReady, isWindows, TerminalCommand } from './setup';
 
 // ============ Test-mode API ============
 
@@ -281,5 +281,7 @@ export function guidedAgentSpawn(agentBinaryId: string, prompt: string): Termina
  * agent CLI they use and pastes the guided prompt themselves.
  */
 export function otherAgentShellSpawn(): TerminalCommand {
-  return isWindows() ? { command: 'powershell', args: [] } : { command: '/bin/zsh', args: ['-il'] };
+  if (isWindows()) return { command: 'powershell', args: [] };
+  if (isAndroid()) return { command: 'sh', args: [] };
+  return { command: '/bin/zsh', args: ['-il'] };
 }

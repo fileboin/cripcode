@@ -12,6 +12,8 @@
 
 pub mod agent;
 pub mod agent_bridge;
+#[cfg(target_os = "android")]
+pub mod android_paths;
 pub mod cache;
 pub mod commands;
 pub mod error_reporting;
@@ -89,6 +91,7 @@ pub fn run() {
     error_reporting::install_panic_hook();
 
     // Initialize logging first
+    #[cfg(desktop)]
     if let Err(e) = logging::init_logging() {
         eprintln!("Failed to initialize logging: {e}");
     }
@@ -108,23 +111,42 @@ pub fn run() {
     }
 
     // Hydrate the default agent cache from persisted AppState
-    let app_state = commands::setup::read_app_state();
-    agent::init_default_agent(app_state.default_agent_id.as_deref());
+    #[cfg(desktop)]
+    {
+        let app_state = commands::setup::read_app_state();
+        agent::init_default_agent(app_state.default_agent_id.as_deref());
+    }
 
     // Initialize PostHog analytics (generates device_id on first launch)
+    #[cfg(desktop)]
     commands::analytics::init_analytics();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_pty::init())
-        .plugin(tauri_plugin_screenshots::init())
+        .plugin(tauri_plugin_pty::init());
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_screenshots::init());
+    builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|_app| {
+            #[cfg(target_os = "android")]
+            {
+                if let Ok(dir) = _app.path().app_data_dir() {
+                    android_paths::set_app_data_dir(dir);
+                }
+                if let Err(e) = logging::init_logging() {
+                    eprintln!("Failed to initialize logging: {e}");
+                }
+                let app_state = commands::setup::read_app_state();
+                agent::init_default_agent(app_state.default_agent_id.as_deref());
+                commands::analytics::init_analytics();
+            }
+
             // Start the agent preview bridge (global loopback MCP server) at
             // launch so it's listening before any agent session spawns —
             // registrations from previous runs stay valid from second zero.
@@ -162,14 +184,19 @@ pub fn run() {
                     "main",
                     tauri::WebviewUrl::App("index.html".into()),
                 )
-                .title("Cripcode")
-                .inner_size(1400.0, 900.0)
-                .min_inner_size(400.0, 300.0)
-                .resizable(true)
-                .fullscreen(false)
                 .transparent(true)
                 .background_color(tauri::utils::config::Color(45, 45, 45, 255))
                 .initialization_script_for_all_frames(webview_scripts::INSPECTOR_SHIM);
+
+                #[cfg(desktop)]
+                {
+                    main_builder = main_builder
+                        .title("Cripcode")
+                        .inner_size(1400.0, 900.0)
+                        .min_inner_size(400.0, 300.0)
+                        .resizable(true)
+                        .fullscreen(false);
+                }
 
                 #[cfg(target_os = "macos")]
                 {
@@ -456,10 +483,12 @@ pub fn run() {
             commands::projects::extract_template_zip,
             commands::projects::create_project_from_bundled_template,
             commands::projects::export_project_as_template,
+            #[cfg(desktop)]
             commands::projects::open_project_in_new_window,
             commands::projects::register_project_for_window,
             commands::projects::unregister_project_from_window,
             commands::projects::get_project_window,
+            #[cfg(desktop)]
             commands::projects::focus_window_by_label,
             // Pinned projects (background sessions rail)
             commands::projects::pin_project,
@@ -491,14 +520,18 @@ pub fn run() {
             commands::ide::open_in_ide,
             commands::ide::check_browser_availability,
             commands::ide::open_url_in_browser,
+            #[cfg(desktop)]
             commands::ide::create_preview_webview,
             commands::ide::navigate_preview_webview,
+            #[cfg(desktop)]
             commands::ide::resize_preview_webview,
+            #[cfg(desktop)]
             commands::ide::destroy_preview_webview,
             commands::ide::eval_preview_js,
             commands::ide::scroll_preview_webview,
             commands::ide::get_preview_scroll_info,
             commands::ide::check_preview_can_scroll,
+            #[cfg(desktop)]
             commands::ide::open_studio_window,
             commands::ide::capture_project_thumbnail,
             commands::ide::capture_thumbnail_from_webview,
@@ -554,6 +587,7 @@ pub fn run() {
             commands::settings::get_projects_root,
             commands::settings::set_projects_root,
             commands::settings::is_custom_projects_root,
+            #[cfg(desktop)]
             commands::settings::pick_projects_root,
             commands::projects::list_movable_projects,
             commands::projects::move_projects_to_root,
@@ -591,6 +625,7 @@ pub fn run() {
             commands::plugins::exec_plugin_shell,
             commands::plugins::read_plugin_storage,
             commands::plugins::write_plugin_storage,
+            #[cfg(desktop)]
             commands::plugins::link_dev_plugin,
             commands::plugins::unlink_dev_plugin,
             // GitHub integration
@@ -725,6 +760,7 @@ pub fn run() {
             commands::health::clear_health_status,
             commands::health::get_package_json,
             // External Projects
+            #[cfg(desktop)]
             commands::external_projects::register_external_project,
             commands::external_projects::unregister_external_project,
             commands::external_projects::is_project_external,
@@ -732,6 +768,7 @@ pub fn run() {
             // Attached Libraries
             commands::attached_libraries::list_attached_libraries,
             commands::attached_libraries::attached_library_dirs,
+            #[cfg(desktop)]
             commands::attached_libraries::add_attached_library,
             commands::attached_libraries::remove_attached_library,
             // Monorepo
@@ -762,19 +799,29 @@ pub fn run() {
             commands::snapshots::snapshot_undo,
             commands::snapshots::snapshot_redo,
             // Window / Compact Mode
+            #[cfg(desktop)]
             commands::window::enter_compact_mode,
+            #[cfg(desktop)]
             commands::window::exit_compact_mode,
+            #[cfg(desktop)]
             commands::window::set_always_on_top,
             commands::window::save_compact_position,
             commands::window::get_compact_preferences,
+            #[cfg(desktop)]
             commands::window::set_compact_expanded,
             commands::window::get_window_position,
+            #[cfg(desktop)]
             commands::window::set_window_position,
+            #[cfg(desktop)]
             commands::window::start_window_drag,
+            #[cfg(desktop)]
             commands::window::focus_window,
+            #[cfg(desktop)]
             commands::window::set_window_title,
             // Clipboard (Windows terminal paste)
+            #[cfg(desktop)]
             commands::clipboard::read_clipboard_text,
+            #[cfg(desktop)]
             commands::clipboard::stage_clipboard_image,
             // SSH Servers
             commands::ssh::list_ssh_servers,

@@ -731,6 +731,39 @@ describe('isWizardStepComplete', () => {
   });
 });
 
+// ============ Android platform detection ============
+
+describe('Android platform detection', () => {
+  const ANDROID_UA =
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36';
+  const originalUA = navigator.userAgent;
+
+  const setUserAgent = (value: string) => {
+    Object.defineProperty(globalThis.navigator, 'userAgent', { value, configurable: true });
+  };
+
+  afterEach(() => {
+    setUserAgent(originalUA);
+    vi.resetModules();
+  });
+
+  it('detects Android before the Linux branch (Android UAs contain "Linux; Android")', async () => {
+    setUserAgent(ANDROID_UA);
+    vi.resetModules();
+    const mod = await import('./setup');
+    expect(mod.isAndroid()).toBe(true);
+    expect(mod.isWindows()).toBe(false);
+    expect(mod.isMac()).toBe(false);
+  });
+
+  it('does not classify desktop UAs as Android', async () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36');
+    vi.resetModules();
+    const mod = await import('./setup');
+    expect(mod.isAndroid()).toBe(false);
+  });
+});
+
 // ============ findFirstIncompleteStep ============
 
 describe('findFirstIncompleteStep', () => {

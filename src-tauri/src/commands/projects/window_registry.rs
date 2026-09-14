@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 /// Opens a project in a new window.
 /// If the project is already open in another window, focuses that window instead.
 /// Returns the window label of the new or existing window.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app), fields(project = %project_path))]
 pub async fn open_project_in_new_window(
@@ -142,6 +143,7 @@ pub async fn get_project_window(project_path: String) -> Option<String> {
 
 /// Focus a window by its label.
 /// Used to bring an existing project window to the front.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn focus_window_by_label(
@@ -161,6 +163,7 @@ pub async fn focus_window_by_label(
 /// (no `?project=` query param). Used by the "Window → New Window" menu
 /// item; not a Tauri command, since it's invoked from a menu handler that
 /// already has an `AppHandle`. Returns the new window's label.
+#[cfg(desktop)]
 #[tracing::instrument(skip(app))]
 pub fn spawn_blank_window(app: &AppHandle) -> Result<String, String> {
     let timestamp = std::time::SystemTime::now()

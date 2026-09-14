@@ -18,6 +18,7 @@ const FULL_MODE_HEIGHT: f64 = 800.0;
 
 /// Enter compact mode - resize window and enable always-on-top
 /// The UI adapts via responsive CSS based on window width
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn enter_compact_mode(window: Window) -> Result<(), CommandError> {
@@ -51,6 +52,7 @@ pub async fn enter_compact_mode(window: Window) -> Result<(), CommandError> {
 }
 
 /// Exit compact mode - restore window to full size
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn exit_compact_mode(window: Window) -> Result<(), CommandError> {
@@ -81,6 +83,7 @@ pub async fn exit_compact_mode(window: Window) -> Result<(), CommandError> {
 }
 
 /// Toggle always-on-top state for the window
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn set_always_on_top(window: Window, enabled: bool) -> Result<(), CommandError> {
@@ -128,6 +131,7 @@ pub async fn get_compact_preferences() -> Result<CompactModePreferences, Command
 
 /// Set compact mode window size
 /// If height is provided, uses that; otherwise uses default
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn set_compact_expanded(
@@ -170,6 +174,7 @@ pub async fn get_window_position(window: Window) -> Result<WindowPosition, Comma
 }
 
 /// Set window position (for drag implementation)
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn set_window_position(window: Window, x: i32, y: i32) -> Result<(), CommandError> {
@@ -181,6 +186,7 @@ pub async fn set_window_position(window: Window, x: i32, y: i32) -> Result<(), C
 }
 
 /// Start dragging the window (native drag)
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn start_window_drag(window: Window) -> Result<(), CommandError> {
@@ -192,6 +198,7 @@ pub async fn start_window_drag(window: Window) -> Result<(), CommandError> {
 }
 
 /// Focus and bring window to front (useful after opening external apps)
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn focus_window(window: Window) -> Result<(), CommandError> {
@@ -211,6 +218,7 @@ pub async fn focus_window(window: Window) -> Result<(), CommandError> {
 }
 
 /// Set the window title dynamically
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn set_window_title(window: Window, title: String) -> Result<(), CommandError> {

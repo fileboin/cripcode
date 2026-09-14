@@ -10,6 +10,7 @@ pub mod assets;
 pub mod attached_libraries;
 pub mod background_mode;
 pub mod claude;
+#[cfg(desktop)]
 pub mod clipboard;
 pub mod code;
 pub mod conflicts;
@@ -54,6 +55,7 @@ pub use assets::*;
 pub use attached_libraries::*;
 pub use background_mode::*;
 pub use claude::*;
+#[cfg(desktop)]
 pub use clipboard::*;
 pub use code::*;
 pub use conflicts::*;

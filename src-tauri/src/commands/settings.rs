@@ -193,6 +193,7 @@ pub fn set_projects_root(path: String) -> Result<(), CommandError> {
 /// Open a native folder picker for choosing the projects folder.
 /// Returns the selected absolute path, or `None` if the user cancelled.
 /// Does not persist anything — the frontend calls `set_projects_root` with the result.
+#[cfg(desktop)]
 #[tauri::command]
 #[tracing::instrument(skip(app))]
 pub async fn pick_projects_root(app: AppHandle) -> Result<Option<String>, CommandError> {

@@ -129,6 +129,13 @@ fn get_log_dir() -> PathBuf {
             .map(|d| d.join("cripcode/logs"))
             .unwrap_or_else(|| PathBuf::from("/tmp/cripcode-logs"))
     }
+
+    #[cfg(target_os = "android")]
+    {
+        crate::android_paths::app_data_dir()
+            .map(|d| d.join("logs"))
+            .unwrap_or_else(|| std::env::temp_dir().join("cripcode-logs"))
+    }
 }
 
 /// Initialize the logging system

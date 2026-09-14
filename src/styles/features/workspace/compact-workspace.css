@@ -207,3 +207,23 @@
   min-height: 0;
   background: var(--bg-primary);
 }
+
+/* ---------- Android (safe areas + bottom tabs) ---------- */
+
+/* Scoped to the UA-derived `.is-android` root class (set in main.tsx) so the
+ * desktop compact layout keeps its top tab strip and zero-inset padding. */
+.is-android .compact-workspace {
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+.is-android .compact-tabs {
+  order: 3;
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.is-android .compact-terminal-stack {
+  order: 2;
+}

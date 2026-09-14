@@ -23,6 +23,9 @@ import { exposePluginContextRef } from './contexts/PluginContext';
 import { reportError } from './lib/errorReporting';
 import { OverlayScrollbars } from 'overlayscrollbars';
 import 'overlayscrollbars/overlayscrollbars.css';
+import { isAndroid } from './lib/setup';
+
+if (isAndroid()) document.documentElement.classList.add('is-android');
 
 // Expose React globals and context ref for plugins before any rendering
 exposeReactGlobals(React, ReactDOM);

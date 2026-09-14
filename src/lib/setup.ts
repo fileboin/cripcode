@@ -21,6 +21,7 @@ const getPlatform = (): string => {
   // Use navigator.userAgent for client-side platform detection
   // Check darwin/mac BEFORE win because 'darwin' contains 'win' as a substring
   const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes('android')) return 'android';
   if (userAgent.includes('darwin') || userAgent.includes('mac')) return 'macos';
   if (userAgent.includes('win')) return 'windows';
   if (userAgent.includes('linux')) return 'linux';
@@ -42,6 +43,8 @@ export const isWindows = () => platform() === 'windows';
 /** macOS only. Gates Mac-only features (e.g. the native mobile preview, which
  *  depends on Xcode/simctl and hasn't been validated on Windows). */
 export const isMac = () => platform() === 'macos';
+/** Android only. Gates desktop-only window commands and desktop shell paths. */
+export const isAndroid = () => platform() === 'android';
 
 /**
  * The OS's file-manager name, for "Reveal in …" / "Open in …" labels. macOS
