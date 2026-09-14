@@ -17,10 +17,13 @@
 //! frontend can replay recent history into xterm — a background
 //! project's terminal would otherwise look empty when switched back in.
 
+use super::session_backend::{
+    remote_pty_supported, unsupported_remote_pty_error, ProcessBackend, SessionBackend,
+};
 use crate::errors::CommandError;
 use crate::types::ExecutionTarget;
 use crate::utils::validate_project_path;
-use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -166,16 +169,15 @@ impl SessionBuffer {
 }
 
 struct Session {
-    pid: u32,
+    /// Byte transport + lifecycle. Desktop is a local PTY process; the
+    /// Android SSH channel adapter implements the same trait (F2+).
+    backend: Arc<dyn SessionBackend>,
     project_path: Option<String>,
     tab_session_id: Option<String>,
     alive: AtomicBool,
     attached: AtomicBool,
     exit_code: Mutex<Option<i32>>,
     buffer: Mutex<SessionBuffer>,
-    writer: Mutex<Box<dyn std::io::Write + Send>>,
-    child_killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
-    master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     created_at_ms: u64,
 }
 
@@ -240,7 +242,7 @@ fn handle_dsr_intercept(
     chunk: &[u8],
     carry: &mut Vec<u8>,
     attached: &AtomicBool,
-    writer: &Mutex<Box<dyn std::io::Write + Send>>,
+    backend: &dyn SessionBackend,
 ) {
     const QUERY: &[u8] = b"\x1b[6n";
     let mut scan = std::mem::take(carry);
@@ -253,11 +255,8 @@ fn handle_dsr_intercept(
     if queries == 0 || attached.load(Ordering::Relaxed) {
         return;
     }
-    if let Ok(mut w) = writer.lock() {
-        for _ in 0..queries {
-            let _ = w.write_all(b"\x1b[1;1R");
-        }
-        let _ = w.flush();
+    for _ in 0..queries {
+        let _ = backend.write(b"\x1b[1;1R");
     }
 }
 
@@ -329,7 +328,7 @@ pub async fn pty_session_open(
             if existing.alive.load(Ordering::Relaxed) {
                 return Ok(OpenSessionResult {
                     session_id: session_id.clone(),
-                    pid: existing.pid,
+                    pid: existing.backend.pid(),
                 });
             }
             map.remove(&session_id);
@@ -354,6 +353,14 @@ pub async fn pty_session_open(
         },
     };
 
+    // Remote sessions need a platform transport: desktop runs the OpenSSH
+    // client through the local PTY, Android has no OpenSSH binary and the
+    // in-process adapter is not implemented yet. Fail closed with an explicit
+    // "unsupported" error instead of spawning a missing `ssh`.
+    if ssh_server.is_some() && !remote_pty_supported() {
+        return Err(unsupported_remote_pty_error());
+    }
+
     let (rows, cols) = clamp_pty_size(rows, cols);
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -369,7 +376,7 @@ pub async fn pty_session_open(
         .master
         .take_writer()
         .map_err(|e| format!("take_writer: {e}"))?;
-    let mut reader = pair
+    let reader = pair
         .master
         .try_clone_reader()
         .map_err(|e| format!("clone_reader: {e}"))?;
@@ -418,7 +425,7 @@ pub async fn pty_session_open(
     // Retried on transient EAGAIN (process-table pressure) — and labeled with
     // the spawned command, so the three spawn_command sites in this codebase
     // no longer collapse into one indistinguishable telemetry bucket (#587).
-    let mut child = crate::external_command::retry_spawn_on_pressure(&spawn_command, || {
+    let child = crate::external_command::retry_spawn_on_pressure(&spawn_command, || {
         pair.slave.spawn_command(cmd.clone())
     })
     .map_err(|e| {
@@ -444,18 +451,23 @@ pub async fn pty_session_open(
     })?;
     let pid = child.process_id().unwrap_or(0);
     let child_killer = child.clone_killer();
+    let backend: Arc<dyn SessionBackend> = Arc::new(ProcessBackend::new(
+        reader,
+        writer,
+        pair.master,
+        child_killer,
+        child,
+        pid,
+    ));
 
     let session = Arc::new(Session {
-        pid,
+        backend: backend.clone(),
         project_path: project_path.clone(),
         tab_session_id: tab_session_id.clone(),
         alive: AtomicBool::new(true),
         attached: AtomicBool::new(false),
         exit_code: Mutex::new(None),
         buffer: Mutex::new(SessionBuffer::new()),
-        writer: Mutex::new(writer),
-        child_killer: Mutex::new(child_killer),
-        master: Mutex::new(pair.master),
         created_at_ms: now_ms(),
     });
 
@@ -473,7 +485,7 @@ pub async fn pty_session_open(
             let mut buf = [0u8; 4096];
             let mut dsr_carry: Vec<u8> = Vec::new();
             loop {
-                let n = match reader.read(&mut buf) {
+                let n = match session_for_reader.backend.read(&mut buf) {
                     Ok(0) => break, // EOF — child closed slave
                     Ok(n) => n,
                     Err(_) => break,
@@ -484,7 +496,7 @@ pub async fn pty_session_open(
                     chunk,
                     &mut dsr_carry,
                     &session_for_reader.attached,
-                    &session_for_reader.writer,
+                    session_for_reader.backend.as_ref(),
                 );
 
                 // Capture the chunk's start offset under the SAME lock that
@@ -516,17 +528,7 @@ pub async fn pty_session_open(
         let session_for_waiter = session.clone();
         let app_for_waiter = app.clone();
         std::thread::spawn(move || {
-            let code = match child.wait() {
-                Ok(status) => {
-                    if status.success() {
-                        0
-                    } else {
-                        // portable_pty exposes exit_code as u32 (0-255).
-                        status.exit_code() as i32
-                    }
-                }
-                Err(_) => -1,
-            };
+            let code = session_for_waiter.backend.wait();
             session_for_waiter.alive.store(false, Ordering::Relaxed);
             if let Ok(mut slot) = session_for_waiter.exit_code.lock() {
                 *slot = Some(code);
@@ -569,11 +571,7 @@ pub fn pty_session_write(session_id: String, data: Vec<u8>) -> Result<(), Comman
     if !session.alive.load(std::sync::atomic::Ordering::Relaxed) {
         return Err(CommandError::expected("terminal session has ended"));
     }
-    let mut w = session
-        .writer
-        .lock()
-        .map_err(|e| format!("writer lock poisoned: {e}"))?;
-    w.write_all(&data).map_err(|e| {
+    session.backend.write(&data).map_err(|e| {
         // Benign race — a write landing just as the PTY's process exits — not
         // a malfunction; keep it out of telemetry (issue #323). Unix surfaces
         // it as EIO (5), Windows as ERROR_NO_DATA 232, "The pipe is being
@@ -626,25 +624,13 @@ pub fn pty_session_resize(session_id: String, cols: u16, rows: u16) -> Result<()
         return Err(CommandError::expected("terminal session has ended"));
     }
     let (rows, cols) = clamp_pty_size(rows, cols);
-    let master = session
-        .master
-        .lock()
-        .map_err(|e| format!("master lock poisoned: {e}"))?;
-    master
-        .resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| {
-            let msg = format!("{e}");
-            if is_resize_on_dead_pty(&msg) {
-                CommandError::expected("terminal session has ended")
-            } else {
-                CommandError::from(format!("resize: {msg}"))
-            }
-        })?;
+    session.backend.resize(rows, cols).map_err(|msg| {
+        if is_resize_on_dead_pty(&msg) {
+            CommandError::expected("terminal session has ended")
+        } else {
+            CommandError::from(format!("resize: {msg}"))
+        }
+    })?;
     Ok(())
 }
 
@@ -662,13 +648,7 @@ pub fn pty_session_kill(session_id: String) -> Result<(), CommandError> {
     let Some(session) = session else {
         return Ok(());
     };
-    {
-        let mut killer = session
-            .child_killer
-            .lock()
-            .map_err(|e| format!("killer lock poisoned: {e}"))?;
-        let _ = killer.kill();
-    }
+    session.backend.kill();
     session.alive.store(false, Ordering::Relaxed);
     Ok(())
 }
@@ -692,17 +672,23 @@ pub fn kill_all_sessions_sync() -> u32 {
         if !session.alive.load(Ordering::Relaxed) {
             continue;
         }
-        let pid = session.pid.to_string();
+        let pid = session.backend.pid();
+        if pid == 0 {
+            // Channel-backed sessions have no local process to signal.
+            session.backend.kill();
+        } else {
+            let pid = pid.to_string();
 
-        #[cfg(unix)]
-        let _ = crate::utils::create_command("kill")
-            .args(["-9", &pid])
-            .output();
+            #[cfg(unix)]
+            let _ = crate::utils::create_command("kill")
+                .args(["-9", &pid])
+                .output();
 
-        #[cfg(windows)]
-        let _ = crate::utils::create_command("taskkill")
-            .args(["/F", "/T", "/PID", &pid])
-            .output();
+            #[cfg(windows)]
+            let _ = crate::utils::create_command("taskkill")
+                .args(["/F", "/T", "/PID", &pid])
+                .output();
+        }
 
         session.alive.store(false, Ordering::Relaxed);
         count += 1;
@@ -740,7 +726,7 @@ pub fn pty_session_attach(session_id: String) -> Result<AttachResult, CommandErr
         .map_err(|e| format!("exit lock poisoned: {e}"))?;
     Ok(AttachResult {
         buffer,
-        pid: session.pid,
+        pid: session.backend.pid(),
         alive,
         exit_code,
         end_offset,
@@ -784,7 +770,7 @@ pub fn pty_session_list(
             .map_err(|e| format!("exit lock poisoned: {e}"))?;
         items.push(SessionListItem {
             session_id: session_id.clone(),
-            pid: session.pid,
+            pid: session.backend.pid(),
             alive,
             exit_code,
             project_path: session.project_path.clone(),
@@ -986,88 +972,96 @@ mod tests {
 
     #[test]
     fn test_handle_dsr_intercept_respects_attached_gate() -> Result<(), String> {
-        struct DummyWriter {
-            data: Arc<Mutex<Vec<u8>>>,
+        /// Minimal in-memory backend: proves the DSR intercept talks to the
+        /// seam, not to a concrete PTY writer.
+        #[derive(Default)]
+        struct RecordingBackend {
+            written: Mutex<Vec<u8>>,
         }
-        impl std::io::Write for DummyWriter {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                let mut d = self
-                    .data
-                    .lock()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                d.extend_from_slice(buf);
-                Ok(buf.len())
+        impl SessionBackend for RecordingBackend {
+            fn read(&self, _buf: &mut [u8]) -> std::io::Result<usize> {
+                Ok(0)
             }
-            fn flush(&mut self) -> std::io::Result<()> {
+            fn write(&self, data: &[u8]) -> std::io::Result<()> {
+                self.written
+                    .lock()
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
+                    .extend_from_slice(data);
                 Ok(())
+            }
+            fn resize(&self, _rows: u16, _cols: u16) -> Result<(), String> {
+                Ok(())
+            }
+            fn kill(&self) {}
+            fn wait(&self) -> i32 {
+                0
+            }
+            fn pid(&self) -> u32 {
+                0
             }
         }
 
-        let written = Arc::new(Mutex::new(Vec::new()));
-        let writer: Box<dyn std::io::Write + Send> = Box::new(DummyWriter {
-            data: written.clone(),
-        });
-        let writer_mutex = Mutex::new(writer);
+        let backend = RecordingBackend::default();
 
         let attached = AtomicBool::new(false);
         let mut carry: Vec<u8> = Vec::new();
 
         // Case 1: DSR query received and attached is false -> should auto-reply
-        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert_eq!(*data, b"\x1b[1;1R");
         }
 
         // Clear written buffer
         {
-            let mut data = written.lock().map_err(|e| e.to_string())?;
+            let mut data = backend.written.lock().map_err(|e| e.to_string())?;
             data.clear();
         }
 
         // Case 2: DSR query received but attached is true -> should NOT auto-reply
         attached.store(true, Ordering::Relaxed);
         carry.clear();
-        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"foo\x1b[6nbar", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert!(data.is_empty());
         }
 
         // Case 3: No DSR query received, attached is false -> should NOT reply
         attached.store(false, Ordering::Relaxed);
         carry.clear();
-        handle_dsr_intercept(b"foobar", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"foobar", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert!(data.is_empty());
         }
 
         // Case 4: query SPLIT across two reads — observed on the CI runner —
         // must still be answered exactly once.
         carry.clear();
-        handle_dsr_intercept(b"boot\x1b[", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"boot\x1b[", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert!(data.is_empty());
         }
-        handle_dsr_intercept(b"6n rest", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"6n rest", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert_eq!(*data, b"\x1b[1;1R");
         }
 
         // Case 5: a complete query at a chunk boundary must not be re-counted
         // from the carried tail on the next read.
         {
-            let mut data = written.lock().map_err(|e| e.to_string())?;
+            let mut data = backend.written.lock().map_err(|e| e.to_string())?;
             data.clear();
         }
         carry.clear();
-        handle_dsr_intercept(b"foo\x1b[6n", &mut carry, &attached, &writer_mutex);
-        handle_dsr_intercept(b"bar", &mut carry, &attached, &writer_mutex);
+        handle_dsr_intercept(b"foo\x1b[6n", &mut carry, &attached, &backend);
+        handle_dsr_intercept(b"bar", &mut carry, &attached, &backend);
         {
-            let data = written.lock().map_err(|e| e.to_string())?;
+            let data = backend.written.lock().map_err(|e| e.to_string())?;
             assert_eq!(*data, b"\x1b[1;1R");
         }
 

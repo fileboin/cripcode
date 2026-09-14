@@ -36,6 +36,7 @@ pub mod pty;
 pub mod pty_session;
 pub mod publishing;
 pub mod pull_requests;
+pub mod session_backend;
 pub mod settings;
 pub mod setup;
 pub mod shopify;
