@@ -10,8 +10,10 @@
 //! serving HTTP (i.e., the remote dev server is up).
 
 use super::config;
+#[cfg(not(target_os = "android"))]
 use super::connection::build_ssh_connection_args;
 use crate::errors::CommandError;
+#[cfg(not(target_os = "android"))]
 use crate::utils::create_command;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -29,7 +31,10 @@ static TUNNELS: LazyLock<Mutex<HashMap<String, TunnelInfo>>> =
 struct TunnelInfo {
     local_port: u16,
     remote_port: u16,
+    #[cfg(not(target_os = "android"))]
     pid: u32,
+    #[cfg(target_os = "android")]
+    tunnel: super::transport_russh::TunnelHandle,
 }
 
 /// Look up a server by ID.
@@ -96,99 +101,128 @@ pub async fn start_remote_preview_tunnel(
     // (e.g., remote 3000 → local 13000) to avoid conflicts.
     let chosen_local = local_port.unwrap_or(remote_port + 10000);
 
-    // Build SSH args with -L forwarding and -N (no command)
-    let mut args = vec![
-        "-L".into(),
-        format!("{}:localhost:{}", chosen_local, remote_port),
-        "-N".into(),
-    ];
-
-    // Add the standard connection args (port, key, etc.) without a remote
-    // command. The tunnel itself uses -N.
-    let conn_args = build_ssh_connection_args(&server);
-    args.extend(conn_args);
-
-    // Spawn the SSH tunnel process
-    let pid: Option<u32>;
-
-    #[cfg(unix)]
+    // Android has no `ssh` binary: the tunnel runs over the in-process russh
+    // transport (one authenticated connection, one direct-tcpip channel per
+    // accepted local connection). Desktop keeps the detached `ssh -L` below.
+    #[cfg(target_os = "android")]
     {
-        use std::os::unix::process::CommandExt;
-        let mut cmd = create_command("ssh");
-        cmd.args(&args);
-        super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-        cmd.stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-
-        let child = cmd.spawn().map_err(|e| CommandError::Io {
-            message: format!("Failed to start SSH tunnel: {e}"),
-        })?;
-
-        pid = Some(child.id());
-        std::mem::forget(child);
-    }
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut cmd = create_command("ssh");
-        cmd.args(&args)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
-        super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
-
-        let child = cmd.spawn().map_err(|e| CommandError::Io {
-            message: format!("Failed to start SSH tunnel: {e}"),
-        })?;
-
-        pid = Some(child.id());
-        std::mem::forget(child);
-    }
-
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "android"
-    )))]
-    {
-        pid = None;
-    }
-
-    tracing::info!(
-        server = %server.name,
-        local_port = chosen_local,
-        remote_port,
-        "SSH tunnel started"
-    );
-
-    // Register the tunnel
-    if let Ok(mut tunnels) = TUNNELS.lock() {
-        tunnels.insert(
-            key,
-            TunnelInfo {
-                local_port: chosen_local,
-                remote_port,
-                pid: pid.unwrap_or(0),
-            },
+        let tunnel =
+            super::transport_russh::start_tunnel(&server, remote_port, chosen_local).await?;
+        tracing::info!(
+            server = %server.name,
+            local_port = chosen_local,
+            remote_port,
+            "SSH tunnel started"
         );
+        if let Ok(mut tunnels) = TUNNELS.lock() {
+            tunnels.insert(
+                key,
+                TunnelInfo {
+                    local_port: chosen_local,
+                    remote_port,
+                    tunnel,
+                },
+            );
+        }
+        return Ok(chosen_local);
     }
 
-    // Give the tunnel a moment to establish
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    #[cfg(not(target_os = "android"))]
+    {
+        // Build SSH args with -L forwarding and -N (no command)
+        let mut args = vec![
+            "-L".into(),
+            format!("{}:localhost:{}", chosen_local, remote_port),
+            "-N".into(),
+        ];
 
-    Ok(chosen_local)
+        // Add the standard connection args (port, key, etc.) without a remote
+        // command. The tunnel itself uses -N.
+        let conn_args = build_ssh_connection_args(&server);
+        args.extend(conn_args);
+
+        // Spawn the SSH tunnel process
+        let pid: Option<u32>;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let mut cmd = create_command("ssh");
+            cmd.args(&args);
+            super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
+            cmd.stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+
+            let child = cmd.spawn().map_err(|e| CommandError::Io {
+                message: format!("Failed to start SSH tunnel: {e}"),
+            })?;
+
+            pid = Some(child.id());
+            std::mem::forget(child);
+        }
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let mut cmd = create_command("ssh");
+            cmd.args(&args)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+            super::connection::apply_ssh_auth_env_std(&mut cmd, &server)?;
+
+            let child = cmd.spawn().map_err(|e| CommandError::Io {
+                message: format!("Failed to start SSH tunnel: {e}"),
+            })?;
+
+            pid = Some(child.id());
+            std::mem::forget(child);
+        }
+
+        #[cfg(not(any(
+            target_os = "macos",
+            target_os = "linux",
+            target_os = "windows",
+            target_os = "android"
+        )))]
+        {
+            pid = None;
+        }
+
+        tracing::info!(
+            server = %server.name,
+            local_port = chosen_local,
+            remote_port,
+            "SSH tunnel started"
+        );
+
+        // Register the tunnel
+        if let Ok(mut tunnels) = TUNNELS.lock() {
+            tunnels.insert(
+                key,
+                TunnelInfo {
+                    local_port: chosen_local,
+                    remote_port,
+                    pid: pid.unwrap_or(0),
+                },
+            );
+        }
+
+        // Give the tunnel a moment to establish
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        Ok(chosen_local)
+    }
 }
 
 /// Stop the SSH tunnel for a remote dev server.
@@ -207,8 +241,11 @@ pub async fn stop_remote_preview_tunnel(
     };
 
     if let Some(info) = info {
-        // Kill the SSH tunnel process
-        #[cfg(unix)]
+        #[cfg(target_os = "android")]
+        info.tunnel.stop();
+
+        // Kill the SSH tunnel process (desktop only)
+        #[cfg(all(unix, not(target_os = "android")))]
         {
             let _ = create_command("kill")
                 .arg("-9")
@@ -248,6 +285,23 @@ pub async fn get_remote_preview_status(
 
     match info {
         Some(info) => {
+            // Android: a dead SSH connection ends the tunnel. Remove the
+            // registry entry lazily so the status flips to inactive.
+            #[cfg(target_os = "android")]
+            if !info.tunnel.is_alive() {
+                if let Ok(mut tunnels) = TUNNELS.lock() {
+                    tunnels.remove(&key);
+                }
+                return Ok(RemotePreviewStatus {
+                    tunnel_active: false,
+                    local_port: None,
+                    remote_port: None,
+                    server_responding: false,
+                    http_status: None,
+                    error: Some("SSH tunnel ended".into()),
+                });
+            }
+
             // Probe the local port to see if the dev server is responding
             let url = format!("http://localhost:{}", info.local_port);
             let client = reqwest::Client::builder()

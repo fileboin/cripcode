@@ -26,9 +26,11 @@ use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKeyOrCertificate
 use russh::{ChannelMsg, Disconnect};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 /// TCP + handshake budget, mirroring the desktop `ConnectTimeout=10` (with a
@@ -450,6 +452,126 @@ pub(crate) async fn exec(
         status: exit_status_from_code(code),
         stdout,
         stderr,
+    })
+}
+
+/// Handle to a live Android tunnel: a local TCP listener plus the single
+/// authenticated SSH connection multiplexing one `direct-tcpip` channel per
+/// accepted local connection (the same shape as desktop `ssh -L`).
+#[derive(Clone)]
+pub(crate) struct TunnelHandle {
+    alive: Arc<AtomicBool>,
+    accept_task: tokio::task::AbortHandle,
+}
+
+impl TunnelHandle {
+    /// False once the tunnel task has ended (SSH closed, accept error, stop).
+    pub(crate) fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Relaxed)
+    }
+
+    /// Abort the tunnel task: the listener is dropped (port released), every
+    /// in-flight connection task is aborted, and the SSH connection closes.
+    pub(crate) fn stop(&self) {
+        self.accept_task.abort();
+    }
+}
+
+/// Clears the alive flag on every task exit path — including abort, because
+/// task cancellation drops locals.
+struct AliveGuard(Arc<AtomicBool>);
+
+impl Drop for AliveGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+}
+
+/// Start an Android port-forwarding tunnel to `remote_port` on the server,
+/// listening on `127.0.0.1:local_port`.
+///
+/// Reuses the exact PTY/exec connection path (`connect_authenticated`: strict
+/// known_hosts verification + key auth) — no separate SSH lifecycle, no
+/// `accept-new`. One SSH connection carries every forwarded connection as its
+/// own `direct-tcpip` channel.
+pub(crate) async fn start_tunnel(
+    server: &SshServer,
+    remote_port: u16,
+    local_port: u16,
+) -> Result<TunnelHandle, CommandError> {
+    let handle = connect_authenticated(server).await?;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", local_port))
+        .await
+        .map_err(|e| {
+            CommandError::expected(format!(
+                "Local port {local_port} is not available for the SSH tunnel: {e}"
+            ))
+        })?;
+
+    let alive = Arc::new(AtomicBool::new(true));
+    let alive_task = alive.clone();
+    let task = tokio::spawn(async move {
+        // Flag is cleared on every exit path (normal, error, or abort).
+        let _guard = AliveGuard(alive_task);
+        let mut connections = tokio::task::JoinSet::new();
+        let mut ticker = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            tokio::select! {
+                accepted = listener.accept() => match accepted {
+                    Ok((socket, _addr)) => {
+                        // A local connection needs its own forwarded channel.
+                        // The channel open await briefly pauses accepts; the
+                        // OS backlog holds any concurrent connections.
+                        match handle
+                            .channel_open_direct_tcpip(
+                                "localhost",
+                                remote_port as u32,
+                                "127.0.0.1",
+                                local_port as u32,
+                            )
+                            .await
+                        {
+                            Ok(channel) => {
+                                let mut stream = channel.into_stream();
+                                connections.spawn(async move {
+                                    let mut socket = socket;
+                                    let _ = tokio::io::copy_bidirectional(
+                                        &mut socket,
+                                        &mut stream,
+                                    )
+                                    .await;
+                                    // Half-close parity with `ssh -L`.
+                                    let _ = socket.shutdown().await;
+                                    let _ = stream.shutdown().await;
+                                });
+                            }
+                            Err(e) => {
+                                tracing::debug!(error = %e, "tunnel: direct-tcpip open failed");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "tunnel: local accept failed");
+                        break;
+                    }
+                },
+                // Reap finished connection tasks so the set cannot grow.
+                Some(_) = connections.join_next(), if !connections.is_empty() => {}
+                // Detect a dropped SSH connection and let the tunnel die with it.
+                _ = ticker.tick() => {
+                    if handle.is_closed() {
+                        break;
+                    }
+                }
+            }
+        }
+        // Dropping `connections` aborts in-flight tasks; `listener` releases
+        // the port; `handle` closes the SSH connection.
+    });
+
+    Ok(TunnelHandle {
+        alive,
+        accept_task: task.abort_handle(),
     })
 }
 
