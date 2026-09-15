@@ -118,6 +118,17 @@ async fn run_vercel_whoami(vercel_path: &Path, token: Option<&str>) -> Option<St
     }
 }
 
+/// Android base-readiness criterion: there is no local toolchain to check —
+/// the remote runtime (VPS) provides Node, Git, and the agents. What must
+/// exist is a configured remote runtime, i.e. at least one SSH server.
+///
+/// Pure so the platform criterion is unit-testable on any host; the desktop
+/// branch below is untouched.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn android_base_ready(configured_server_count: usize) -> bool {
+    configured_server_count > 0
+}
+
 /// Get full setup status for all items
 #[tauri::command]
 #[tracing::instrument]
@@ -647,12 +658,25 @@ pub async fn get_full_setup_status() -> FullSetupStatus {
     });
 
     // Required base items for setup completion (GitHub auth and individual agent items are optional)
+    #[cfg(not(target_os = "android"))]
     const REQUIRED_ITEMS: &[&str] = &["homebrew", "node", "git", "gh"];
 
+    // Desktop: the local toolchain must be present (unchanged).
+    #[cfg(not(target_os = "android"))]
     let base_ready = items
         .iter()
         .filter(|i| REQUIRED_ITEMS.contains(&i.id.as_str()) || i.id == "npm_fix")
         .all(|i| matches!(i.status, SetupItemStatus::Ready));
+
+    // Android: no local toolchain exists; readiness is "a remote runtime is
+    // configured" — at least one SSH server, reusing the existing config. The
+    // gates themselves (all_ready below) stay in place.
+    #[cfg(target_os = "android")]
+    let base_ready = android_base_ready(
+        crate::commands::ssh::load_config_pub()
+            .map(|config| config.servers.len())
+            .unwrap_or(0),
+    );
 
     // At least one agent pair must be fully ready — or the user declared they
     // bring their own agent ("Other" in agent-led onboarding).
@@ -763,6 +787,22 @@ pub async fn quick_setup_check() -> crate::types::QuickSetupCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ============ Android remote-workflow readiness ============
+
+    #[test]
+    fn android_readiness_not_ready_without_a_configured_server() {
+        assert!(
+            !android_base_ready(0),
+            "Android must stay in onboarding until a remote runtime (SSH server) is configured"
+        );
+    }
+
+    #[test]
+    fn android_readiness_ready_with_a_configured_server() {
+        assert!(android_base_ready(1));
+        assert!(android_base_ready(3));
+    }
 
     #[cfg(unix)]
     #[tokio::test]
