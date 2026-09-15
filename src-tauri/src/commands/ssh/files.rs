@@ -9,13 +9,10 @@
 //! frontend can use the same types for local and remote files.
 
 use super::config;
-use super::{build_remote_ssh_args, build_remote_ssh_args_strict, shell_quote};
+use super::{build_remote_ssh_args, shell_quote};
 use crate::commands::code::{infer_language, FileContent, FileEntry};
 use crate::errors::CommandError;
 use crate::types::SshServer;
-use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
 
 /// Maximum remote file size to read (500 KB — same as local).
 const MAX_REMOTE_FILE_SIZE: u64 = 500 * 1024;
@@ -24,29 +21,62 @@ const MAX_REMOTE_FILE_SIZE: u64 = 500 * 1024;
 /// than a simple echo test).
 const SSH_FILE_TIMEOUT_SECS: u64 = 30;
 
-/// Build SSH exec args: the connection args from `build_remote_ssh_args` + the remote
-/// command appended as the last argument (the SSH CLI convention).
-fn build_ssh_exec_args(server: &SshServer, remote_cmd: &str) -> Vec<String> {
-    build_remote_ssh_args(server, remote_cmd)
+/// Run an SSH exec command (no stdin) with timeout. Delegates to the
+/// platform transport seam: desktop OpenSSH CLI, Android in-process russh.
+pub(crate) async fn run_ssh_exec(
+    server: &SshServer,
+    remote_cmd: &str,
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    super::exec::run(server, remote_cmd, false, label, SSH_FILE_TIMEOUT_SECS).await
 }
 
-/// Exec args for paths already behind the explicit host-key gate: the verified
-/// key is in `known_hosts`, so an unknown host fails closed at connect time.
-fn build_ssh_exec_args_strict(server: &SshServer, remote_cmd: &str) -> Vec<String> {
-    build_remote_ssh_args_strict(server, remote_cmd)
+/// [`run_ssh_exec`] for paths behind the explicit host-key gate: desktop uses
+/// `StrictHostKeyChecking=yes`; Android always verifies against known_hosts.
+pub(crate) async fn run_ssh_exec_strict(
+    server: &SshServer,
+    remote_cmd: &str,
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    super::exec::run(server, remote_cmd, true, label, SSH_FILE_TIMEOUT_SECS).await
 }
 
-/// Look up a server by ID from the config file.
-pub(crate) fn get_server(server_id: &str) -> Result<SshServer, CommandError> {
-    let config = config::load_config_pub().map_err(CommandError::from)?;
-    config
-        .servers
-        .into_iter()
-        .find(|s| s.id == server_id)
-        .ok_or_else(|| CommandError::Validation {
-            field: "server_id".into(),
-            reason: format!("No SSH server found with id `{server_id}`"),
-        })
+/// Run an SSH exec command with stdin data (for writing files). Pipes the
+/// given content to the remote command's stdin — never into argv or the
+/// environment.
+pub(crate) async fn run_ssh_exec_with_stdin(
+    server: &SshServer,
+    remote_cmd: &str,
+    stdin_data: &[u8],
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    super::exec::run_with_stdin(
+        server,
+        remote_cmd,
+        false,
+        stdin_data,
+        label,
+        SSH_FILE_TIMEOUT_SECS,
+    )
+    .await
+}
+
+/// [`run_ssh_exec_with_stdin`] for paths behind the explicit host-key gate.
+pub(crate) async fn run_ssh_exec_with_stdin_strict(
+    server: &SshServer,
+    remote_cmd: &str,
+    stdin_data: &[u8],
+    label: &str,
+) -> Result<std::process::Output, CommandError> {
+    super::exec::run_with_stdin(
+        server,
+        remote_cmd,
+        true,
+        stdin_data,
+        label,
+        SSH_FILE_TIMEOUT_SECS,
+    )
+    .await
 }
 
 /// Validate a remote path: must be absolute (start with `/`), must not contain
@@ -86,116 +116,17 @@ fn validate_destructive_path(path: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
-/// Run an SSH exec command (no stdin) with timeout. Returns the captured
-/// stdout/stderr. Uses the same `run_with_timeout` infrastructure as all
-/// other CLI calls.
-pub(crate) async fn run_ssh_exec(
-    server: &SshServer,
-    remote_cmd: &str,
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let args = build_ssh_exec_args(server, remote_cmd);
-    run_ssh_exec_with_args(server, args, label).await
-}
-
-/// [`run_ssh_exec`] for paths behind the explicit host-key gate. Uses
-/// `StrictHostKeyChecking=yes`, so a host whose key was never confirmed fails
-/// closed instead of being silently trusted (no TOFU fallback).
-pub(crate) async fn run_ssh_exec_strict(
-    server: &SshServer,
-    remote_cmd: &str,
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let args = build_ssh_exec_args_strict(server, remote_cmd);
-    run_ssh_exec_with_args(server, args, label).await
-}
-
-async fn run_ssh_exec_with_args(
-    server: &SshServer,
-    args: Vec<String>,
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let mut cmd = Command::new("ssh");
-    cmd.args(&args);
-    super::connection::apply_ssh_auth_env(&mut cmd, server)?;
-    crate::external_command::run_with_timeout(cmd, label, SSH_FILE_TIMEOUT_SECS).await
-}
-
-/// Run an SSH exec command with stdin data (for writing files). Pipes the
-/// given content to the remote command's stdin.
-pub(crate) async fn run_ssh_exec_with_stdin(
-    server: &SshServer,
-    remote_cmd: &str,
-    stdin_data: &[u8],
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let args = build_ssh_exec_args(server, remote_cmd);
-    run_ssh_exec_with_stdin_args(server, args, stdin_data, label).await
-}
-
-/// [`run_ssh_exec_with_stdin`] for paths behind the explicit host-key gate.
-/// Uses `StrictHostKeyChecking=yes`; the stdin content is never placed in
-/// argv, the environment, or any error message.
-pub(crate) async fn run_ssh_exec_with_stdin_strict(
-    server: &SshServer,
-    remote_cmd: &str,
-    stdin_data: &[u8],
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let args = build_ssh_exec_args_strict(server, remote_cmd);
-    run_ssh_exec_with_stdin_args(server, args, stdin_data, label).await
-}
-
-async fn run_ssh_exec_with_stdin_args(
-    server: &SshServer,
-    args: Vec<String>,
-    stdin_data: &[u8],
-    label: &str,
-) -> Result<std::process::Output, CommandError> {
-    let mut cmd = Command::new("ssh");
-    cmd.args(&args);
-    super::connection::apply_ssh_auth_env(&mut cmd, server)?;
-    cmd.stdin(Stdio::piped());
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
-    cmd.kill_on_drop(true);
-
-    let mut child = cmd.spawn().map_err(|e| CommandError::Io {
-        message: format!("Failed to spawn SSH command: {e}"),
-    })?;
-
-    // Write stdin in a task so it doesn't block the wait
-    let stdin = child.stdin.take().ok_or_else(|| CommandError::Io {
-        message: "Failed to open SSH stdin".into(),
-    })?;
-
-    // Pin the stdin so we can write then close in one async block
-    let mut stdin = stdin;
-    stdin
-        .write_all(stdin_data)
-        .await
-        .map_err(|e| CommandError::Io {
-            message: format!("Failed to write SSH stdin: {e}"),
-        })?;
-    drop(stdin); // Close stdin to signal EOF
-
-    // Wait with timeout
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(SSH_FILE_TIMEOUT_SECS),
-        child.wait_with_output(),
-    )
-    .await;
-
-    match result {
-        Ok(Ok(output)) => Ok(output),
-        Ok(Err(e)) => Err(CommandError::Io {
-            message: format!("SSH command failed: {e}"),
-        }),
-        Err(_) => Err(CommandError::Timeout {
-            cmd: label.to_string(),
-            secs: SSH_FILE_TIMEOUT_SECS,
-        }),
-    }
+/// Look up a server by ID from the config file.
+pub(crate) fn get_server(server_id: &str) -> Result<SshServer, CommandError> {
+    let config = config::load_config_pub().map_err(CommandError::from)?;
+    config
+        .servers
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| CommandError::Validation {
+            field: "server_id".into(),
+            reason: format!("No SSH server found with id `{server_id}`"),
+        })
 }
 
 /// List files in a remote directory. Uses `find -printf` for a structured
@@ -458,7 +389,7 @@ mod tests {
             created_at: 0,
             last_connected_at: None,
         };
-        let args = build_ssh_exec_args(&server, "ls /");
+        let args = build_remote_ssh_args(&server, "ls /");
         assert_eq!(args[args.len() - 1], "ls /");
         assert!(args.contains(&"deploy@example.com".to_string()));
     }

@@ -340,6 +340,119 @@ pub async fn test_connection(server: &SshServer) -> Result<String, CommandError>
     })
 }
 
+/// Encode a remote exit code as a `std::process::ExitStatus` so callers keep
+/// the exact `status.success()` / `status.code()` surface they already use for
+/// the desktop OpenSSH path. Unknown (`-1`) maps to a signal termination:
+/// `.code() == None`, `.success() == false` — never a fake `0`.
+fn exit_status_from_code(code: i32) -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    if (0..=255).contains(&code) {
+        // Unix wait status: the exit code lives in the high byte.
+        std::process::ExitStatus::from_raw(code << 8)
+    } else {
+        std::process::ExitStatus::from_raw(15) // SIGTERM — terminated/unknown
+    }
+}
+
+/// One-shot remote exec over the authenticated russh connection.
+///
+/// Reuses the exact PTY transport's connection path (`connect_authenticated`:
+/// strict host-key verification against app-private `known_hosts` + key auth)
+/// and the same `ExitTracker` ordering rules, so a status arriving after EOF
+/// is still captured. `stdin`, when provided, is written and then EOF'd.
+/// stdout is `Data`, stderr is SSH extended data type 1. Non-zero exit codes
+/// are `Ok(Output)` (matching desktop `run_with_timeout` semantics); only
+/// transport/timeout failures are `Err`.
+pub(crate) async fn exec(
+    server: &SshServer,
+    remote_cmd: &str,
+    stdin: Option<&[u8]>,
+    label: &str,
+    timeout_secs: u64,
+) -> Result<std::process::Output, CommandError> {
+    let handle = connect_authenticated(server).await?;
+    let mut channel = handle
+        .channel_open_session()
+        .await
+        .map_err(|e| CommandError::expected(format!("SSH channel failed: {e}")))?;
+    channel
+        .exec(true, remote_cmd.as_bytes().to_vec())
+        .await
+        .map_err(|e| CommandError::expected(format!("SSH exec failed: {e}")))?;
+    if let Some(data) = stdin {
+        channel
+            .data_bytes(data.to_vec())
+            .await
+            .map_err(|e| CommandError::expected(format!("SSH stdin write failed: {e}")))?;
+    }
+    channel
+        .eof()
+        .await
+        .map_err(|e| CommandError::expected(format!("SSH stdin close failed: {e}")))?;
+
+    let collect = async move {
+        let mut tracker = ExitTracker::new();
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        let grace = tokio::time::sleep(EXIT_STATUS_GRACE);
+        tokio::pin!(grace);
+        let mut eof_seen = false;
+        loop {
+            tokio::select! {
+                msg = channel.wait() => match msg {
+                    Some(ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
+                    // SSH_EXTENDED_DATA_STDERR = 1; anything else is stdout.
+                    Some(ChannelMsg::ExtendedData { data, ext: 1 }) => {
+                        stderr.extend_from_slice(&data);
+                    }
+                    Some(ChannelMsg::ExtendedData { data, .. }) => {
+                        stdout.extend_from_slice(&data);
+                    }
+                    Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        tracker.on_event(PumpEvent::ExitStatus(exit_status as i32));
+                    }
+                    Some(ChannelMsg::ExitSignal { .. }) => {
+                        tracker.on_event(PumpEvent::ExitSignal);
+                    }
+                    // Exit-status may still follow; wait briefly for it.
+                    Some(ChannelMsg::Eof) => {
+                        tracker.on_event(PumpEvent::Eof);
+                        eof_seen = true;
+                        grace
+                            .as_mut()
+                            .reset(tokio::time::Instant::now() + EXIT_STATUS_GRACE);
+                    }
+                    Some(ChannelMsg::Close) | None => {
+                        tracker.on_event(PumpEvent::Close);
+                        break;
+                    }
+                    _ => {}
+                },
+                // Late-status wait expired without a channel close.
+                _ = &mut grace, if eof_seen => break,
+            }
+        }
+        (tracker.exit_code(), stdout, stderr)
+    };
+
+    let (code, stdout, stderr) =
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), collect).await {
+            Ok(result) => result,
+            Err(_) => {
+                return Err(CommandError::Timeout {
+                    cmd: label.to_string(),
+                    secs: timeout_secs,
+                })
+            }
+        };
+    let _ = handle.disconnect(Disconnect::ByApplication, "", "").await;
+    Ok(std::process::Output {
+        status: exit_status_from_code(code),
+        stdout,
+        stderr,
+    })
+}
+
 /// Commands from the sync Tauri surface to the async channel task.
 enum BackendCmd {
     Data(Vec<u8>),
