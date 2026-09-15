@@ -93,7 +93,7 @@ fn build_start_command(
     let port_env = port.map(|p| format!("PORT={} ", p)).unwrap_or_default();
     let shell_program = format!("{}{}", port_env, command);
     format!(
-        "cd {} && nohup bash -c {} > {} 2>&1 & echo $! > {}",
+        "cd {} && nohup bash -c {} > {} 2>&1 < /dev/null & echo $! > {}",
         shell_quote(remote_path),
         shell_program_arg(&shell_program),
         shell_quote(log_file),
@@ -437,7 +437,7 @@ mod tests {
         );
         assert_eq!(
             command,
-            "cd '/tmp/project; touch /tmp/injected' && nohup bash -c 'PORT=3000 printf '\\''%s'\\'' '\\''safe'\\'' && echo \"$HOME\"' > '/tmp/cripcode-devserver-1.log' 2>&1 & echo $! > '/tmp/cripcode-devserver-1.pid'"
+            "cd '/tmp/project; touch /tmp/injected' && nohup bash -c 'PORT=3000 printf '\\''%s'\\'' '\\''safe'\\'' && echo \"$HOME\"' > '/tmp/cripcode-devserver-1.log' 2>&1 < /dev/null & echo $! > '/tmp/cripcode-devserver-1.pid'"
         );
     }
 }

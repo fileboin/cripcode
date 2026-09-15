@@ -92,7 +92,7 @@ fn build_start_command(
 ) -> String {
     let shell_program = format!("{}; echo $? > {}", command, shell_quote(exit_file));
     format!(
-        "cd {} && nohup bash -c {} > {} 2>&1 & echo $! > {}",
+        "cd {} && nohup bash -c {} > {} 2>&1 < /dev/null & echo $! > {}",
         shell_quote(remote_path),
         shell_program_arg(&shell_program),
         shell_quote(log_file),
@@ -422,6 +422,9 @@ mod tests {
             shell_quote("/tmp/cripcode-build-1.exit")
         );
         assert!(command.contains(&shell_program_arg(&shell_program)));
+        // Background jobs must not inherit the SSH channel's stdin: without
+        // this the russh transport's exec never sees the channel close.
+        assert!(command.contains("< /dev/null"));
         assert!(command.ends_with("> '/tmp/cripcode-build-1.pid'"));
     }
 }
