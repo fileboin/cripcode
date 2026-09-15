@@ -151,13 +151,14 @@ async fn check_ollama_remote(server_id: &str) -> Result<OllamaStatus, CommandErr
         })?;
 
     // Check if ollama is installed on the VPS
-    let check_installed_args =
-        super::build_remote_ssh_args(&server, "which ollama 2>/dev/null && echo __INSTALLED__");
-    let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&check_installed_args);
-    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-    let installed_output =
-        crate::external_command::run_with_timeout(cmd, "ssh ollama-installed-check", 10).await?;
+    let installed_output = super::exec::run(
+        &server,
+        "which ollama 2>/dev/null && echo __INSTALLED__",
+        false,
+        "ssh ollama-installed-check",
+        10,
+    )
+    .await?;
     let installed = String::from_utf8_lossy(&installed_output.stdout).contains("__INSTALLED__");
 
     if !installed {
@@ -176,17 +177,12 @@ async fn check_ollama_remote(server_id: &str) -> Result<OllamaStatus, CommandErr
     }
 
     // Check if Ollama is running on the VPS
-    let check_running_args = super::build_remote_ssh_args(
+    let running_output = super::exec::run(
         &server,
         &format!(
             "curl -s --connect-timeout 5 http://localhost:{OLLAMA_PORT}/api/version 2>/dev/null"
         ),
-    );
-    let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&check_running_args);
-    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-    let running_output = crate::external_command::run_with_timeout(
-        cmd,
+        false,
         "ssh ollama-running-check",
         OLLAMA_TIMEOUT_SECS,
     )
@@ -280,18 +276,12 @@ pub async fn list_ollama_models(
                     reason: format!("No SSH server found with id `{id}`"),
                 })?;
 
-            let args = super::build_remote_ssh_args(
+            let output = super::exec::run(
                 &server,
                 &format!(
                     "curl -s --connect-timeout 5 http://localhost:{OLLAMA_PORT}/api/tags 2>/dev/null"
                 ),
-            );
-            let mut cmd = tokio::process::Command::new("ssh");
-            cmd.args(&args);
-            super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-
-            let output = crate::external_command::run_with_timeout(
-                cmd,
+                false,
                 "ssh ollama-models",
                 OLLAMA_TIMEOUT_SECS,
             )
@@ -404,13 +394,10 @@ pub async fn get_ollama_model_info(
                 "curl -s --connect-timeout 5 -X POST http://localhost:{OLLAMA_PORT}/api/show -d '{{\"name\":\"{}\"}}' 2>/dev/null",
                 escaped_name
             );
-            let args = super::build_remote_ssh_args(&server, &remote_cmd);
-            let mut cmd = tokio::process::Command::new("ssh");
-            cmd.args(&args);
-            super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-
-            let output = crate::external_command::run_with_timeout(
-                cmd,
+            let output = super::exec::run(
+                &server,
+                &remote_cmd,
+                false,
                 "ssh ollama-show",
                 OLLAMA_TIMEOUT_SECS,
             )
