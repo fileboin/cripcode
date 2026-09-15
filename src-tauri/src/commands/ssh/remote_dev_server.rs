@@ -8,7 +8,7 @@
 //! Supported operations: start, stop, restart, status, logs, port detection.
 
 use super::config;
-use super::{build_remote_ssh_args, shell_program_arg, shell_quote};
+use super::{shell_program_arg, shell_quote};
 use crate::errors::CommandError;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -78,11 +78,9 @@ async fn run_remote(
     label: &str,
 ) -> Result<std::process::Output, CommandError> {
     let server = get_server(server_id)?;
-    let args = build_remote_ssh_args(&server, remote_cmd);
-    let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&args);
-    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
-    crate::external_command::run_with_timeout(cmd, label, SSH_DEV_TIMEOUT_SECS).await
+    // Platform transport: desktop keeps the OpenSSH CLI; Android runs the
+    // same command over the in-process russh exec seam.
+    super::exec::run(&server, remote_cmd, false, label, SSH_DEV_TIMEOUT_SECS).await
 }
 
 fn build_start_command(
