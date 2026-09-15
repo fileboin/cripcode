@@ -10,9 +10,9 @@
 //! since they need more careful state management over SSH.
 
 use super::config;
-use super::{build_remote_ssh_args, shell_quote};
+use super::shell_quote;
 use crate::errors::CommandError;
-use crate::types::{BranchInfo, ChangedFile, FileDiff};
+use crate::types::{ChangedFile, FileDiff};
 use serde::Serialize;
 
 /// SSH exec timeout for git operations (30s — same as file ops).
@@ -63,12 +63,10 @@ async fn run_remote_git(
     // remote_path is frontend-supplied: quote it so it can't terminate the
     // `cd` and inject shell operators. git_args is a fixed internal literal.
     let remote_cmd = build_remote_git_command(remote_path, git_args);
-    let args = build_remote_ssh_args(&server, &remote_cmd);
-    let mut cmd = tokio::process::Command::new("ssh");
-    cmd.args(&args);
-    super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
     let label = format!("ssh git {} {}", server.name, git_args);
-    crate::external_command::run_with_timeout(cmd, &label, timeout_secs).await
+    // Platform transport: desktop keeps the OpenSSH CLI; Android runs the
+    // same command over the in-process russh exec seam.
+    super::exec::run(&server, &remote_cmd, false, &label, timeout_secs).await
 }
 
 fn build_remote_git_command(remote_path: &str, git_args: &str) -> String {
@@ -359,18 +357,11 @@ pub async fn remote_git_diff(
 
     if is_new {
         // For new files, return the full content as the diff
-        let content_cmd = format!("cat -- {}", shell_quote(&file_path));
         let server = get_server(&server_id)?;
-        let ssh_args = build_remote_ssh_args(
-            &server,
-            &format!("cd {} && {}", shell_quote(&remote_path), content_cmd),
-        );
-        let mut cmd = tokio::process::Command::new("ssh");
-        cmd.args(&ssh_args);
-        super::connection::apply_ssh_auth_env(&mut cmd, &server)?;
+        let remote_cmd = build_untracked_file_command(&remote_path, &file_path);
         let label = format!("ssh git cat {}", server.name);
         let output =
-            crate::external_command::run_with_timeout(cmd, &label, SSH_GIT_TIMEOUT_SECS).await?;
+            super::exec::run(&server, &remote_cmd, false, &label, SSH_GIT_TIMEOUT_SECS).await?;
         let content = String::from_utf8_lossy(&output.stdout).to_string();
         let additions = content.lines().count() as u32;
         return Ok(FileDiff {
