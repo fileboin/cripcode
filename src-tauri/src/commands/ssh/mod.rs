@@ -11,6 +11,7 @@ use crate::types::SshServer;
 mod ai_provider;
 mod config;
 mod connection;
+mod exit_tracker;
 mod files;
 mod host_key;
 mod key_import;

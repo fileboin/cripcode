@@ -15,6 +15,7 @@
 //!   backend there); password servers fail closed instead of falling back to
 //!   plaintext storage. Key auth only.
 
+use super::exit_tracker::{ExitTracker, PumpEvent};
 use super::host_key::HostKeyStatus;
 use crate::commands::session_backend::SessionBackend;
 use crate::errors::CommandError;
@@ -35,6 +36,9 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 const CONNECT_TIMEOUT_SECS: u64 = 15;
 /// Probe budget for the host-key capture connection.
 const HOST_KEY_PROBE_TIMEOUT_SECS: u64 = 15;
+/// How long to wait after channel EOF for a late `exit-status` before
+/// finishing the session (see `spawn_pump`).
+const EXIT_STATUS_GRACE: Duration = Duration::from_secs(2);
 
 fn client_config() -> Config {
     Config {
@@ -463,6 +467,13 @@ pub async fn open_shell(
 /// The async pump: owns the connection + channel, multiplexes terminal input,
 /// resize, and channel output. No `block_on` anywhere — the sync side only
 /// pushes into an unbounded queue.
+///
+/// Exit-status handling: EOF does NOT end the pump. Some servers deliver
+/// `exit-status` after EOF, and closing the channel removes russh's sender —
+/// stopping at EOF turned that race into a permanent `-1` (F3c.1). The pump
+/// waits up to [`EXIT_STATUS_GRACE`] after EOF for a late status, and only
+/// then finishes. A channel that closes with no status stays `-1` (unknown),
+/// never a fake `0`.
 fn spawn_pump(
     handle: Handle<StrictHandler>,
     mut channel: russh::Channel<russh::client::Msg>,
@@ -471,7 +482,10 @@ fn spawn_pump(
     exit_tx: std_mpsc::Sender<i32>,
 ) {
     tauri::async_runtime::spawn(async move {
-        let mut exit_code: i32 = -1;
+        let mut tracker = ExitTracker::new();
+        let grace = tokio::time::sleep(EXIT_STATUS_GRACE);
+        tokio::pin!(grace);
+        let mut eof_seen = false;
         loop {
             tokio::select! {
                 cmd = cmd_rx.recv() => match cmd {
@@ -503,19 +517,32 @@ fn spawn_pump(
                         let _ = data_tx.send(data.to_vec());
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
-                        exit_code = exit_status as i32;
+                        tracker.on_event(PumpEvent::ExitStatus(exit_status as i32));
                     }
                     Some(ChannelMsg::ExitSignal { .. }) => {
-                        exit_code = -1;
+                        tracker.on_event(PumpEvent::ExitSignal);
                     }
-                    Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
+                    // Exit-status may still follow; wait briefly for it.
+                    Some(ChannelMsg::Eof) => {
+                        tracker.on_event(PumpEvent::Eof);
+                        eof_seen = true;
+                        grace
+                            .as_mut()
+                            .reset(tokio::time::Instant::now() + EXIT_STATUS_GRACE);
+                    }
+                    Some(ChannelMsg::Close) | None => {
+                        tracker.on_event(PumpEvent::Close);
+                        break;
+                    }
                     _ => {}
                 },
+                // Late-status wait expired without a channel close.
+                _ = &mut grace, if eof_seen => break,
             }
         }
         let _ = handle.disconnect(Disconnect::ByApplication, "", "").await;
         // Dropping the sender is the reader's EOF.
         drop(data_tx);
-        let _ = exit_tx.send(exit_code);
+        let _ = exit_tx.send(tracker.exit_code());
     });
 }
