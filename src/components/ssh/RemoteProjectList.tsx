@@ -22,6 +22,8 @@ import {
 } from '../../lib/remoteProjects';
 import { listSshServers, type SshServer } from '../../lib/ssh';
 import { listProjects } from '../../lib/project';
+import { isAndroid } from '../../lib/setup';
+import { useModal } from '../../contexts/ModalContext';
 import { RemoteFileBrowser } from './RemoteFileBrowser';
 import { AddRemoteProjectModal } from './AddRemoteProjectModal';
 import { logger } from '../../lib/logger';
@@ -34,6 +36,7 @@ interface RemoteProjectListProps {
 export function RemoteProjectList({ onOpenRemoteProject }: RemoteProjectListProps) {
   const { showToast } = useOptionalToast();
   const { ensureHostKeyAccepted, hostKeyModal } = useHostKeyGate();
+  const sshServers = useModal('sshServers');
   const [projects, setProjects] = useState<RemoteProject[]>([]);
   const [servers, setServers] = useState<SshServer[]>([]);
   const [localProjects, setLocalProjects] = useState<{ name: string; path: string }[]>([]);
@@ -158,9 +161,16 @@ export function RemoteProjectList({ onOpenRemoteProject }: RemoteProjectListProp
         >
           Remote Projects
         </h3>
-        <Button variant="secondary" size="sm" onClick={() => setAddModalOpen(true)}>
-          Add Remote Project
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+          {isAndroid() && (
+            <Button variant="secondary" size="sm" onClick={sshServers.open}>
+              SSH Servers
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => setAddModalOpen(true)}>
+            Add Remote Project
+          </Button>
+        </div>
       </div>
 
       {projects.length === 0 ? (
