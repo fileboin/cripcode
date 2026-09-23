@@ -1,6 +1,32 @@
 fn main() {
+    expose_android_version_code();
     ensure_askpass_placeholder();
     tauri_build::build()
+}
+
+/// Android-only: forward the generated `versionCode` into the binary so the
+/// in-app updater can compare numeric version codes (`android_update`). The
+/// value is written by the Tauri CLI into `gen/android/app/tauri.properties`
+/// before cargo runs; a missing file simply leaves the fallback in place.
+fn expose_android_version_code() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let manifest_dir = match std::env::var("CARGO_MANIFEST_DIR") {
+        Ok(dir) => dir,
+        Err(_) => return,
+    };
+    let properties = std::path::Path::new(&manifest_dir).join("gen/android/app/tauri.properties");
+    println!("cargo:rerun-if-changed={}", properties.display());
+    let Ok(contents) = std::fs::read_to_string(&properties) else {
+        return;
+    };
+    if let Some(code) = contents
+        .lines()
+        .find_map(|line| line.strip_prefix("tauri.android.versionCode="))
+    {
+        println!("cargo:rustc-env=ANDROID_VERSION_CODE={}", code.trim());
+    }
 }
 
 /// `bundle.externalBin` declares the ssh-askpass sidecar, and tauri-build

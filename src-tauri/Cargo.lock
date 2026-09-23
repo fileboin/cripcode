@@ -5768,7 +5768,7 @@ checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
 
 [[package]]
 name = "ship-studio"
-version = "0.18.8"
+version = "0.18.11"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -5785,8 +5785,10 @@ dependencies = [
  "hyper-util",
  "ignore",
  "image",
+ "jni",
  "keyring",
  "libc",
+ "ndk-context",
  "notify",
  "objc2 0.5.2",
  "objc2-foundation 0.2.2",

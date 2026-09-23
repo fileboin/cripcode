@@ -892,6 +892,13 @@ pub fn run() {
             commands::ssh::start_remote_preview_tunnel,
             commands::ssh::stop_remote_preview_tunnel,
             commands::ssh::get_remote_preview_status,
+            // Android in-app update (check/download/installer handoff)
+            #[cfg(target_os = "android")]
+            commands::android_update::android_update_check,
+            #[cfg(target_os = "android")]
+            commands::android_update::android_update_download,
+            #[cfg(target_os = "android")]
+            commands::android_update::android_update_install,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

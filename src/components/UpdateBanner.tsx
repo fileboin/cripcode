@@ -20,7 +20,9 @@ import { checkForUpdate, downloadAndInstall, restartApp, UpdateInfo } from '../l
 import { trackEvent, trackError } from '../lib/analytics';
 import { logger } from '../lib/logger';
 import { asCommandError, formatCommandError } from '../lib/errors';
+import { isAndroid } from '../lib/setup';
 import { Button } from './primitives/Button';
+import { AndroidUpdateBanner } from './AndroidUpdateBanner';
 import '../styles/features/update-banner.css';
 
 /** How often to check for updates (1 hour) */
@@ -41,6 +43,9 @@ export function UpdateBanner() {
 
   // Check for updates on mount and periodically
   useEffect(() => {
+    // Android uses its own versionCode-based update flow (AndroidUpdateBanner)
+    // — the Tauri updater plugin has no Android support.
+    if (isAndroid()) return;
     const doCheck = async () => {
       try {
         const result = await checkForUpdate();
@@ -159,6 +164,10 @@ export function UpdateBanner() {
       setDeferred(true);
     }
   }, [updateAvailable]);
+
+  // Android: dedicated versionCode-based flow (same banner styling, platform
+  // installer handoff). Desktop/web keep the Tauri updater path below.
+  if (isAndroid()) return <AndroidUpdateBanner />;
 
   // Don't render if no update or deferred
   if (!updateAvailable || deferred) {
