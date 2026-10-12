@@ -120,6 +120,7 @@ cripcode/
 │                             #   health/ ide/ + mobile, edit, publishing,
 │                             #   github, conflicts, snapshots, i18n, …
 ├── docs/                     # Contributor & forking docs
+│   └── android/              # CripCode Android (phone) handover — read docs/android/README.md first
 └── packages/plugin-sdk/      # Plugin SDK
 ```
 
@@ -140,6 +141,12 @@ humans and AI agents to contribute:
    tokens, `CommandError`) that keep the codebase consistent.
 3. Working with an AI agent? It will pick up [CLAUDE.md](CLAUDE.md) /
    [AGENTS.md](AGENTS.md) automatically and follow the house patterns.
+
+Working on the **Android / phone build**? Start at
+[docs/android/README.md](docs/android/README.md) — it is the complete handover
+for that platform (architecture, verified history, test results, known issues,
+build & signing) and states the rules that keep Android work from breaking
+web/desktop.
 
 Before pushing, run the same gates CI runs:
 

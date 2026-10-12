@@ -1,5 +1,11 @@
 # Cripcode Development Guidelines
 
+> **Working on the Android / phone build?** Read
+> [`docs/android/README.md`](docs/android/README.md) **before changing anything.**
+> It is the handover for CripCode Android: architecture, verified history, test
+> results, known issues, build/signing, and the rules that keep Android work from
+> breaking web/desktop.
+
 ## Feature Overview
 
 Cripcode is a desktop app for web developers that provides:
@@ -19,6 +25,7 @@ Cripcode is a desktop app for web developers that provides:
 - **IDE Integration** - Open projects in VS Code or Cursor with one click
 - **Vercel Deployment** - Publish to staging/production via Vercel integration
 - **Auto-Updates** - Automatic update detection and installation
+- **Android Phone Client** - CripCode on an Android phone as a thin client: a Current Project mapped to a Remote Project on a VPS, executed over SSH (in-process `russh`, no `ssh` binary) running the Original Agent (OpenCode), Ollama, Git, builds, dev server and preview on the VPS. See [`docs/android/README.md`](docs/android/README.md)
 
 ## Core Principles
 
